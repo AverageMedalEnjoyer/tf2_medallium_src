@@ -1,6 +1,6 @@
 @echo off
 
-devtools\bin\vpc.exe /checkfiles /tf /define:SOURCESDK +shaders +game /mksln tf_medallium.sln
+devtools\bin\vpc.exe /checkfiles /tf /define:SOURCESDK +shaders +game /mksln tf2_medallium.sln
 
 if errorlevel 1 (
     echo.
