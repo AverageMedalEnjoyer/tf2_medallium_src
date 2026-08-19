@@ -55,6 +55,7 @@
 
 #include "bot/behavior/tf_bot_scenario_monitor.h"
 
+#include "bot/behavior/tf_bot_mvm_defenders.h"
 
 extern ConVar tf_bot_health_ok_ratio;
 extern ConVar tf_bot_health_critical_ratio;
@@ -178,47 +179,96 @@ Action< CTFBot > *CTFBotScenarioMonitor::DesiredScenarioAndClassAction( CTFBot *
 
 	if ( TFGameRules()->IsMannVsMachineMode() )
 	{
-		if ( me->IsPlayerClass( TF_CLASS_SPY ) )
+		// We are on the ROBOTS team
+		if ( me->GetTeamNumber() == TF_TEAM_PVE_INVADERS )
 		{
-			return new CTFBotSpyLeaveSpawnRoom;
-		}
+		    if ( me->IsPlayerClass( TF_CLASS_SPY ) )
+		    {
+			    return new CTFBotSpyLeaveSpawnRoom;
+	    	}
 
-		if ( me->IsPlayerClass( TF_CLASS_MEDIC ) )
-		{
-			// if I'm being healed by another medic, I should do something else other than healing
-			bool bIsBeingHealedByAMedic = false;
-			int nNumHealers = me->m_Shared.GetNumHealers();
-			for ( int i=0; i<nNumHealers; ++i )
-			{
-				CBaseEntity *pHealer = me->m_Shared.GetHealerByIndex(i);
-				if ( pHealer && pHealer->IsPlayer() )
-				{
-					bIsBeingHealedByAMedic = true;
-					break;
-				}
+	    	if ( me->IsPlayerClass( TF_CLASS_MEDIC ) )
+		    {
+			    // if I'm being healed by another medic, I should do something else other than healing
+			    bool bIsBeingHealedByAMedic = false;
+			    int nNumHealers = me->m_Shared.GetNumHealers();
+			    for ( int i=0; i<nNumHealers; ++i )
+			    {
+				    CBaseEntity *pHealer = me->m_Shared.GetHealerByIndex(i);
+				    if ( pHealer && pHealer->IsPlayer() )
+				    {
+			    		bIsBeingHealedByAMedic = true;
+				    	break;
+			    	}
+			    }
+
+		    	if ( !bIsBeingHealedByAMedic )
+		    	{
+			    	return new CTFBotMedicHeal;
+			    }
+		    }
+
+		    if ( me->IsPlayerClass( TF_CLASS_ENGINEER ) )
+		    {
+	    		return new CTFBotMvMEngineerIdle;
 			}
 
-			if ( !bIsBeingHealedByAMedic )
-			{
-				return new CTFBotMedicHeal;
+	    	// NOTE: Snipers are intentionally left out so they go after the flag. Actual sniping behavior is done as a mission.
+
+		    if ( me->HasAttribute( CTFBot::AGGRESSIVE ) )
+		    {
+		    	// push for the point first, then attack
+		    	return new CTFBotPushToCapturePoint( new CTFBotFetchFlag );
+		    }
+
+		    // capture the flag
+		    return new CTFBotFetchFlag;
+		}
+	    // We are on the DEFENDERS team
+		else if ( me->GetTeamNumber() == TF_TEAM_PVE_DEFENDERS )
+		{
+		    if ( me->IsPlayerClass( TF_CLASS_SPY ) )
+		    {
+			    return new CTFBotSpyLeaveSpawnRoom;
+	    	}
+
+	    	if ( me->IsPlayerClass( TF_CLASS_MEDIC ) )
+		    {
+			    // if I'm being healed by another medic, I should do something else other than healing
+			    bool bIsBeingHealedByAMedic = false;
+			    int nNumHealers = me->m_Shared.GetNumHealers();
+			    for ( int i=0; i<nNumHealers; ++i )
+			    {
+				    CBaseEntity *pHealer = me->m_Shared.GetHealerByIndex(i);
+				    if ( pHealer && pHealer->IsPlayer() )
+				    {
+			    		bIsBeingHealedByAMedic = true;
+				    	break;
+			    	}
+			    }
+
+		    	if ( !bIsBeingHealedByAMedic )
+		    	{
+			    	return new CTFBotMedicHeal;
+			    }
+		    }
+
+		    if ( me->IsPlayerClass( TF_CLASS_ENGINEER ) )
+		    {
+	    		return new CTFBotMvMEngineerIdle;
 			}
+
+	    	// NOTE: Snipers are intentionally left out so they go after the flag. Actual sniping behavior is done as a mission.
+
+		    if ( me->HasAttribute( CTFBot::AGGRESSIVE ) )
+		    {
+		    	// push for the point first, then attack
+		    	return new CTFBotPushToCapturePoint( new CTFBotFetchFlag );
+		    }
+
+		    // Defend our base from the robots
+		    return new CTFBotMVMDefender;
 		}
-
-		if ( me->IsPlayerClass( TF_CLASS_ENGINEER ) )
-		{
-			return new CTFBotMvMEngineerIdle;
-		}
-
-		// NOTE: Snipers are intentionally left out so they go after the flag. Actual sniping behavior is done as a mission.
-
-		if ( me->HasAttribute( CTFBot::AGGRESSIVE ) )
-		{
-			// push for the point first, then attack
-			return new CTFBotPushToCapturePoint( new CTFBotFetchFlag );
-		}
-
-		// capture the flag
-		return new CTFBotFetchFlag;
 	}
 
 	if ( me->IsPlayerClass( TF_CLASS_SPY ) )
