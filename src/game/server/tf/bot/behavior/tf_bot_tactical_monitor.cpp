@@ -211,44 +211,62 @@ ActionResult< CTFBot >	CTFBotTacticalMonitor::Update( CTFBot *me, float interval
 		return SuspendFor( result, "Opportunistically using buff item" );
 	}
 
-	if ( TFGameRules()->InSetup() )
-	{
-		// if a human is staring at us, face them and taunt
-		if ( m_acknowledgeRetryTimer.IsElapsed() )
-		{
-			CTFPlayer *watcher = me->GetClosestHumanLookingAtMe();
-			if ( watcher )
-			{
-				if ( !m_attentionTimer.HasStarted() )
-					m_attentionTimer.Start( 0.5f );
+    if ( TFGameRules()->InSetup() )
+    {
+	    // wait until the gates open
+    	bool bBotInRespawnRoom = false;
+	    bool bThreatInRespawnRoom = false;
 
-				if ( m_attentionTimer.HasStarted() && m_attentionTimer.IsElapsed() )
-				{
-					// a human has been staring at us - acknowledge them
-					if ( !m_acknowledgeAttentionTimer.HasStarted() )
-					{
-						// look toward them
-						me->GetBodyInterface()->AimHeadTowards( watcher, IBody::IMPORTANT, 3.0f, NULL, "Acknowledging friendly human attention" );
-						m_acknowledgeAttentionTimer.Start( RandomFloat( 0.0f, 2.0f ) );
-					}
-					else if ( m_acknowledgeAttentionTimer.IsElapsed() )
-					{
-						m_acknowledgeAttentionTimer.Invalidate();
+    	// Check if the bot itself is in a respawn room
+	    CTFNavArea *myArea = me->GetLastKnownArea();
+	    if ( myArea )
+	    {
+		    int spawnRoomFlag = ( me->GetTeamNumber() == TF_TEAM_RED ) ? TF_NAV_SPAWN_ROOM_RED : TF_NAV_SPAWN_ROOM_BLUE;
+		    if ( myArea->HasAttributeTF( spawnRoomFlag ) )
+		    {
+			    bBotInRespawnRoom = true;
+		    }
+    	}
 
-						// don't ack again for awhile
-						m_acknowledgeRetryTimer.Start( RandomFloat( 10.0f, 20.0f ) );
+	    if ( bBotInRespawnRoom )
+	    {
+		    // if a human is staring at us, face them and taunt
+	    	if ( m_acknowledgeRetryTimer.IsElapsed() )
+	    	{
+		    	CTFPlayer *watcher = me->GetClosestHumanLookingAtMe();
+			    if ( watcher )
+		    	{
+				    if ( !m_attentionTimer.HasStarted() )
+				    	m_attentionTimer.Start( 0.5f );
 
-						return SuspendFor( new CTFBotTaunt, "Acknowledging friendly human attention" );
-					}
-				}
-			}
-			else
-			{
-				// no-one is looking at me
-				m_attentionTimer.Invalidate();
-			}
-		}
-	}
+				    if ( m_attentionTimer.HasStarted() && m_attentionTimer.IsElapsed() )
+			    	{
+					    // a human has been staring at us - acknowledge them
+					    if ( !m_acknowledgeAttentionTimer.HasStarted() )
+					    {
+					    	// look toward them
+					    	me->GetBodyInterface()->AimHeadTowards( watcher, IBody::IMPORTANT, 3.0f, NULL, "Acknowledging friendly human attention" );
+					    	m_acknowledgeAttentionTimer.Start( RandomFloat( 0.0f, 2.0f ) );
+				    	}
+					    else if ( m_acknowledgeAttentionTimer.IsElapsed() )
+					    {
+					    	m_acknowledgeAttentionTimer.Invalidate();
+
+					    	// don't ack again for awhile
+						    m_acknowledgeRetryTimer.Start( RandomFloat( 10.0f, 20.0f ) );
+
+						    return SuspendFor( new CTFBotTaunt, "Acknowledging friendly human attention" );
+					    }
+				    }
+			    }
+			    else
+			    {
+			    	// no-one is looking at me
+			    	m_attentionTimer.Invalidate();
+			    }
+		    }
+	    }
+    }
 
 	// check if we need to get to cover
 	QueryResultType shouldRetreat = me->GetIntentionInterface()->ShouldRetreat( me );

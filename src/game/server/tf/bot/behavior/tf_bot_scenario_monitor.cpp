@@ -56,6 +56,7 @@
 #include "bot/behavior/tf_bot_scenario_monitor.h"
 
 #include "bot/behavior/tf_bot_mvm_defenders.h"
+#include "bot/behavior/tf_bot_passtime.h"
 
 extern ConVar tf_bot_health_ok_ratio;
 extern ConVar tf_bot_health_critical_ratio;
@@ -92,6 +93,9 @@ Action< CTFBot > *CTFBotScenarioMonitor::InitialContainedAction( CTFBot *me )
 // Returns Action specific to the scenario and my class
 Action< CTFBot > *CTFBotScenarioMonitor::DesiredScenarioAndClassAction( CTFBot *me )
 {
+    if ( TFGameRules() && TFGameRules()->IsPasstimeMode() && me->m_Shared.HasPasstimeBall() )
+		return new CTFBotGetPasstimeJack;
+
 	switch( me->GetMission() )
 	{
 	case CTFBot::MISSION_SEEK_AND_DESTROY:
@@ -337,6 +341,11 @@ Action< CTFBot > *CTFBotScenarioMonitor::DesiredScenarioAndClassAction( CTFBot *
 		DevMsg( "%3.2f: %s: Gametype is CP, but I can't find a point to capture or defend!\n", gpGlobals->curtime, me->GetDebugIdentifier() );
 		return new CTFBotCapturePoint;
 	}
+	else if ( TFGameRules()->IsPasstimeMode() )
+	{
+		// IT'S TIME TO PASS THE JACK!
+        return new CTFBotGetPasstimeJack;
+	}
 	else
 	{
 		// scenario not implemented yet - just fight
@@ -375,6 +384,9 @@ ActionResult< CTFBot >	CTFBotScenarioMonitor::Update( CTFBot *me, float interval
 		// we just picked up the flag - drop what we're doing and take it in
 		return SuspendFor( new CTFBotDeliverFlag, "I've picked up the flag! Running it in..." );
 	}
+
+    if ( TFGameRules() && TFGameRules()->IsPasstimeMode() && me->m_Shared.HasPasstimeBall() )
+		return SuspendFor( new CTFBotGetPasstimeJack, "I've picked up the JACK! Running it in..." );
 
 	if ( me->HasMission( CTFBot::NO_MISSION ) && m_ignoreLostFlagTimer.IsElapsed() && me->IsAllowedToPickUpFlag() )
 	{

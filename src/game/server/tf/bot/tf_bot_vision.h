@@ -32,6 +32,9 @@ public:
 	virtual float GetMaxVisionRange( void ) const;				// return maximum distance vision can reach
 	virtual float GetMinRecognizeTime( void ) const;			// return VISUAL reaction time
 
+	virtual bool IsAbleToSee( CBaseEntity *subject, FieldOfViewCheckType checkFOV, Vector *visibleSpot = NULL ) const OVERRIDE;
+	virtual bool IsAbleToSee( const Vector &pos, FieldOfViewCheckType checkFOV ) const OVERRIDE;
+
 private:
 	CUtlVector< CHandle< CBaseCombatCharacter > > m_potentiallyVisibleNPCVector;
 	CountdownTimer m_potentiallyVisibleUpdateTimer;
