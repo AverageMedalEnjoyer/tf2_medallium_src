@@ -1966,6 +1966,7 @@ void CTFPlayer::RuneRegenThink( void )
 		flAmount = 10;
 		break;
 	case TF_CLASS_HEAVYWEAPONS:
+	case TF_CLASS_CIVILIAN:
 		flAmount = 8;
 		break;
 	}
@@ -3068,6 +3069,9 @@ void CTFPlayer::PrecacheTFPlayer()
 	PrecacheParticleSystem( "drg_pomson_impact" );
 	PrecacheParticleSystem( "drg_pomson_impact_drain" );
 	PrecacheParticleSystem( "dragons_fury_effect" );
+
+	//formerly "PrecacheTeamParticles" line 2701 in tf_player.cpp - Saint
+	PrecacheParticleSystem( "civilianbuff_%s_buffed" );
 
 	PrecacheParticleSystem( "dxhr_arm_muzzleflash" );
 
@@ -6854,7 +6858,7 @@ void CTFPlayer::HandleCommand_JoinClass( const char *pClassName, bool bAllowSpaw
 			}
 		}
 		 
-		bool bCivilianOkay = false;
+		bool bCivilianOkay = true;
 
 		if ( !bCivilianOkay && ( i >= TF_LAST_NORMAL_CLASS ) )
 		{

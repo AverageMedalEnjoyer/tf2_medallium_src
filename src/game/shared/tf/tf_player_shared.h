@@ -341,6 +341,8 @@ public:
 	bool IsCarryingRune( void ) const { return GetCarryingRuneType() != RUNE_NONE; }
 	float		m_flRuneAcquireTime;
 
+	bool	IsBuffed(void);
+
 #ifdef CLIENT_DLL
 	// This class only receives calls for these from C_TFPlayer, not
 	// natively from the networking system
@@ -516,6 +518,7 @@ public:
 	void	RemovePhaseEffects( void );
 
 	void	PulseMedicRadiusHeal( void );
+	void	PulseCivilianRadiusHeal( void );
 
 	float	GetScoutEnergyDrinkMeter() const{ return m_flEnergyDrinkMeter; }
 	void	SetScoutEnergyDrinkMeter( float val ) { m_flEnergyDrinkMeter = val; }
@@ -711,7 +714,9 @@ public:
 #endif
 		return m_iItemFindBonus;
 	}
-	
+
+	void	UpdateCivBuffEffects( void );//updates the civilian's particle effect
+
 	void	RecalculatePlayerBodygroups( void );
 
 	void	FireGameEvent( IGameEvent *event );
@@ -819,7 +824,8 @@ private:
 	void OnAddCompetitiveLoser( void );
 	void OnAddCondGas( void );
 	void OnAddRocketPack( void );
-
+	void OnAddCivBuff(void);
+	void OnRemoveCivBuff(void);
 
 	void OnRemoveZoomed( void );
 	void OnRemoveBurning( void );
@@ -1025,6 +1031,8 @@ private:
 	float		m_flKingRuneBuffCheckTime;
 	CNetworkVar( bool, m_bKingRuneBuffActive );
 
+	CNetworkVar( bool, m_bCivilianBuffActive );
+
 	bool					m_bPulseRadiusHeal;
 
 	CNetworkVar( bool, m_bLastDisguisedAsOwnTeam );
@@ -1050,6 +1058,9 @@ private:
 	};
 	CUtlVector <bleed_struct_t> m_PlayerBleeds;
 #endif // GAME_DLL
+
+	float					m_flPhaseTimeCiv;
+	float					m_flCivBuffTimer;
 
 	CNetworkVar( int, m_iTauntIndex );
 	CNetworkVar( int, m_iTauntConcept );

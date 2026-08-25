@@ -221,7 +221,7 @@ enum ETFClass
 	TF_CLASS_RANDOM
 };
 
-inline bool IsValidTFPlayerClass( int iClass ) { return iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_LAST_NORMAL_CLASS; }
+inline bool IsValidTFPlayerClass( int iClass ) { return iClass >= TF_FIRST_NORMAL_CLASS && iClass <= TF_LAST_NORMAL_CLASS; }
 inline bool IsValidTFTeam( int iTeam ) { return iTeam == TF_TEAM_RED || iTeam == TF_TEAM_BLUE; }
 
 #define FOR_EACH_NORMAL_PLAYER_CLASS( _i ) for ( int _i = TF_FIRST_NORMAL_CLASS; _i < TF_LAST_NORMAL_CLASS; _i++ )
@@ -822,6 +822,9 @@ enum ETFCond
 	TF_COND_HALLOWEEN_HELL_HEAL              = 128,
 	TF_COND_POWERUPMODE_DOMINANT			 = 129,
 	TF_COND_IMMUNE_TO_PUSHBACK				 = 130,
+	FC_COND_DEFENSEBUFF_CIVILIAN			 = 131,
+	FC_COND_CIVILIAN_ENERGY_BUFF			 = 132,
+	
 		//
 	// ADD NEW ITEMS HERE TO AVOID BREAKING DEMOS
 	//
