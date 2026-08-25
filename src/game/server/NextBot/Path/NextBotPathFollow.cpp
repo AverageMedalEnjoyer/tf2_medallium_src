@@ -565,6 +565,58 @@ bool PathFollower::CheckProgress( INextBot *bot )
 	return true;
 }
 
+//--------------------------------------------------------------------------------------------------------------
+// Purpose: Automatic jumping for bots based on if they're stuck on something that is shorter than their jump
+// height.
+// 
+// In TF2, bots just kind of shove their faces into ledges and just randomly jump after a second or two,
+// sometimes not even jumping over the ledge properly. This MOSTLY fixes it. Bots will still otherwise 
+// fallback to the old jumping behavior if it somehow fails to use this, but it seems like this makes 
+// them perform much better in terms of jumping over things. -MEDAL
+//--------------------------------------------------------------------------------------------------------------
+bool PathFollower::CheckAndJumpOverObstacles( INextBot *bot, const Vector &forward, float goalRange )
+{
+    ILocomotion *mover = bot->GetLocomotionInterface();
+    IBody *body = bot->GetBodyInterface();
+
+    // Only check if we are actually on the ground
+    if ( !mover->IsOnGround() || mover->IsClimbingOrJumping() || !mover->IsAbleToJumpAcrossGaps() )
+        return false;
+
+    float checkRange = body->GetHullWidth();
+    if ( goalRange < checkRange )
+    {
+        checkRange = goalRange;
+    }
+
+    Vector feet = mover->GetFeet();
+    
+    float halfWidth = body->GetHullWidth() / 2.0f;
+    Vector hullMins( -halfWidth, -halfWidth, mover->GetStepHeight() + 0.1f );
+    Vector hullMaxs( halfWidth, halfWidth, mover->GetMaxJumpHeight() );
+
+    trace_t result;
+    NextBotTraversableTraceFilter filter( bot, ILocomotion::IMMEDIATELY );
+
+    Vector traceStart = feet;
+    Vector traceEnd = feet + forward * checkRange;
+
+    mover->TraceHull( traceStart, traceEnd, hullMins, hullMaxs, body->GetSolidMask(), &filter, &result );
+
+    if ( result.DidHit() && !result.startsolid )
+    {
+		// Are we stuck? Are we close to the obstacle?
+        if ( mover->IsStuck() || goalRange < body->GetHullWidth() )
+        {
+            // Let's jump...
+            mover->Jump();
+
+            return true;
+        }
+    }
+
+    return false;
+}
 
 //--------------------------------------------------------------------------------------------------------------
 /**
@@ -676,7 +728,14 @@ void PathFollower::Update( INextBot *bot )
 		}
 
 		// jump over gaps
-		JumpOverGaps( bot, m_goal, forward, left, goalRange );
+		if ( !JumpOverGaps( bot, m_goal, forward, left, goalRange ) )
+		{
+			CheckAndJumpOverObstacles( bot, forward, goalRange );
+		}
+		else
+		{
+			JumpOverGaps( bot, m_goal, forward, left, goalRange );
+		}
 	}
 
 	// event callbacks from the above climbs and jumps may invalidate the path

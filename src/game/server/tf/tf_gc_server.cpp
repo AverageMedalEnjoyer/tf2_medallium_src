@@ -3602,7 +3602,6 @@ void CTFGCServerSystem::SendMvMVictoryResult()
 		{
 			msg.set_tour_name_mannup( m_mvmVictoryInfo.m_sMannUpTourOfDuty );
 		}
-#endif // USE_MVM_TOUR
 		msg.set_lobby_id( m_mvmVictoryInfo.m_nLobbyId );
 		msg.set_event_time( m_mvmVictoryInfo.m_tEventTime );
 
@@ -3615,6 +3614,7 @@ void CTFGCServerSystem::SendMvMVictoryResult()
 
 		ReliableMsgQueue().Enqueue( pReliable );
 	}
+#endif // USE_MVM_TOUR
 }
 
 ////-----------------------------------------------------------------------------
@@ -4388,6 +4388,7 @@ void CTFGCServerSystem::SDK_ApplyLocalLoadout(CGCClientSharedObjectCache* pCache
 			CEconItem soIndex;
 			soIndex.SetItemID(uItemId);
 
+			/*
 			CEconItem* pItem = (CEconItem*) pItemCache->FindSharedObject(soIndex);
 			if (pItem) {
 				pTFInventory->EquipLocal(uItemId, iClass, iSlot);
@@ -4395,6 +4396,9 @@ void CTFGCServerSystem::SDK_ApplyLocalLoadout(CGCClientSharedObjectCache* pCache
 			else {
 				Warning("Failed to find item %llu in shared object, but client says it should be equipped by [%i] in slot [%i].\n", uItemId, iClass, iSlot);
 			}
+			*/
+
+			pTFInventory->EquipLocal(uItemId, iClass, iSlot);
 		}
 	}
 }

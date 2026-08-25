@@ -12,6 +12,8 @@
 #include "tf_gamerules.h"
 #include "tf_obj_sentrygun.h"
 
+#include "NextBotUtil.h"
+
 ConVar tf_bot_choose_target_interval( "tf_bot_choose_target_interval", "0.3f", FCVAR_CHEAT, "How often, in seconds, a TFBot can reselect his target" );
 ConVar tf_bot_sniper_choose_target_interval( "tf_bot_sniper_choose_target_interval", "3.0f", FCVAR_CHEAT, "How often, in seconds, a zoomed-in Sniper can reselect his target" );
 
@@ -466,4 +468,79 @@ float CTFBotVision::GetMaxVisionRange( void ) const
 
 	// long range, particularly for snipers
 	return 6000.0f;
+}
+
+//------------------------------------------------------------------------------------------
+bool CTFBotVision::IsAbleToSee( CBaseEntity *subject, FieldOfViewCheckType checkFOV, Vector *visibleSpot ) const
+{
+	VPROF_BUDGET( "CTFBotVision::IsAbleToSee", "NextBotExpensive" );
+
+	// Range check
+	if ( GetBot()->IsRangeGreaterThan( subject, GetMaxVisionRange() ) )
+	{
+		return false;
+	}
+
+	// Fog
+	if ( GetBot()->GetEntity()->IsHiddenByFog( subject ) )
+	{
+		return false;
+	}
+
+	// FOV
+	if ( checkFOV == USE_FOV && !IsInFieldOfView( subject ) )
+	{
+		return false;
+	}
+
+	// do actual line-of-sight trace
+	trace_t result;
+	NextBotTraceFilterIgnoreActors filter( GetBot()->GetEntity(), COLLISION_GROUP_NONE );
+
+	UTIL_TraceLine( GetBot()->GetBodyInterface()->GetEyePosition(), subject->WorldSpaceCenter(), MASK_BLOCKLOS_AND_NPCS | CONTENTS_IGNORE_NODRAW_OPAQUE, &filter, &result );
+	if ( result.DidHit() )
+	{
+		UTIL_TraceLine( GetBot()->GetBodyInterface()->GetEyePosition(), subject->EyePosition(), MASK_BLOCKLOS_AND_NPCS | CONTENTS_IGNORE_NODRAW_OPAQUE, &filter, &result );
+
+		if ( result.DidHit() )
+		{
+			UTIL_TraceLine( GetBot()->GetBodyInterface()->GetEyePosition(), subject->GetAbsOrigin(), MASK_BLOCKLOS_AND_NPCS | CONTENTS_IGNORE_NODRAW_OPAQUE, &filter, &result );
+		}
+	}
+
+	if ( visibleSpot )
+	{
+		*visibleSpot = result.endpos;
+	}
+
+	if ( result.fraction >= 1.0f && !result.startsolid )
+	{
+		return IsVisibleEntityNoticed( subject );
+	}
+
+	return false;
+}
+
+
+//------------------------------------------------------------------------------------------
+bool CTFBotVision::IsAbleToSee( const Vector &pos, FieldOfViewCheckType checkFOV ) const
+{
+	// range check
+	if ( GetBot()->IsRangeGreaterThan( pos, GetMaxVisionRange() ) )
+	{
+		return false;
+	}
+
+	if ( GetBot()->GetEntity()->IsHiddenByFog( pos ) )
+	{
+		return false;
+	}
+
+	if ( checkFOV == USE_FOV && !IsInFieldOfView( pos ) )
+	{
+		return false;
+	}
+
+	// do actual line-of-sight trace
+	return IsLineOfSightClear( pos );
 }

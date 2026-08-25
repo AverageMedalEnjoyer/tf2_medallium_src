@@ -546,6 +546,8 @@ $Project "Server (TF)"
 					$File	"tf\bot\behavior\tf_bot_mvm_deploy_bomb.h"
 					$File	"tf\bot\behavior\tf_bot_mvm_defenders.cpp"
 					$File	"tf\bot\behavior\tf_bot_mvm_defenders.h"
+					$File	"tf\bot\behavior\tf_bot_passtime.cpp"
+					$File	"tf\bot\behavior\tf_bot_passtime.h"
 					
 					$Folder	"Scenario"
 					{

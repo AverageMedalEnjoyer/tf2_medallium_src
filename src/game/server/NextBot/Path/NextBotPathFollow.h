@@ -28,6 +28,8 @@ public:
 	virtual void Draw( const Path::Segment *start = NULL ) const;	// (EXTEND) draw the path for debugging
 	virtual void OnPathChanged( INextBot *bot, Path::ResultType result );	// invoked when the path is (re)computed (path is valid at the time of this call)
 
+    bool CheckAndJumpOverObstacles( INextBot *bot, const Vector &forward, float goalRange );
+
 	virtual void Update( INextBot *bot );			// move bot along path
 
 	virtual const Path::Segment *GetCurrentGoal( void ) const;	// return current goal along the path we are trying to reach

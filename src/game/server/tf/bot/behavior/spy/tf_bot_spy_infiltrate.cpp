@@ -84,11 +84,44 @@ ActionResult< CTFBot >	CTFBotSpyInfiltrate::Update( CTFBot *me, float interval )
 		m_findHidingSpotTimer.Start( 3.0f );
 	}
 
-	if ( !TFGameRules()->InSetup() )
+	// wait until the gates open
+    bool bBotInRespawnRoom = false;
+	bool bThreatInRespawnRoom = false;
+
+    // Check if the bot itself is in a respawn room
+	if ( myArea )
 	{
-		// go after victims we've gotten behind
-		if ( threat && threat->GetTimeSinceLastKnown() < 3.0f )
+		int spawnRoomFlag = ( me->GetTeamNumber() == TF_TEAM_RED ) ? TF_NAV_SPAWN_ROOM_RED : TF_NAV_SPAWN_ROOM_BLUE;
+		if ( myArea->HasAttributeTF( spawnRoomFlag ) )
 		{
+			bBotInRespawnRoom = true;
+		}
+    }
+
+	// Check if the threat is in a respawn room
+	if ( threat )
+    {
+	    CBaseEntity *pThreat = threat->GetEntity();
+	    if ( pThreat )
+	    {
+		    CTFNavArea *threatArea = (CTFNavArea *)TheNavMesh->GetNearestNavArea( pThreat->GetAbsOrigin() );
+		    if ( threatArea )
+		    {
+			    int threatTeam = pThreat->GetTeamNumber();
+			    int threatSpawnFlag = ( threatTeam == TF_TEAM_RED ) ? TF_NAV_SPAWN_ROOM_RED : TF_NAV_SPAWN_ROOM_BLUE;
+	    	    if ( threatArea->HasAttributeTF( threatSpawnFlag ) )
+	    		{
+	    		    bThreatInRespawnRoom = true;
+	    		}
+	    	}
+    	}
+	}
+
+	if ( !TFGameRules()->InSetup() && !( bBotInRespawnRoom || bThreatInRespawnRoom ) )
+	{
+	    // go after victims we've gotten behind
+	    if ( threat && threat->GetTimeSinceLastKnown() < 3.0f )
+	    {
 			CTFPlayer *victim = ToTFPlayer( threat->GetEntity() );
 			if ( victim )
 			{
@@ -101,17 +134,17 @@ ActionResult< CTFBot >	CTFBotSpyInfiltrate::Update( CTFBot *me, float interval )
 					{
 						if ( me->m_Shared.IsStealthed() )
 						{
-							return SuspendFor( new CTFBotRetreatToCover( new CTFBotSpyAttack( victim ) ), "Hiding to decloak before going after a backstab victim" );
+						    return SuspendFor( new CTFBotRetreatToCover( new CTFBotSpyAttack( victim ) ), "Hiding to decloak before going after a backstab victim" );
 						}
 						else
 						{
-							return SuspendFor( new CTFBotSpyAttack( victim ), "Going after a backstab victim" );
+						    return SuspendFor( new CTFBotSpyAttack( victim ), "Going after a backstab victim" );
 						}
-					}
-				}					
-			}
-		}
-	}
+				    }					
+			    }
+		    }
+	    }
+    }
 
 	if ( m_hideArea )
 	{
