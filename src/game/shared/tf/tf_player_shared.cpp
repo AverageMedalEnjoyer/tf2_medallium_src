@@ -2203,6 +2203,10 @@ void CTFPlayerShared::OnConditionRemoved( ETFCond eCond )
 		OnRemovePlague();
 		break;
 
+	case FC_COND_DEFENSEBUFF_CIVILIAN:
+		OnRemoveCivBuff();
+		break;
+
 	case TF_COND_PURGATORY:
 		OnRemoveInPurgatory();
 		break;
@@ -3185,6 +3189,7 @@ void CTFPlayerShared::ConditionThink( void )
 
 	// See if we should be pulsing our radius heal
 	PulseMedicRadiusHeal();
+	PulseCivilianRadiusHeal();
 	PulseKingRuneBuff();
 
 	m_ConditionList.Think();
@@ -3603,17 +3608,11 @@ void CTFPlayerShared::OnRemovePhase( void )
 void CTFPlayerShared::UpdateCivBuffEffects(void)
 {
 #ifdef CLIENT_DLL
-
-	// Medal, this is in reference to CNewParticleEffect in tf_player_shared.h in the
-	// old LFCE code. I can't get it to recognize it in the new code, so I commented it out for now. 
-	// Please don't kill me with hammers. - Saint
-
-	//if ( m_pBuffAuraCiv )
-	//{
-	//	m_pOuter->ParticleProp()->StopEmission(m_pBuffAuraCiv);
-	//	m_pBuffAuraCiv = NULL;
-	//}
-
+	if ( m_pOuter->m_pBuffAuraCiv )
+	{
+		m_pOuter->ParticleProp()->StopEmission( m_pOuter->m_pBuffAuraCiv );
+		m_pOuter->m_pBuffAuraCiv = NULL;
+	}
 #endif
 
 	m_pOuter->m_Shared.m_bCivilianBuffActive = false;
@@ -3846,14 +3845,19 @@ void CTFPlayerShared::OnAddCivBuff(void)
 			nTeamNumber = GetLocalPlayerTeam();
 		}
 
-		// hey medal it's me again this is also the same particle as in the other file
-		// having the same issue. - Saint
-
-		//if (!m_pBuffAuraCiv)
-		//{
-		//	const char* pszEffectName = ConstructTeamParticle("civilianbuff_%s_buffed", nTeamNumber, true);
-		//	m_pBuffAuraCiv = m_pOuter->ParticleProp()->Create(pszEffectName, PATTACH_ABSORIGIN_FOLLOW);
-		//}
+		if (!m_pOuter->m_pBuffAuraCiv)
+		{
+			const char *pszEffectName;
+			if (nTeamNumber == TF_TEAM_RED)
+			{
+				pszEffectName = "civilianbuff_red_buffed";
+			}
+			else
+			{
+				pszEffectName = "civilianbuff_blue_buffed";
+			}
+			m_pOuter->m_pBuffAuraCiv = m_pOuter->ParticleProp()->Create(pszEffectName, PATTACH_ABSORIGIN_FOLLOW);
+		}
 
 	}
 #endif
@@ -3864,19 +3868,7 @@ void CTFPlayerShared::OnAddCivBuff(void)
 //-----------------------------------------------------------------------------
 void CTFPlayerShared::OnRemoveCivBuff(void)
 {
-#ifdef CLIENT_DLL
-	//if (m_pBuffAuraCiv)
-	//{
-	//	m_pOuter->ParticleProp()->StopEmission(m_pBuffAuraCiv);
-	//	m_pBuffAuraCiv = NULL;
-	//}
-
-	//m_pOuter->m_Shared.m_bCivilianBuffActive = false;
-
-#endif
-
 	UpdateCivBuffEffects();
-
 }
 
 //-----------------------------------------------------------------------------
@@ -14481,152 +14473,93 @@ void CTFPlayerShared::PulseMedicRadiusHeal( void )
 #endif	// CLIENT_DLL
 }
 
-// I love commenting things out! I love it! - Saint
+//-----------------------------------------------------------------------------
+// Purpose: Handles civilian's passive aoe healing and damage resistance buff
+//-----------------------------------------------------------------------------
+void CTFPlayerShared::PulseCivilianRadiusHeal(void)
+{
+	if (!m_pOuter || !m_pOuter->IsAlive() || m_pOuter->m_Shared.InCond(TF_COND_HALLOWEEN_GHOST_MODE) || !m_pOuter->IsPlayerClass(TF_CLASS_CIVILIAN))
+		return;
 
-////-----------------------------------------------------------------------------
-//// Purpose: Handles civilian's passive aoe healing and damage resistance buff
-////-----------------------------------------------------------------------------
-//void CTFPlayerShared::PulseCivilianRadiusHeal(void)
-//{
-//
-//	if (!m_pOuter || !m_pOuter->IsAlive() || m_pOuter->m_Shared.InCond(TF_COND_HALLOWEEN_GHOST_MODE) || !m_pOuter->IsPlayerClass(TF_CLASS_CIVILIAN))
-//		return;
-//
-//	//#ifdef GAME_DLL
-//
-//	if (gpGlobals->curtime >= m_flPhaseTimeCiv) {
-//
-//		CTFPlayer* pOuter = m_pOuter;
-//
-//		//m_pOuter->m_Shared.AddCond(TF_COND_RADIUSHEAL, TF_MEDIC_REGEN_TIME);
-//
-//		CBaseEntity* pEntity = NULL;
-//		Vector vecOrigin = pOuter->GetAbsOrigin();
-//
-//		for (CEntitySphereQuery sphere(vecOrigin, TF_BUFF_RADIUS); (pEntity = sphere.GetCurrentEntity()) != NULL; sphere.NextEntity())
-//		{
-//			if (!pEntity)
-//				continue;
-//
-//			Vector vecHitPoint;
-//			pEntity->CollisionProp()->CalcNearestPoint(vecOrigin, &vecHitPoint);
-//			Vector vecDir = vecHitPoint - vecOrigin;
-//			CTFPlayer* pPlayer = ToTFPlayer(pEntity);
-//			CAI_BaseNPC* pNPC = pEntity->MyNPCPointer();
-//
-//			if (vecDir.LengthSqr() < (TF_BUFF_RADIUS * TF_BUFF_RADIUS))
-//			{
-//				int iHealthRegenCivAOE = 0;
-//#ifdef GAME_DLL
-//				int iHealthRestoredCiv = 0;
-//#endif
-//
-//				// More time since combat equals faster healing. Healing increases up to 300%.
-//				int iAoEHealthBaseCiv = 5;
-//
-//				if (pPlayer && (pPlayer->InSameTeam(pOuter) || (pPlayer && ((pPlayer->m_Shared.InCond(TF_COND_DISGUISED)) && (pPlayer->m_Shared.GetDisguiseTeam() == pOuter->GetTeamNumber())))) && pPlayer->IsAlive())
-//				{
-//
-//					pPlayer->m_Shared.m_bCivilianBuffActive = false;
-//
-//					float flTimeSinceDamageCivAOE = gpGlobals->curtime - pPlayer->GetLastDamageReceivedTime();
-//					//float flScaleCivAoE = RemapValClamped(flTimeSinceDamageCivAOE, 5, 10, iAoEHealthBaseCiv, (iAoEHealthBaseCiv * 3));
-//					float flScaleCivAoE = RemapValClamped(flTimeSinceDamageCivAOE, 5, 10, 1.f, 3.f);
-//					//iHealthRegenCivAOE = ceil(TF_MEDIC_REGEN_AMOUNT * flScaleCivAoE);
-//					iHealthRegenCivAOE = ceil(iAoEHealthBaseCiv * flScaleCivAoE);
-//
-//					// Check how much health we give.
-//					//pPlayer->m_Shared.AddCond(TF_COND_RADIUSHEAL, TF_MEDIC_REGEN_TIME);
-//					if (/*pPlayer->GetUserID() != pOuter->GetUserID()*/ pPlayer != pOuter)
-//					{
-//						pPlayer->m_Shared.AddCond(FC_COND_DEFENSEBUFF_CIVILIAN, 1.2f);
-//						pPlayer->m_Shared.m_bCivilianBuffActive = true;
-//					}
-//					//pPlayer->m_Shared.AddCond(TF_COND_DEFENSEBUFF, TF_MEDIC_REGEN_TIME);
-//
-//					// Don't heal players with weapon_blocks_healing
-//					CTFWeaponBase* pTFWeapon = pPlayer->GetActiveTFWeapon();
-//					if (pTFWeapon)
-//					{
-//						int iBlockHealing = 0;
-//						CALL_ATTRIB_HOOK_INT_ON_OTHER(pTFWeapon, iBlockHealing, weapon_blocks_healing);
-//						if (iBlockHealing)
-//							continue;
-//					}
-//
-//					float flAttribModScale = 1.0;
-//					CALL_ATTRIB_HOOK_FLOAT_ON_OTHER(pPlayer, flAttribModScale, mult_health_fromhealers);
-//
-//					iHealthRegenCivAOE *= flAttribModScale;
-//
-//#ifdef GAME_DLL
-//					iHealthRestoredCiv = pPlayer->TakeHealth(iHealthRegenCivAOE, DMG_GENERIC);
-//					if (iHealthRestoredCiv > 0)
-//					{
-//						CTF_GameStats.Event_PlayerHealedOther(pOuter, iHealthRestoredCiv);
-//						IGameEvent* event = gameeventmanager->CreateEvent("player_healed");
-//						if (event)
-//						{
-//							event->SetInt("patient", pPlayer->GetUserID());
-//							event->SetInt("healer", pOuter->GetUserID());
-//							event->SetInt("amount", iHealthRestoredCiv);
-//						}
-//					}
-//#endif
-//				}
-//				else if (pNPC && pNPC->InSameTeam(pOuter) && pNPC->IsAlive())
-//				{
-//
-//#ifdef CLIENT_DLL
-//					pNPC->m_bCivilianBuffActive = false;
-//#endif
-//
-//#ifdef GAME_DLL
-//					pNPC->SetCivBuffed(false);
-//#endif
-//
-//					float flTimeSinceDamageCivAOE = gpGlobals->curtime - pNPC->GetLastDamageTime();
-//					//float flScaleCivAoE = RemapValClamped(flTimeSinceDamageCivAOE, 5, 10, iAoEHealthBaseCiv, (iAoEHealthBaseCiv * 3));
-//					//iHealthRegenCivAOE = ceil(TF_MEDIC_REGEN_AMOUNT * flScaleCivAoE);
-//					float flScaleCivAoE = RemapValClamped(flTimeSinceDamageCivAOE, 5, 10, 1.f, 3.f);
-//					iHealthRegenCivAOE = ceil(iAoEHealthBaseCiv * flScaleCivAoE);
-//
-//					//pNPC->AddCond(TF_COND_RADIUSHEAL, TF_MEDIC_REGEN_TIME);
-//					pNPC->AddCond(FC_COND_DEFENSEBUFF_CIVILIAN, 1.2f);
-//
-//#ifdef CLIENT_DLL
-//					pNPC->m_bCivilianBuffActive = true;
-//#endif
-//
-//#ifdef GAME_DLL
-//					pNPC->SetCivBuffed(true);
-//#endif
-//
-//					//pNPC->AddCond(TF_COND_DEFENSEBUFF, TF_MEDIC_REGEN_TIME);
-//#ifdef GAME_DLL
-//					iHealthRestoredCiv = pNPC->TakeHealth(iHealthRegenCivAOE, DMG_GENERIC);
-//					if (iHealthRestoredCiv > 0)
-//					{
-//						CTF_GameStats.Event_PlayerHealedOther(pOuter, iHealthRestoredCiv);
-//						IGameEvent* event = gameeventmanager->CreateEvent("npc_healed");
-//						if (event)
-//						{
-//							event->SetInt("patient", pNPC->entindex());
-//							event->SetInt("healer", pOuter->GetUserID());
-//							event->SetInt("amount", iHealthRestoredCiv);
-//						}
-//					}
-//#endif
-//				}
-//			}
-//		}
-//
-//		// limit how often we can update in case of spam
-//		m_flPhaseTimeCiv = gpGlobals->curtime + 1.0f;
-//
-//	}
-//	//#endif
-//}
+#ifdef GAME_DLL
+	if (gpGlobals->curtime >= m_flPhaseTimeCiv) {
+
+		CTFPlayer* pOuter = m_pOuter;
+
+		CBaseEntity* pEntity = NULL;
+		Vector vecOrigin = pOuter->GetAbsOrigin();
+
+		for (CEntitySphereQuery sphere(vecOrigin, TF_BUFF_RADIUS); (pEntity = sphere.GetCurrentEntity()) != NULL; sphere.NextEntity())
+		{
+			if (!pEntity)
+				continue;
+
+			Vector vecHitPoint;
+			pEntity->CollisionProp()->CalcNearestPoint(vecOrigin, &vecHitPoint);
+			Vector vecDir = vecHitPoint - vecOrigin;
+			CTFPlayer* pPlayer = ToTFPlayer(pEntity);
+
+			if (vecDir.LengthSqr() < (TF_BUFF_RADIUS * TF_BUFF_RADIUS))
+			{
+				int iHealthRegenCivAOE = 0;
+				int iHealthRestoredCiv = 0;
+
+				// More time since combat equals faster healing. Healing increases up to 300%.
+				int iAoEHealthBaseCiv = 5;
+
+				if (pPlayer && (pPlayer->InSameTeam(pOuter) || (pPlayer && ((pPlayer->m_Shared.InCond(TF_COND_DISGUISED)) && (pPlayer->m_Shared.GetDisguiseTeam() == pOuter->GetTeamNumber())))) && pPlayer->IsAlive())
+				{
+
+					pPlayer->m_Shared.m_bCivilianBuffActive = false;
+
+					float flTimeSinceDamageCivAOE = gpGlobals->curtime - pPlayer->GetLastDamageReceivedTime();
+					float flScaleCivAoE = RemapValClamped(flTimeSinceDamageCivAOE, 5, 10, 1.f, 3.f);
+					iHealthRegenCivAOE = ceil(iAoEHealthBaseCiv * flScaleCivAoE);
+
+					if (pPlayer != pOuter)
+					{
+						pPlayer->m_Shared.AddCond(FC_COND_DEFENSEBUFF_CIVILIAN, 1.2f);
+						pPlayer->m_Shared.m_bCivilianBuffActive = true;
+					}
+
+					// Don't heal players with weapon_blocks_healing
+					CTFWeaponBase* pTFWeapon = pPlayer->GetActiveTFWeapon();
+					if (pTFWeapon)
+					{
+						int iBlockHealing = 0;
+						CALL_ATTRIB_HOOK_INT_ON_OTHER(pTFWeapon, iBlockHealing, weapon_blocks_healing);
+						if (iBlockHealing)
+							continue;
+					}
+
+					float flAttribModScale = 1.0;
+					CALL_ATTRIB_HOOK_FLOAT_ON_OTHER(pPlayer, flAttribModScale, mult_health_fromhealers);
+
+					iHealthRegenCivAOE *= flAttribModScale;
+
+					iHealthRestoredCiv = pPlayer->TakeHealth(iHealthRegenCivAOE, DMG_GENERIC);
+					if (iHealthRestoredCiv > 0)
+					{
+						CTF_GameStats.Event_PlayerHealedOther(pOuter, iHealthRestoredCiv);
+						IGameEvent* event = gameeventmanager->CreateEvent("player_healed");
+						if (event)
+						{
+							event->SetInt("patient", pPlayer->GetUserID());
+							event->SetInt("healer", pOuter->GetUserID());
+							event->SetInt("amount", iHealthRestoredCiv);
+							gameeventmanager->FireEvent(event);
+						}
+					}
+				}
+			}
+		}
+
+		// limit how often we can update in case of spam
+		m_flPhaseTimeCiv = gpGlobals->curtime + 1.0f;
+
+	}
+#endif // GAME_DLL
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: Emits an area-of-effect buff around the King Rune carrier

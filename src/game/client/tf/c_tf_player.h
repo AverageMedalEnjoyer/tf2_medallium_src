@@ -756,6 +756,7 @@ public:
 
 	HPARTICLEFFECT m_pMegaHealEffect;
 	HPARTICLEFFECT m_pRadiusHealEffect;
+	HPARTICLEFFECT m_pBuffAuraCiv;
 	HPARTICLEFFECT m_pKingRuneRadiusEffect;
 	HPARTICLEFFECT m_pKingBuffRadiusEffect;
 	HPARTICLEFFECT m_pRunePlagueEffect;

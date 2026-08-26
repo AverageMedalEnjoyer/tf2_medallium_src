@@ -3070,8 +3070,8 @@ void CTFPlayer::PrecacheTFPlayer()
 	PrecacheParticleSystem( "drg_pomson_impact_drain" );
 	PrecacheParticleSystem( "dragons_fury_effect" );
 
-	//formerly "PrecacheTeamParticles" line 2701 in tf_player.cpp - Saint
-	PrecacheParticleSystem( "civilianbuff_%s_buffed" );
+	PrecacheParticleSystem( "civilianbuff_red_buffed" );
+	PrecacheParticleSystem( "civilianbuff_blue_buffed" );
 
 	PrecacheParticleSystem( "dxhr_arm_muzzleflash" );
 
