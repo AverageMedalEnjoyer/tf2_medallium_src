@@ -361,6 +361,7 @@ public:
 #endif
 
 	bool	IsCritBoosted( void ) const;
+	bool	IsMiniCritBoosted( void ) const;
 	bool	IsInvulnerable( void ) const;
 	bool	IsStealthed( void ) const;
 	bool	CanBeDebuffed( void ) const;

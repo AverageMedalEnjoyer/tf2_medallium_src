@@ -8186,6 +8186,20 @@ bool CTFPlayerShared::IsCritBoosted( void ) const
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
+bool CTFPlayerShared::IsMiniCritBoosted( void ) const
+{
+	if ( InCond( TF_COND_OFFENSEBUFF ) ||
+		InCond( TF_COND_ENERGY_BUFF ) ||
+		InCond( TF_COND_MINICRITBOOSTED_ON_KILL ) ||
+		InCond( FC_COND_CIVILIAN_ENERGY_BUFF ) )
+		return true;
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
 bool CTFPlayerShared::IsInvulnerable( void ) const
 {
 	bool bInvuln = InCond( TF_COND_INVULNERABLE ) || 

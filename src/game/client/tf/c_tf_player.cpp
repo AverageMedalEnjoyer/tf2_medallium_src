@@ -2033,9 +2033,27 @@ public:
 					{
 						vResult = Vector ( 80, 8, 5 );
 					}
-					else	
+					else
 					{
 						vResult = Vector ( 5, 20, 80 );
+					}
+				}
+				pPlayer->m_Shared.m_bChargeGlowing = false;
+			}
+			else if ( pPlayer->m_Shared.IsMiniCritBoosted() )
+			{
+				if ( !pPlayer->m_Shared.InCond( TF_COND_DISGUISED ) ||
+					!pPlayer->IsEnemyPlayer() ||
+					pPlayer->GetTeamNumber() == pPlayer->m_Shared.GetDisguiseTeam() )
+				{
+					switch ( pPlayer->GetTeamNumber() )
+					{
+						case TF_TEAM_RED:
+							vResult = Vector( 237, 140, 55 );
+							break;
+						case TF_TEAM_BLUE:
+							vResult = Vector( 28, 168, 112 );
+							break;
 					}
 				}
 				pPlayer->m_Shared.m_bChargeGlowing = false;
