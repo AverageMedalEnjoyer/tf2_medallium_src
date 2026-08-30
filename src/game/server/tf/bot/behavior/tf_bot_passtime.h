@@ -39,7 +39,7 @@ public:
 	virtual EventDesiredResult< CTFBot > OnMoveToSuccess( CTFBot *me, const Path *path );
 	virtual EventDesiredResult< CTFBot > OnMoveToFailure( CTFBot *me, const Path *path, MoveToFailureType reason );
 
-	virtual QueryResultType ShouldHurry( const INextBot *me ) const;
+	virtual QueryResultType ShouldHurry( const INextBot *me ) const	{ return ANSWER_YES; }
 	virtual QueryResultType ShouldAttack(const INextBot* me, const CKnownEntity* them) const;
     virtual QueryResultType ShouldRetreat( const INextBot *me ) const;
 	virtual const char *GetName( void ) const	{ return "GetPasstimeJack"; };
