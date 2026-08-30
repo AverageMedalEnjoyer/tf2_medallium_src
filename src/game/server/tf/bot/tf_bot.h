@@ -63,6 +63,7 @@ public:
 	virtual void		Spawn();
 	virtual void		FireGameEvent( IGameEvent *event );
 	virtual void		Event_Killed( const CTakeDamageInfo &info );
+	CBaseEntity        *GetKiller() { return m_hKiller; }
 	virtual void		PhysicsSimulate( void );
 	virtual void		Touch( CBaseEntity *pOther );
 	virtual void		AvoidPlayers( CUserCmd *pCmd );				// some game types allow players to pass through each other, this method pushes them apart
@@ -305,6 +306,11 @@ public:
 	void ScriptSetActionPoint( HSCRIPT hPoint ) { SetActionPoint( ScriptToEntClass< CTFBotActionPoint >( hPoint ) ); }
 	HSCRIPT ScriptGetActionPoint( void ) const { return ToHScript( GetActionPoint() ); }
 
+    void Say( const char *pszMessage );
+    void SayTeam( const char *pszMessage );
+
+    const char *GetRandomDeathMessage( CBaseEntity *pKiller );
+
 	bool HasProxy( void ) const;
 	void SetProxy( CTFBotProxy *proxy );					// attach this bot to a bot_proxy entity for map I/O communications
 	CTFBotProxy *GetProxy( void ) const;
@@ -497,6 +503,8 @@ private:
 	CTFBotBody			*m_body;
 	CTFBotVision		*m_vision;
 
+    EHANDLE m_hKiller;
+
 	CountdownTimer m_lookAtEnemyInvasionAreasTimer;
 
 	CTFNavArea *m_spawnArea;			// where we spawned
@@ -562,6 +570,14 @@ private:
 		float m_when;
 	};
 	CUtlVector< DelayedNoticeInfo > m_delayedNoticeVector;
+
+    struct QueuedChatMessage_t
+    {
+    	CUtlString m_message;
+	    bool m_bTeamOnly;
+    };
+    CUtlVector< QueuedChatMessage_t > m_queuedChatMessages;
+    void DeliverQueuedChatMessage( void );
 
 	float m_maxVisionRangeOverride;
 

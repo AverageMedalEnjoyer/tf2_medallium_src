@@ -8051,6 +8051,9 @@ void CTFGameRules::LevelShutdown()
 //-----------------------------------------------------------------------------
 void CTFGameRules::Think()
 {
+    GetBotChatMessages();
+    GetBotVoiceCommands();
+
 	if ( m_bMapCycleNeedsUpdate )
 	{
 		m_bMapCycleNeedsUpdate = false;
@@ -17088,6 +17091,124 @@ int	CTFGameRules::CalcPlayerSupportScore( RoundStats_t *pRoundStats, int iPlayer
 			g_TF_PR->GetDamageBlocked( iPlayerIdx ) +
 			( g_TF_PR->GetBonusPoints( iPlayerIdx ) * 25 );
 #endif
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CTFGameRules::GetBotChatMessages( void )
+{
+#ifdef GAME_DLL
+    static bool s_bBotWasAlive[MAX_PLAYERS + 1] = { false };
+
+    for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( !pPlayer || !pPlayer->IsConnected() )
+			continue;
+
+		CTFBot *pBot = ToTFBot( pPlayer );
+		if ( !pBot )
+			continue;
+
+		const bool bAliveNow = pBot->IsAlive();
+		const bool bWasAlive = s_bBotWasAlive[i];
+	
+		// We died... Say our death message in chat.
+		if ( bWasAlive && !bAliveNow )
+		{
+            CBaseEntity *pKiller = pBot->GetKiller();
+    
+             const char *pszDeathMsg = pBot->GetRandomDeathMessage( pKiller );
+			pBot->Say( pszDeathMsg );
+		}
+
+		s_bBotWasAlive[i] = bAliveNow;
+	}
+#endif // GAME_DLL
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CTFGameRules::GetBotVoiceCommands( void )
+{
+#ifdef GAME_DLL
+
+    static float s_flNextMedicCallTime[MAX_PLAYERS + 1] = { 0.f };
+	const int kCriticalHealth = 80;
+
+	// Calling for Medic
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( !pPlayer || !pPlayer->IsConnected() )
+			continue;
+
+		CTFBot *pBot = ToTFBot( pPlayer );
+		if ( !pBot || !pBot->IsAlive() )
+			continue;
+
+		// We're low! Call for Medic!
+        if ( pBot->GetHealth() < kCriticalHealth )
+        {
+	        if ( gpGlobals->curtime >= s_flNextMedicCallTime[i] )
+	        {
+		        VoiceCommand( pBot, 0, 0 );
+		        s_flNextMedicCallTime[i] = gpGlobals->curtime + RandomFloat( 5.f, 20.f );
+	        }
+        }
+	}
+
+	// Battle Cry
+    static float s_flNextBattleCryTime[MAX_PLAYERS + 1] = { 0.f };
+	const float kBattleCryRadius = 300.0f;
+
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( !pPlayer || !pPlayer->IsConnected() )
+			continue;
+
+		CTFBot *pBot = ToTFBot( pPlayer );
+		if ( !pBot || !pBot->IsAlive() )
+			continue;
+
+		if ( gpGlobals->curtime < s_flNextBattleCryTime[i] )
+			continue;
+
+		// Don't Battle Cry if we're on low health
+		if ( pBot->GetHealth() < kCriticalHealth )
+		    continue;
+
+		int teammateCount = 0;
+		for ( int j = 1; j <= gpGlobals->maxClients; ++j )
+		{
+			if ( i == j )
+				continue;
+
+			CBasePlayer *pTeammate = UTIL_PlayerByIndex( j );
+			if ( !pTeammate || !pTeammate->IsConnected() || !pTeammate->IsAlive() )
+				continue;
+
+			if ( pTeammate->GetTeamNumber() == pBot->GetTeamNumber() )
+			{
+				if ( ( pTeammate->GetAbsOrigin() - pBot->GetAbsOrigin() ).LengthSqr() <= ( kBattleCryRadius * kBattleCryRadius ) )
+				{
+					teammateCount++;
+				}
+			}
+		}
+
+		// If 3 or more teammates are nearby, give me a roar
+		if ( teammateCount >= 3 )
+		{
+			VoiceCommand( pBot, 2, 1 ); 
+			
+			s_flNextBattleCryTime[i] = gpGlobals->curtime + RandomFloat( 5.f, 30.f );
+		}
+	}
+#endif // GAME_DLL
 }
 
 //-----------------------------------------------------------------------------

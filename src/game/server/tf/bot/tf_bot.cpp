@@ -64,6 +64,10 @@ ConVar tf_bot_debug_tags( "tf_bot_debug_tags", "0", FCVAR_CHEAT, "ent_text will 
 
 ConVar tf_bot_spawn_use_preset_roster( "tf_bot_spawn_use_preset_roster", "1", FCVAR_CHEAT, "Bot will choose class from a preset class table." );
 
+// Bot Chat Commands
+ConVar tf_bot_chat_allow( "tf_bot_chat_allow", "1", FCVAR_REPLICATED | FCVAR_NOTIFY, "When set to 1, bots will send things in chat depending on the context." );
+ConVar tf_bot_chat_allow_mvmrobots("tf_bot_chat_allow_mvmrobots", "0", FCVAR_REPLICATED | FCVAR_NOTIFY, "When set to 1, robots in MVM will use chat.");
+
 extern ConVar tf_bot_sniper_spot_max_count;
 extern ConVar tf_bot_fire_weapon_min_time;
 extern ConVar tf_bot_sniper_misfire_chance;
@@ -75,6 +79,80 @@ extern ConVar tf_mvm_miniboss_min_health;
 extern ConVar tf_bot_path_lookahead_range;
 
 extern ConVar tf_mvm_miniboss_scale;
+
+//-----------------------------------------------------------------------------
+bool LoadScript( const char *pszFilename, CUtlVector< CUtlString > &outLines, CBaseEntity *pKiller = NULL, CBaseEntity *pVictim = NULL )
+{
+	outLines.RemoveAll();
+
+	if ( !pszFilename || !*pszFilename )
+		return false;
+
+	FileHandle_t hFile = filesystem->Open( pszFilename, "r", "GAME" );
+	if ( hFile == FILESYSTEM_INVALID_HANDLE )
+	{
+		Warning( "CTFBot: Could not open file '%s'\n", pszFilename );
+		return false;
+	}
+
+    // Get the name of the guy who killed us
+	const char *pszKillerName = "NULL! KILLER NOT FOUND"; // Default fallback if no killer
+	if ( pKiller && pKiller->IsPlayer() )
+	{
+		pszKillerName = ( (CBasePlayer*)pKiller)->GetPlayerName();
+	}
+
+    // Get the name of the guy we killed
+	const char *pszVictimName = "NULL! VICTIM NOT FOUND"; // Default fallback if no victim
+	if ( pVictim && pVictim->IsPlayer() )
+	{
+		pszVictimName = ( (CBasePlayer*)pVictim)->GetPlayerName();
+	}
+
+	char szLine[512];
+	while ( !filesystem->EndOfFile( hFile ) )
+	{
+		if ( filesystem->ReadLine( szLine, sizeof( szLine ), hFile ) )
+		{
+			int len = Q_strlen( szLine );
+			while ( len > 0 && ( szLine[len-1] == '\n' || szLine[len-1] == '\r' ) )
+			{
+				szLine[--len] = '\0';
+			}
+
+			// Commented out as I fear it'll be unreliable if the player has // or # at the start of their name.
+			// Just don't put comments in the bot scripts. They'll send them in chat if you do. -MEDAL
+			//
+			// Skip comments
+			//if ( len == 0 || szLine[0] == '#' || szLine[0] == '/' )
+			//	continue;
+
+            char szBuffer[512];
+            Q_strncpy( szBuffer, szLine, sizeof( szBuffer ) );
+
+			// Replace [killer] with our killer's name
+            if ( Q_stristr( szBuffer, "[killer]" ) )
+            {
+                char szTemp[512];
+                Q_StrSubst( szBuffer, "[killer]", pszKillerName, szTemp, sizeof( szTemp ) );
+                Q_strncpy( szBuffer, szTemp, sizeof( szBuffer ) );
+            }
+
+			// Replace [victim] with our victim's name
+            if ( Q_stristr( szBuffer, "[victim]" ) )
+            {
+                char szTemp[512];
+                Q_StrSubst( szBuffer, "[victim]", pszVictimName, szTemp, sizeof( szTemp ) );
+                Q_strncpy( szBuffer, szTemp, sizeof( szBuffer ) );
+            }
+
+            outLines.AddToTail( szBuffer );
+		}
+	}
+
+	filesystem->Close( hFile );
+	return outLines.Count() > 0;
+}
 
 
 //-----------------------------------------------------------------------------------------------------
@@ -139,6 +217,7 @@ const char *DifficultyLevelToString( CTFBot::DifficultyType skill )
 }
 
 
+/*
 //-----------------------------------------------------------------------------------------------------
 const char *GetRandomBotName( void )
 {
@@ -255,7 +334,26 @@ const char *GetRandomBotName( void )
 
 	return name;
 }
+*/
 
+//-----------------------------------------------------------------------------
+const char *GetRandomBotName()
+{
+	static CUtlVector< CUtlString > s_Names;
+	static bool s_bLoaded = false;
+
+	if ( !s_bLoaded )
+	{
+		s_bLoaded = true;
+		LoadScript( "scripts/bot/bot_names.txt", s_Names);
+	}
+
+	if ( s_Names.Count() == 0 )
+		return "NULL! NAMES FILE EMPTY";
+
+	int RandMsg = RandomInt( 0, s_Names.Count() - 1 );
+	return s_Names[ RandMsg ].Get();
+}
 
 //-----------------------------------------------------------------------------------------------------
 void CreateBotName( int iTeam, int iClassIndex, CTFBot::DifficultyType skill, char* pBuffer, int iBufferSize )
@@ -1145,8 +1243,26 @@ ETFClass CTFBot::GetPresetClassToSpawn() const
 		}
 	}
 
-	AssertMsg( 0, "This return shouldn't happen." );
-	return TF_CLASS_UNDEFINED;
+    CUtlVector< ETFClass > desiredClassVector;
+    GetWeightDesiredClassToSpawn( desiredClassVector );
+
+    if ( desiredClassVector.Count() > 0 )
+    {
+        ETFClass current = (ETFClass)GetPlayerClass()->GetClassIndex();
+        int idx = desiredClassVector.Find( current );
+        if ( idx >= 0 )
+            return current;                       // stay on current class if legal
+
+        return desiredClassVector[ RandomInt( 0, desiredClassVector.Count() - 1 ) ];
+    }
+
+    // First fallback: Prefer current class.
+    ETFClass current = (ETFClass)GetPlayerClass()->GetClassIndex();
+    if ( current >= TF_FIRST_NORMAL_CLASS && current < TF_LAST_NORMAL_CLASS )
+        return current;
+
+	// ABSOLUTE FALLBACK: If all else fails, and every class we could play is unavailable, just choose a random class, so we don't get stuck in limbo.
+    return (ETFClass)RandomInt( TF_FIRST_NORMAL_CLASS, TF_LAST_NORMAL_CLASS - 1 );
 }
 
 
@@ -1205,6 +1321,17 @@ const char *CTFBot::GetNextSpawnClassname( void ) const
 		}
 
 		int which = RandomInt( 0, desiredClassVector.Count() - 1 );
+
+        ETFClass currentClass = (ETFClass)GetPlayerClass()->GetClassIndex();
+        int curIdx = desiredClassVector.Find( currentClass );
+        if ( curIdx >= 0 )
+        {
+            which = curIdx;
+        }
+        else
+        {
+            which = RandomInt( 0, desiredClassVector.Count() - 1 );
+        }
 
 		// if we need to destroy a sentry, pick a class that can do so
 		if ( GetEnemySentry() )
@@ -1707,6 +1834,8 @@ void CTFBot::FireGameEvent( IGameEvent *event )
 void CTFBot::Event_Killed( const CTakeDamageInfo &info )
 {
 	BaseClass::Event_Killed( info );
+
+    m_hKiller = info.GetAttacker();
 
 	if ( HasProxy() )
 	{
@@ -4988,4 +5117,111 @@ float CTFBot::GetUberDeployDelayDuration()
 	}
 	
 	return -1.f;
+}
+
+//-----------------------------------------------------------------------------
+#define BOT_CHAT_SECONDS_PER_CHARACTER		0.15f // The amount of seconds each word in a message adds to how long it actually takes the bot to send the message, to simulate actual typing delay.
+//-----------------------------------------------------------------------------
+void CTFBot::Say( const char *pszMessage )
+{
+	if ( !pszMessage || !*pszMessage )
+		return;
+
+	// We can't chat. It's disabled.
+	if ( !tf_bot_chat_allow.GetBool() )
+		return;
+
+	// Robots in MVM will not use chat for obvious reasons.
+	// But you can enable them to have this ability via cvar. Just beware.
+	if ( TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() == TF_TEAM_PVE_INVADERS )
+		if ( !tf_bot_chat_allow_mvmrobots.GetBool() )
+		    return;
+
+	QueuedChatMessage_t message;
+	message.m_message = pszMessage;
+	message.m_bTeamOnly = false;
+
+	bool bQueueWasEmpty = ( m_queuedChatMessages.Count() == 0 );
+	m_queuedChatMessages.AddToTail( message );
+
+	if ( bQueueWasEmpty )
+	{
+		float flTypingDelay = Q_strlen( pszMessage ) * BOT_CHAT_SECONDS_PER_CHARACTER;
+		SetContextThink( &CTFBot::DeliverQueuedChatMessage, gpGlobals->curtime + flTypingDelay, "BotChatDelay" );
+	}
+}
+
+//-----------------------------------------------------------------------------
+void CTFBot::SayTeam( const char *pszMessage )
+{
+	if ( !pszMessage || !*pszMessage )
+		return;
+
+	// We can't chat. It's disabled.
+	if ( !tf_bot_chat_allow.GetBool() )
+		return;
+
+	// Robots in MVM will not use chat for obvious reasons.
+	// But you can enable them to have this ability via cvar. Just beware.
+	if ( TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() == TF_TEAM_PVE_INVADERS )
+		if ( !tf_bot_chat_allow_mvmrobots.GetBool() )
+		    return;
+
+	QueuedChatMessage_t message;
+	message.m_message = pszMessage;
+	message.m_bTeamOnly = true;
+
+	bool bQueueWasEmpty = ( m_queuedChatMessages.Count() == 0 );
+	m_queuedChatMessages.AddToTail( message );
+
+	if ( bQueueWasEmpty )
+	{
+		float flTypingDelay = Q_strlen( pszMessage ) * BOT_CHAT_SECONDS_PER_CHARACTER;
+		SetContextThink( &CTFBot::DeliverQueuedChatMessage, gpGlobals->curtime + flTypingDelay, "BotChatDelay" );
+	}
+}
+
+//-----------------------------------------------------------------------------
+void CTFBot::DeliverQueuedChatMessage( void )
+{
+	if ( m_queuedChatMessages.Count() == 0 )
+		return;
+
+	QueuedChatMessage_t message = m_queuedChatMessages[0];
+	m_queuedChatMessages.Remove( 0 );
+
+	CReliableBroadcastRecipientFilter filter;
+	if ( message.m_bTeamOnly )
+	{
+		filter.AddRecipientsByTeam( GetTeam() ); // Only teammates
+		UTIL_SayText2Filter( filter, this, true, "TF_Chat_Team", GetPlayerName(), message.m_message.Get() );
+	}
+	else
+	{
+		UTIL_SayText2Filter( filter, this, true, "TF_Chat_All", GetPlayerName(), message.m_message.Get() );
+	}
+
+	if ( m_queuedChatMessages.Count() > 0 )
+	{
+		float flTypingDelay = Q_strlen( m_queuedChatMessages[0].m_message.Get() ) * BOT_CHAT_SECONDS_PER_CHARACTER;
+		SetContextThink( &CTFBot::DeliverQueuedChatMessage, gpGlobals->curtime + flTypingDelay, "BotChatDelay" );
+	}
+}
+
+//-----------------------------------------------------------------------------
+const char *CTFBot::GetRandomDeathMessage( CBaseEntity *pKiller )
+{
+	// 30% chance we will even send our message, so chat isn't spammed by many bots dying at once
+    if ( RandomFloat( 0.0f, 1.0f ) > 0.30f )
+        return "";
+
+	static CUtlVector< CUtlString > deathMessages;
+
+	LoadScript( "scripts/bot/bot_deathmsgs.txt", deathMessages, pKiller, this );
+
+	if ( deathMessages.Count() == 0 )
+		return "NULL! MSG FILE EMPTY!";
+
+	int RandMsg = RandomInt( 0, deathMessages.Count() - 1 );
+	return deathMessages[ RandMsg ].Get();
 }
