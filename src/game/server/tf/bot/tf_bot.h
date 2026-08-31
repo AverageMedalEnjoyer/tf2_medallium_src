@@ -63,7 +63,6 @@ public:
 	virtual void		Spawn();
 	virtual void		FireGameEvent( IGameEvent *event );
 	virtual void		Event_Killed( const CTakeDamageInfo &info );
-	CBaseEntity        *GetKiller() { return m_hKiller; }
 	virtual void		PhysicsSimulate( void );
 	virtual void		Touch( CBaseEntity *pOther );
 	virtual void		AvoidPlayers( CUserCmd *pCmd );				// some game types allow players to pass through each other, this method pushes them apart
@@ -306,10 +305,18 @@ public:
 	void ScriptSetActionPoint( HSCRIPT hPoint ) { SetActionPoint( ScriptToEntClass< CTFBotActionPoint >( hPoint ) ); }
 	HSCRIPT ScriptGetActionPoint( void ) const { return ToHScript( GetActionPoint() ); }
 
+	CBaseEntity        *GetKiller() { return m_hKiller; }
+    CBaseEntity        *GetVictim() { return m_hVictim; }
+    bool                WasKilledByCrit() const { return m_bKilledByCrit; }
+    bool                WasKilledByRandomCrit() const { return m_bKilledByRandomCrit; }
+
     void Say( const char *pszMessage );
     void SayTeam( const char *pszMessage );
 
     const char *GetRandomDeathMessage( CBaseEntity *pKiller );
+    const char *GetRandomCritDeathMessage( CBaseEntity *pKiller );
+    const char *GetRandomKillMessage( CBaseEntity *pVictim );
+    const char *GetRandomPraiseMessage( CBaseEntity *pTeammate );
 
 	bool HasProxy( void ) const;
 	void SetProxy( CTFBotProxy *proxy );					// attach this bot to a bot_proxy entity for map I/O communications
@@ -504,6 +511,9 @@ private:
 	CTFBotVision		*m_vision;
 
     EHANDLE m_hKiller;
+    EHANDLE m_hVictim;
+    bool    m_bKilledByCrit;
+	bool    m_bKilledByRandomCrit;
 
 	CountdownTimer m_lookAtEnemyInvasionAreasTimer;
 

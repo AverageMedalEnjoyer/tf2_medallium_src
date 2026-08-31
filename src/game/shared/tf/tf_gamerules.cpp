@@ -17115,16 +17115,108 @@ void CTFGameRules::GetBotChatMessages( void )
 		const bool bWasAlive = s_bBotWasAlive[i];
 	
 		// We died... Say our death message in chat.
-		if ( bWasAlive && !bAliveNow )
+        if ( bWasAlive && !bAliveNow )
 		{
-            CBaseEntity *pKiller = pBot->GetKiller();
-    
-             const char *pszDeathMsg = pBot->GetRandomDeathMessage( pKiller );
+			CBaseEntity *pKiller = pBot->GetKiller();
+
+			const char *pszDeathMsg = NULL;
+
+			// We were killed by a crit
+			if ( pBot->WasKilledByCrit() )
+			{
+				pszDeathMsg = pBot->GetRandomCritDeathMessage( pKiller );
+			}
+			else
+			{
+				pszDeathMsg = pBot->GetRandomDeathMessage( pKiller );
+			}
+
 			pBot->Say( pszDeathMsg );
 		}
 
 		s_bBotWasAlive[i] = bAliveNow;
 	}
+
+    // On Kill / Teammate Praise
+    const int iRequiredTeammateKills = 30;
+    static int s_nLastFrags[MAX_PLAYERS + 1] = { 0 };
+    static int s_nTeammateKills[MAX_PLAYERS + 1] = { 0 };
+
+    for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+    {
+        CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+        if ( !pPlayer || !pPlayer->IsConnected() )
+            continue;
+
+        const int nCurrentFrags = pPlayer->FragCount();
+
+        if ( nCurrentFrags < s_nLastFrags[i] )
+        {
+            s_nLastFrags[i]   = nCurrentFrags;
+            s_nTeammateKills[i] = 0;
+            continue;
+        }
+
+        if ( nCurrentFrags > s_nLastFrags[i] )
+        {
+            s_nTeammateKills[i] += ( nCurrentFrags - s_nLastFrags[i] );
+
+        // existing kill-message for bots
+            CTFBot *pBot = ToTFBot( pPlayer );
+            if ( pBot && pBot->IsAlive() )
+            {
+                CBaseEntity *pVictim = pBot->GetVictim();
+                const char *pszVictimMsg = pBot->GetRandomKillMessage( pVictim );
+                pBot->Say( pszVictimMsg );
+            }
+        }
+
+        s_nLastFrags[i] = nCurrentFrags;
+    }
+
+    for ( int j = 1; j <= gpGlobals->maxClients; ++j )
+    {
+        CBasePlayer *pTeammate = UTIL_PlayerByIndex( j );
+        if ( !pTeammate || !pTeammate->IsConnected() )
+        continue;
+
+        if ( s_nTeammateKills[j] < iRequiredTeammateKills )
+            continue;
+
+        CUtlVector< CTFBot* > praiseCandidates;
+
+        for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+        {
+            if ( i == j )
+            continue;
+
+            CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+            if ( !pPlayer || !pPlayer->IsConnected() || !pPlayer->IsAlive() )
+                continue;
+
+            if ( pPlayer->GetTeamNumber() != pTeammate->GetTeamNumber() )
+                continue;
+
+            CTFBot *pBot = ToTFBot( pPlayer );
+            if ( !pBot )
+                continue;
+
+            praiseCandidates.AddToTail( pBot );
+        }
+
+        if ( praiseCandidates.Count() == 0 )
+        continue;
+
+        CTFBot *pPraisingBot = praiseCandidates[ RandomInt( 0, praiseCandidates.Count() - 1 ) ];
+
+        const char *pszPraiseTeammateMsg = pPraisingBot->GetRandomPraiseMessage( pTeammate );
+        if ( pszPraiseTeammateMsg && *pszPraiseTeammateMsg )
+        {
+            pPraisingBot->Say( pszPraiseTeammateMsg );
+        }
+
+        s_nTeammateKills[j] = 0;
+    }
 #endif // GAME_DLL
 }
 
@@ -17135,10 +17227,10 @@ void CTFGameRules::GetBotVoiceCommands( void )
 {
 #ifdef GAME_DLL
 
+    // Calling for Medic
     static float s_flNextMedicCallTime[MAX_PLAYERS + 1] = { 0.f };
 	const int kCriticalHealth = 80;
 
-	// Calling for Medic
 	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
 	{
 		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
@@ -17206,6 +17298,107 @@ void CTFGameRules::GetBotVoiceCommands( void )
 			VoiceCommand( pBot, 2, 1 ); 
 			
 			s_flNextBattleCryTime[i] = gpGlobals->curtime + RandomFloat( 5.f, 30.f );
+		}
+	}
+
+    // On Kill / Teammate Praise
+	static int s_nLastFrags[MAX_PLAYERS + 1] = { 0 };
+	static float s_flKillWindowStart[MAX_PLAYERS + 1] = { 0.f };
+	static int   s_nKillsInWindow[MAX_PLAYERS + 1] = { 0 };
+	static float s_flAlreadyPraisedWindow[MAX_PLAYERS + 1][MAX_PLAYERS + 1] = { 0.f };
+
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( !pPlayer || !pPlayer->IsConnected() )
+			continue;
+
+		const int nCurrentFrags = pPlayer->FragCount();
+
+		// Window expired, reset
+		if ( gpGlobals->curtime - s_flKillWindowStart[i] > 30.0f )
+		{
+			s_flKillWindowStart[i] = gpGlobals->curtime;
+			s_nKillsInWindow[i] = 0;
+		}
+
+		if ( nCurrentFrags > s_nLastFrags[i] )
+		{
+			// Add kills
+			s_nKillsInWindow[i] += ( nCurrentFrags - s_nLastFrags[i] );
+
+			CTFBot *pBot = ToTFBot( pPlayer );
+			if ( pBot && pBot->IsAlive() )
+			{
+				if ( RandomInt( 0, 1 ) == 0 ) // 50/50
+				{
+                    if ( RandomInt( 0, 1 ) == 0 )
+                    {
+                        VoiceCommand( pBot, 2, 1 ); // Battlecry
+                    }
+                    else
+                    {
+                        VoiceCommand( pBot, 0, 1 ); // Thanks!
+                    }
+				}
+			}
+		}
+
+		s_nLastFrags[i] = nCurrentFrags;
+	}
+
+	const float kCheerRadius = 200.0f;
+
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( !pPlayer || !pPlayer->IsConnected() )
+			continue;
+
+		CTFBot *pBot = ToTFBot( pPlayer );
+		if ( !pBot || !pBot->IsAlive() )
+			continue;
+
+		// Look for a high-performing teammate nearby
+		bool bFoundGoodTeammate = false;
+		int nPraisedTeammate = 0;
+
+		for ( int j = 1; j <= gpGlobals->maxClients; ++j )
+		{
+			if ( i == j )
+				continue;
+
+			CBasePlayer *pTeammate = UTIL_PlayerByIndex( j );
+			if ( !pTeammate || !pTeammate->IsConnected() || !pTeammate->IsAlive() )
+				continue;
+
+			if ( pTeammate->GetTeamNumber() != pBot->GetTeamNumber() )
+				continue;
+
+			if ( ( pTeammate->GetAbsOrigin() - pBot->GetAbsOrigin() ).LengthSqr() > ( kCheerRadius * kCheerRadius ) )
+				continue;
+
+			// Does this teammate have 3 kills or more in the last 30 seconds?
+			if ( s_nKillsInWindow[j] >= 3 )
+			{
+				// Have we already praised this teammate for the current window?
+				if ( s_flAlreadyPraisedWindow[i][j] != s_flKillWindowStart[j] )
+				{
+					bFoundGoodTeammate = true;
+					nPraisedTeammate = j;
+					break;
+				}
+			}
+		}
+
+		if ( bFoundGoodTeammate )
+		{
+			if ( RandomInt( 0, 1 ) == 0 ) // 50/50
+			{
+				VoiceCommand( pBot, 2, 7 );
+			}
+
+			s_flAlreadyPraisedWindow[i][nPraisedTeammate] = s_flKillWindowStart[nPraisedTeammate];
 		}
 	}
 #endif // GAME_DLL

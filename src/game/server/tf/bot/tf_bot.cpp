@@ -81,7 +81,7 @@ extern ConVar tf_bot_path_lookahead_range;
 extern ConVar tf_mvm_miniboss_scale;
 
 //-----------------------------------------------------------------------------
-bool LoadScript( const char *pszFilename, CUtlVector< CUtlString > &outLines, CBaseEntity *pKiller = NULL, CBaseEntity *pVictim = NULL )
+bool LoadScript( const char *pszFilename, CUtlVector< CUtlString > &outLines, CBaseEntity *pKiller = NULL, CBaseEntity *pVictim = NULL, CBaseEntity *pTeammate = NULL )
 {
 	outLines.RemoveAll();
 
@@ -107,6 +107,13 @@ bool LoadScript( const char *pszFilename, CUtlVector< CUtlString > &outLines, CB
 	if ( pVictim && pVictim->IsPlayer() )
 	{
 		pszVictimName = ( (CBasePlayer*)pVictim)->GetPlayerName();
+	}
+
+    // Get the name of the teammate we're praising
+	const char *pszTeammateName = "NULL! TEAMMATE NOT FOUND"; // Default fallback if no teammate
+	if ( pTeammate && pTeammate->IsPlayer() )
+	{
+		pszTeammateName = ( (CBasePlayer*)pTeammate)->GetPlayerName();
 	}
 
 	char szLine[512];
@@ -143,6 +150,14 @@ bool LoadScript( const char *pszFilename, CUtlVector< CUtlString > &outLines, CB
             {
                 char szTemp[512];
                 Q_StrSubst( szBuffer, "[victim]", pszVictimName, szTemp, sizeof( szTemp ) );
+                Q_strncpy( szBuffer, szTemp, sizeof( szBuffer ) );
+            }
+
+			// Replace [teammate] with the teammate's name we're praising
+            if ( Q_stristr( szBuffer, "[teammate]" ) )
+            {
+                char szTemp[512];
+                Q_StrSubst( szBuffer, "[teammate]", pszTeammateName, szTemp, sizeof( szTemp ) );
                 Q_strncpy( szBuffer, szTemp, sizeof( szBuffer ) );
             }
 
@@ -345,14 +360,13 @@ const char *GetRandomBotName()
 	if ( !s_bLoaded )
 	{
 		s_bLoaded = true;
-		LoadScript( "scripts/bot/bot_names.txt", s_Names);
+		LoadScript( "scripts/bot/bot_names.txt", s_Names );
 	}
 
 	if ( s_Names.Count() == 0 )
 		return "NULL! NAMES FILE EMPTY";
 
-	int RandMsg = RandomInt( 0, s_Names.Count() - 1 );
-	return s_Names[ RandMsg ].Get();
+	return s_Names[ RandomInt( 0, s_Names.Count() - 1 ) ].Get();
 }
 
 //-----------------------------------------------------------------------------------------------------
@@ -361,8 +375,10 @@ void CreateBotName( int iTeam, int iClassIndex, CTFBot::DifficultyType skill, ch
 	char szBotNameBuffer[256];
 	char szEnemyOrFriendlyString[256];
 
-	const char *pBotName = "";
 	const char *pFriendlyOrEnemyTitle = "";
+	const char *pDifficultyString = tf_bot_prefix_name_with_difficulty.GetBool()
+		? DifficultyLevelToString( skill )
+		: "";
 
 	// @note (Tom Bui): it is okay to get localized name in training, since we should be on a listen server
 	if ( TFGameRules()->IsInTraining() )
@@ -380,10 +396,10 @@ void CreateBotName( int iTeam, int iClassIndex, CTFBot::DifficultyType skill, ch
 				}
 				else
 				{
-					pBotTitle = "#TF_Bot_Title_Enemy";
-				}
+				pBotTitle = ( iHumanTeam == iTeam ) ? "#TF_Bot_Title_Friendly" : "#TF_Bot_Title_Enemy";
 			}
 		}
+
 		wchar_t *pLocalizedTitle = pBotTitle ? g_pVGuiLocalize->Find( pBotTitle ) : NULL;
 		if ( pLocalizedTitle )
 		{
@@ -404,21 +420,46 @@ void CreateBotName( int iTeam, int iClassIndex, CTFBot::DifficultyType skill, ch
 		g_pVGuiLocalize->ConvertUnicodeToANSI( pLocalizedName, szBotNameBuffer, sizeof( szBotNameBuffer ) );
 		pBotName = szBotNameBuffer;
 	}
-	else
+
+	// Collect names currently claimed by connected players
+	CUtlVector< const char * > usedNames;
 	{
 		pBotName = GetRandomBotName();
+		if ( !pPlayer || !pPlayer->IsConnected() )
+			continue;
+		if ( pszName && *pszName )
 	}
-	
-	const char *pDifficultyString = tf_bot_prefix_name_with_difficulty.GetBool() ? DifficultyLevelToString( skill ) : "";
 
-	// we use this as our formatting, because we don't know the language of the downstream clients
 	CFmtStr name( "%s%s%s", 
 				  pDifficultyString, pFriendlyOrEnemyTitle, pBotName );
-	Q_strncpy( pBuffer, name.Access(), iBufferSize );
+	{
+		const char *pBaseName = GetRandomBotName();
+		CFmtStr candidate( "%s%s%s", pDifficultyString, pFriendlyOrEnemyTitle, pBaseName );
+
+		for ( int u = 0; u < usedNames.Count(); ++u )
+		{
+			{
+				bAlreadyUsed = true;
+				break;
+			}
+		}
+
+		if ( !bAlreadyUsed )
+		{
+			Q_strncpy( pBuffer, candidate.Access(), iBufferSize );
+			return;
+		}
+	}
+
+	// Fallback: If literally everything is somehow taken, just choose a random name, whether or not it's already claimed.
+	const char *pBaseName = GetRandomBotName();
+	CFmtStr fallback( "%s%s%s", pDifficultyString, pFriendlyOrEnemyTitle, pBaseName );
+	Q_strncpy( pBuffer, fallback.Access(), iBufferSize );
 }
 
 
 //-----------------------------------------------------------------------------------------------------
+extern ConVar tf_mvm_defenders_team_size;
 CON_COMMAND_F( tf_bot_add, "Add a bot.", FCVAR_GAMEDLL )
 {
 	// Listenserver host or rcon access only!
@@ -1432,6 +1473,7 @@ CTFBot::CTFBot()
 	ListenForGameEvent( "teamplay_point_captured" );
 	ListenForGameEvent( "teamplay_round_win" );
 	ListenForGameEvent( "teamplay_flag_event" );
+	ListenForGameEvent( "player_death" );
 }
 
 
@@ -1836,6 +1878,7 @@ void CTFBot::Event_Killed( const CTakeDamageInfo &info )
 	BaseClass::Event_Killed( info );
 
     m_hKiller = info.GetAttacker();
+		m_bKilledByRandomCrit = ( pTFAttacker && !pTFAttacker->m_Shared.IsCritBoosted() );
 
 	if ( HasProxy() )
 	{
@@ -5218,6 +5261,88 @@ const char *CTFBot::GetRandomDeathMessage( CBaseEntity *pKiller )
 	static CUtlVector< CUtlString > deathMessages;
 
 	LoadScript( "scripts/bot/bot_deathmsgs.txt", deathMessages, pKiller, this );
+
+	if ( deathMessages.Count() == 0 )
+		return "NULL! MSG FILE EMPTY!";
+
+	int RandMsg = RandomInt( 0, deathMessages.Count() - 1 );
+	return deathMessages[ RandMsg ].Get();
+}
+
+//-----------------------------------------------------------------------------
+const char *CTFBot::GetRandomCritDeathMessage( CBaseEntity *pKiller )
+{
+	// 30% chance we will even send our message, so chat isn't spammed by many bots dying at once
+    if ( RandomFloat( 0.0f, 1.0f ) > 0.30f )
+        return "";
+
+	static CUtlVector< CUtlString > deathMessages;
+
+	LoadScript( "scripts/bot/bot_deathmsgs_crit.txt", deathMessages, pKiller, this );
+
+	if ( deathMessages.Count() == 0 )
+		return "NULL! MSG FILE EMPTY!";
+
+	static const char *pszRandCritTag = "[randcrit]";
+	static const int nRandCritTagLen = Q_strlen( pszRandCritTag );
+
+	static CUtlVector< CUtlString > eligibleMessages;
+	eligibleMessages.RemoveAll();
+
+	for ( int i = 0; i < deathMessages.Count(); ++i )
+	{
+		const char *pszLine = deathMessages[i].Get();
+
+		if ( !Q_strnicmp( pszLine, pszRandCritTag, nRandCritTagLen ) )
+		{
+			if ( !WasKilledByRandomCrit() )
+				continue;
+
+			pszLine += nRandCritTagLen;
+			while ( *pszLine == ' ' )
+				++pszLine;
+		}
+
+		eligibleMessages.AddToTail( pszLine );
+	}
+
+	if ( eligibleMessages.Count() == 0 )
+		return "";
+
+	int RandMsg = RandomInt( 0, eligibleMessages.Count() - 1 );
+	return eligibleMessages[ RandMsg ].Get();
+}
+
+//-----------------------------------------------------------------------------
+const char *CTFBot::GetRandomKillMessage( CBaseEntity *pVictim )
+{
+	// 30% chance we will even send our message, so chat isn't spammed by many bots killings things at once
+    if ( RandomFloat( 0.0f, 1.0f ) > 0.30f )
+        return "";
+
+	static CUtlVector< CUtlString > deathMessages;
+
+	LoadScript( "scripts/bot/bot_killmsgs.txt", deathMessages, pVictim, this );
+
+	if ( deathMessages.Count() == 0 )
+		return "NULL! MSG FILE EMPTY!";
+
+	int RandMsg = RandomInt( 0, deathMessages.Count() - 1 );
+	return deathMessages[ RandMsg ].Get();
+}
+
+//-----------------------------------------------------------------------------
+const char *CTFBot::GetRandomPraiseMessage( CBaseEntity *pTeammate )
+{
+	// Bots always tell well performing teammates they're doing good
+	//
+	// 20% chance we will even send our message
+    //if ( RandomFloat( 0.0f, 1.0f ) > 0.20f )
+    //    return "";
+
+	static CUtlVector< CUtlString > deathMessages;
+
+	LoadScript( "scripts/bot/bot_praisemsgs.txt", deathMessages, NULL, NULL, pTeammate );
 
 	if ( deathMessages.Count() == 0 )
 		return "NULL! MSG FILE EMPTY!";
