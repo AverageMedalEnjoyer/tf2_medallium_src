@@ -509,6 +509,7 @@ CTFClassMenu::CTFClassMenu( IViewPort *pViewPort )
 	m_pMvmUpgradeImages[TF_CLASS_SNIPER] = new vgui::ImagePanel( this, "MvMUpgradeImageSniper" );
 	m_pMvmUpgradeImages[TF_CLASS_ENGINEER] = new vgui::ImagePanel( this, "MvMUpgradeImageEngineer" );
 	m_pMvmUpgradeImages[TF_CLASS_SPY] = new vgui::ImagePanel( this, "MvMUpgradeImageSpy" );
+	m_pMvmUpgradeImages[TF_CLASS_CIVILIAN] = new vgui::ImagePanel( this, "MvMUpgradeImageCivilian" );
 
 	vgui::ivgui()->AddTickSignal( GetVPanel() );
 }
@@ -541,6 +542,7 @@ void CTFClassMenu::ApplySchemeSettings( IScheme *pScheme )
 		m_pClassHintIcons[TF_CLASS_SPY] = dynamic_cast< CSCHintIcon* >( FindChildByName( "SpyHintIcon" ) );
 		m_pClassHintIcons[TF_CLASS_ENGINEER] = dynamic_cast< CSCHintIcon* >( FindChildByName( "EngineerHintIcon" ) );
 		m_pClassHintIcons[TF_CLASS_SNIPER] = dynamic_cast< CSCHintIcon* >( FindChildByName( "SniperHintIcon" ) );
+		m_pClassHintIcons[TF_CLASS_CIVILIAN] = dynamic_cast< CSCHintIcon* >( FindChildByName( "CivilianHintIcon" ) );
 		m_pClassHintIcons[TF_CLASS_RANDOM] = dynamic_cast< CSCHintIcon* >( FindChildByName( "RandomHintIcon" ) );
 
 		for ( int i = 0; i < TF_CLASS_MENU_BUTTONS; i++ )
@@ -1351,7 +1353,7 @@ static const char *g_sDialogVariables[] = {
 	"numMedic",
 	"numSniper",
 	"numSpy",
-	"",
+	"numCivilian",
 };
 
 static const char *g_sClassImagesBlue[] = {
@@ -1368,7 +1370,7 @@ static const char *g_sClassImagesBlue[] = {
 	"class_sel_sm_sniper_blu",
 	"class_sel_sm_spy_blu",
 
-	"class_sel_sm_scout_blu",
+	"class_sel_sm_civilian_blu",
 };
 
 static const char *g_sClassImagesRed[] = {
@@ -1385,7 +1387,7 @@ static const char *g_sClassImagesRed[] = {
 	"class_sel_sm_sniper_red",
 	"class_sel_sm_spy_red",
 
-	"class_sel_sm_scout_red",
+	"class_sel_sm_civilian_red",
 };
 
 int g_ClassDefinesRemap[] = {
