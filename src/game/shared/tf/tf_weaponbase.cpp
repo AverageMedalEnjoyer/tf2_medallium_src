@@ -6509,7 +6509,7 @@ void CTFWeaponBase::CheckReload( void )
 float CTFWeaponBase::GetEffectBarProgress( void )
 {
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
-	if ( pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) < pPlayer->GetMaxAmmo( GetEffectBarAmmo() )) )
+	if ( pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) < pPlayer->GetMaxAmmo( GetEffectBarAmmo() )) || (GetWeaponID() == TF_WEAPON_TFC_UMBRELLA) )
 	{
 		float flTime = GetEffectBarRechargeTime();
 		float flProgress = (flTime - (m_flEffectBarRegenTime - gpGlobals->curtime)) / flTime;
@@ -6548,7 +6548,7 @@ void CTFWeaponBase::CheckEffectBarRegen( void )
 	
 	// If we're full stop the timer.  Fixes a bug with "double" throws after respawning or touching a supply cab
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
-	if ( pPlayer->GetAmmoCount( GetEffectBarAmmo() ) == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) )
+	if ( pPlayer->GetAmmoCount( GetEffectBarAmmo() ) == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) && !(GetWeaponID() == TF_WEAPON_TFC_UMBRELLA) )
 	{
 		m_flEffectBarRegenTime = 0;
 		return;

@@ -11312,7 +11312,7 @@ static kill_eater_event_t g_eClassKillEvents[] =
 	kKillEaterEvent_SpyKill,					// TF_CLASS_SPY
 	kKillEaterEvent_EngineerKill,				// TF_CLASS_ENGINEER
 };
-COMPILE_TIME_ASSERT( ARRAYSIZE( g_eClassKillEvents ) == (TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS) );
+COMPILE_TIME_ASSERT( ARRAYSIZE( g_eClassKillEvents ) == (TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS - 1 ) );
 
 //-----------------------------------------------------------------------------
 static kill_eater_event_t g_eRobotClassKillEvents[] =
@@ -11327,7 +11327,7 @@ static kill_eater_event_t g_eRobotClassKillEvents[] =
 	kKillEaterEvent_RobotSpyKill,					// TF_CLASS_SPY
 	kKillEaterEvent_RobotEngineerKill,				// TF_CLASS_ENGINEER
 };
-COMPILE_TIME_ASSERT( ARRAYSIZE( g_eRobotClassKillEvents ) == (TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS) );
+COMPILE_TIME_ASSERT( ARRAYSIZE( g_eRobotClassKillEvents ) == (TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS - 1 ) );
 
 static bool BHasWearableOfSpecificQualityEquipped( /*const*/ CTFPlayer *pTFPlayer, EEconItemQuality eQuality )
 {
