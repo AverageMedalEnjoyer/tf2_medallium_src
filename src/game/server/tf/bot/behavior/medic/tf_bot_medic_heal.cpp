@@ -9,6 +9,7 @@
 #include "tf_gamerules.h"
 #include "tf_weapon_medigun.h"
 #include "bot/tf_bot.h"
+#include "bot/behavior/tf_bot_mvm_defenders.h"
 #include "bot/behavior/medic/tf_bot_medic_heal.h"
 #include "bot/behavior/medic/tf_bot_medic_retreat.h"
 #include "bot/behavior/tf_bot_use_teleporter.h"
@@ -21,9 +22,9 @@ extern ConVar tf_bot_path_lookahead_range;
 ConVar tf_bot_medic_stop_follow_range( "tf_bot_medic_stop_follow_range", "75", FCVAR_CHEAT );			// 100
 ConVar tf_bot_medic_start_follow_range( "tf_bot_medic_start_follow_range", "250", FCVAR_CHEAT );		// 300
 ConVar tf_bot_medic_max_heal_range( "tf_bot_medic_max_heal_range", "600", FCVAR_CHEAT );
-ConVar tf_bot_medic_debug( "tf_bot_medic_debug", "0", FCVAR_CHEAT );
+ConVar tf_bot_medic_cover_debug( "tf_bot_medic_cover_debug", "0", FCVAR_CHEAT );
 ConVar tf_bot_medic_max_call_response_range( "tf_bot_medic_max_call_response_range", "1000", FCVAR_CHEAT );
-
+ConVar tf_bot_medic_opportunistic_range( "tf_bot_medic_opportunistic_range", "2500", FCVAR_CHEAT );
 
 //---------------------------------------------------------------------------------------------
 ActionResult< CTFBot >	CTFBotMedicHeal::OnStart( CTFBot *me, Action< CTFBot > *priorAction )
@@ -33,6 +34,9 @@ ActionResult< CTFBot >	CTFBotMedicHeal::OnStart( CTFBot *me, Action< CTFBot > *p
 	m_coverArea = NULL;
 	m_patientAnchorPos = vec3_origin;
 	m_isPatientRunningTimer.Invalidate();
+    m_opportunisticPatient = NULL;
+	m_opportunisticStickTimer.Invalidate();
+	m_bUberLocked = false;
 
 	return Continue();
 }
@@ -107,6 +111,30 @@ public:
 			}
 		}
 
+        int currentHealers = 0;
+    	int contenderHealers = 0;
+
+	    for ( i = 0; i < current->m_Shared.GetNumHealers(); ++i )
+	    {
+	    	CBaseEntity *healer = current->m_Shared.GetHealerByIndex( i );
+	    	if ( healer && healer->IsPlayer() && !m_me->IsSelf( healer ) )
+	    		++currentHealers;
+	    }
+
+	    for ( i = 0; i < contender->m_Shared.GetNumHealers(); ++i )
+	    {
+		    CBaseEntity *healer = contender->m_Shared.GetHealerByIndex( i );
+	    	if ( healer && healer->IsPlayer() && !m_me->IsSelf( healer ) )
+	    		++contenderHealers;
+    	}
+
+    	// Avoid anyone who already has a Medic
+	    if ( currentHealers > 0 && contenderHealers == 0 )
+		    return contender;
+
+	    if ( contenderHealers > 0 && currentHealers == 0 )
+		    return current;
+
 		// if current already has another medic (not a dispenser) on him, select contender
 		int numHealers = current->m_Shared.GetNumHealers();
 		for ( i=0; i<numHealers; ++i )
@@ -133,7 +161,7 @@ public:
 		CTFPlayer *contenderCaller = NULL;
 		CTFBotPathCost cost( m_me, FASTEST_ROUTE );
 		
-		if ( !current->IsBot() && current->IsCallingForMedic() && m_me->IsRangeLessThan( current, tf_bot_medic_max_call_response_range.GetFloat() ) )
+		if ( /*!current->IsBot() &&*/ current->IsCallingForMedic() && m_me->IsRangeLessThan( current, tf_bot_medic_max_call_response_range.GetFloat() ) )
 		{
 			// check actual travel range
 			if ( NavAreaTravelDistance( m_me->GetLastKnownArea(), current->GetLastKnownArea(), cost, 1.5f * tf_bot_medic_max_call_response_range.GetFloat() ) >= 0.0 )
@@ -142,7 +170,7 @@ public:
 			}
 		}
 
-		if ( !contender->IsBot() && contender->IsCallingForMedic() && m_me->IsRangeLessThan( contender, tf_bot_medic_max_call_response_range.GetFloat() ) )
+		if ( /*!contender->IsBot() &&*/ contender->IsCallingForMedic() && m_me->IsRangeLessThan(contender, tf_bot_medic_max_call_response_range.GetFloat()))
 		{
 			// check actual travel range
 			if ( NavAreaTravelDistance( m_me->GetLastKnownArea(), contender->GetLastKnownArea(), cost, 1.5f * tf_bot_medic_max_call_response_range.GetFloat() ) >= 0.0 )
@@ -190,7 +218,7 @@ public:
 		if ( currentRank == contenderRank )
 		{
 			// unless contender is much closer, keep current guy
-			const float tolerance = 300.0f;
+			const float tolerance = 100.0f;
 			return ( m_me->GetDistanceBetween( current ) - m_me->GetDistanceBetween( contender ) > tolerance ) ? contender : current;
 		}
 
@@ -335,50 +363,87 @@ public:
 		m_isInCombat = isInCombat;
 	}
 
-	bool Inspect( const CKnownEntity &known )
+    bool Inspect( const CKnownEntity &known )
 	{
-		if ( known.GetEntity()->IsPlayer() )
+		if ( !known.GetEntity() || !known.GetEntity()->IsPlayer() )
+			return true;
+
+		CTFPlayer *player = ToTFPlayer( known.GetEntity() );
+		if ( !player )
+			return true;
+
+		// Never consider ourselves
+		if ( m_me->IsSelf( player ) )
+			return true;
+
+		// Must be alive teammate
+		if ( !player->IsAlive() || !player->InSameTeam( m_me ) )
+			return true;
+
+		// Never heal cloaked/disguised Spies
+		if ( player->m_Shared.IsStealthed() || player->m_Shared.InCond( TF_COND_DISGUISED ) )
+			return true;
+
+		// Never heal a teammate if they are already being healed
+        bool bAlreadyHasMedic = false;
+	        for ( int i = 0; i < player->m_Shared.GetNumHealers(); ++i )
+	    {
+	    	CBaseEntity *healer = player->m_Shared.GetHealerByIndex( i );
+	    	if ( healer && healer->IsPlayer() && !m_me->IsSelf( healer ) )
+	    	{
+			bAlreadyHasMedic = true;
+	        		break;
+	    	}
+	    }
+
+	    if ( bAlreadyHasMedic )
+		    return true;
+
+		// These classes are less crucial to heal as they are usually far away anyways
+		// Basically, Medics will look 50% less for these classes
+		float effectiveRange = m_maxRange;
+        if ( player->IsPlayerClass( TF_CLASS_SNIPER ) ||
+			 player->IsPlayerClass( TF_CLASS_SPY ) ||
+			 player->IsPlayerClass( TF_CLASS_MEDIC ) ||
+			 player->IsPlayerClass( TF_CLASS_ENGINEER ) )
 		{
-			CTFPlayer *player = ToTFPlayer( known.GetEntity() );
+			effectiveRange *= 0.5f;
+		}
 
-			if ( m_me->IsRangeGreaterThan( player, m_maxRange ) )
-				return true;
+		if ( m_me->IsRangeGreaterThan( player, effectiveRange ) )
+			return true;
 
-			if ( !m_me->IsLineOfFireClear( player->EyePosition() ) )
-				return true;
+		//if ( !m_me->IsLineOfFireClear( player->EyePosition() ) )
+		//	return true;
 
-			if ( !m_me->IsSelf( player ) && player->IsAlive() && player->InSameTeam( m_me ) )
+		// ----- Existing health-ratio logic (most injured first) -----
+		float maxHealth = m_isInCombat ? player->GetMaxHealth() : player->m_Shared.GetMaxBuffedHealth();
+		float healthRatio = (float)player->GetHealth() / maxHealth;
+
+		if ( m_isOnFire )
+		{
+			// only others on fire who have less health can trump
+			if ( player->m_Shared.InCond( TF_COND_BURNING ) && healthRatio < m_injuredHealthRatio )
 			{
-				// if we're not in combat, opportunistically overheal
-				float maxHealth = m_isInCombat ? player->GetMaxHealth() : player->m_Shared.GetMaxBuffedHealth();
-				float healthRatio = (float)player->GetHealth() / maxHealth;
-
-				if ( m_isOnFire )
+				m_mostInjured = player;
+				m_injuredHealthRatio = healthRatio;
+			}
+		}
+		else
+		{
+			if ( player->m_Shared.InCond( TF_COND_BURNING ) )
+			{
+				// fire trumps
+				m_mostInjured = player;
+				m_injuredHealthRatio = healthRatio;
+				m_isOnFire = true;
+			}
+			else
+			{
+				if ( healthRatio < m_injuredHealthRatio )
 				{
-					// only others on fire who have less health can trump
-					if ( player->m_Shared.InCond( TF_COND_BURNING ) && healthRatio < m_injuredHealthRatio )
-					{
-						m_mostInjured = player;
-						m_injuredHealthRatio = healthRatio;
-					}
-				}
-				else
-				{
-					if ( player->m_Shared.InCond( TF_COND_BURNING ) )
-					{
-						// fire trumps
-						m_mostInjured = player;
-						m_injuredHealthRatio = healthRatio;
-						m_isOnFire = true;
-					}
-					else
-					{
-						if ( healthRatio < m_injuredHealthRatio )
-						{
-							m_mostInjured = player;
-							m_injuredHealthRatio = healthRatio;
-						}
-					}
+					m_mostInjured = player;
+					m_injuredHealthRatio = healthRatio;
 				}
 			}
 		}
@@ -427,13 +492,16 @@ bool CTFBotMedicHeal::IsReadyToDeployUber( const CWeaponMedigun* pMedigun ) cons
 //---------------------------------------------------------------------------------------------
 bool CTFBotMedicHeal::IsGoodUberTarget( CTFPlayer *who ) const
 {
-	if ( who->IsPlayerClass( TF_CLASS_MEDIC ) ||
-		 who->IsPlayerClass( TF_CLASS_SNIPER ) ||
-		 who->IsPlayerClass( TF_CLASS_ENGINEER ) ||
-		 who->IsPlayerClass( TF_CLASS_SCOUT ) ||
-		 who->IsPlayerClass( TF_CLASS_SPY ) )
-	{
+	if ( !who )
 		return false;
+
+	// Power classes are good Uber targets
+	if ( who->IsPlayerClass( TF_CLASS_HEAVYWEAPONS ) ||
+		 who->IsPlayerClass( TF_CLASS_SOLDIER ) ||
+		 who->IsPlayerClass( TF_CLASS_PYRO ) ||
+		 who->IsPlayerClass( TF_CLASS_DEMOMAN ) )
+	{
+		return true;
 	}
 
 	return false;
@@ -484,8 +552,17 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 
 	m_patient = SelectPatient( me, m_patient );
 
+    if ( m_bUberLocked )
+	{
+		CWeaponMedigun *pMed = dynamic_cast< CWeaponMedigun * >( me->m_Shared.GetActiveTFWeapon() );
+		if ( !pMed || ( !pMed->IsReleasingCharge() && !me->m_Shared.InCond( TF_COND_INVULNERABLE ) ) )
+		{
+			m_bUberLocked = false;
+		}
+	}
+
 	// prevent a group of medic healing each other in a loop. always heal the top guy in the chain
-	if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() && m_patient != NULL && m_patient->IsPlayerClass( TF_CLASS_MEDIC ) )
+	if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() && m_patient != NULL && m_patient->IsPlayerClass( TF_CLASS_MEDIC ) && me->GetTeamNumber() != TF_TEAM_PVE_DEFENDERS )
 	{
 		CUtlVector< CBaseEntity* > seenPatients;
 		seenPatients.AddToTail( m_patient );
@@ -506,7 +583,7 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 	{
 		// no patients
 
-		if ( TFGameRules()->IsMannVsMachineMode() )
+		if ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() != TF_TEAM_PVE_DEFENDERS )
 		{
 			// no-one is left to heal - get the flag!
 			return ChangeTo( new CTFBotFetchFlag, "Everyone is gone! Going for the flag" );
@@ -586,20 +663,46 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 			}
 		}
 
-		// if our primary patient is healthy and safe, heal others in our immediate vicinity who need it
-		// No opportunistic healing in training - focus on the trainee
-		// No opportunistic healing if I'm in a squad - stay on the leader
-		if ( !medigun->IsReleasingCharge() && IsStable( m_patient ) && !TFGameRules()->IsInTraining() && !me->IsInASquad() )
+        // Opportunistic healing: look farther (1500 units) and stick until the target is healthy
+        if ( !medigun->IsReleasingCharge() && !TFGameRules()->IsInTraining() && !me->IsInASquad() && !m_bUberLocked )
 		{
-			bool isInCombat = actualHealTarget ? actualHealTarget->GetTimeSinceWeaponFired() < 1.0f : false;
-
-			CFindMostInjuredNeighbor neighbor( me, 0.9f * medigun->GetTargetRange(), isInCombat );
-			me->GetVisionInterface()->ForEachKnownEntity( neighbor );
-
-			float hurtRatio = isInCombat ? 0.5f : 1.0f;
-			if ( neighbor.m_mostInjured && neighbor.m_injuredHealthRatio < hurtRatio )
+			// Still have a previous opportunistic patient?
+			if ( m_opportunisticPatient != NULL && m_opportunisticPatient->IsAlive() )
 			{
-				actualHealTarget = neighbor.m_mostInjured;
+				float healthRatio = (float)m_opportunisticPatient->GetHealth() / (float)m_opportunisticPatient->GetMaxHealth();
+				bool bStillInRange = me->IsRangeLessThan( m_opportunisticPatient, tf_bot_medic_opportunistic_range.GetFloat() );
+				bool bCanSee       = me->IsLineOfFireClear( m_opportunisticPatient->EyePosition() );
+
+				if ( healthRatio < 0.99f && bStillInRange && ( bCanSee || !m_opportunisticStickTimer.IsElapsed() ) )
+				{
+					actualHealTarget = m_opportunisticPatient;
+				}
+				else
+				{
+					// Finished or lost them
+					m_opportunisticPatient = NULL;
+					m_opportunisticStickTimer.Invalidate();
+				}
+			}
+
+			// Look for a new most-injured teammate (lowest health first)
+			if ( m_opportunisticPatient == NULL )
+			{
+				bool isInCombat = actualHealTarget ? actualHealTarget->GetTimeSinceWeaponFired() < 1.0f : false;
+
+				CFindMostInjuredNeighbor neighbor( me, tf_bot_medic_opportunistic_range.GetFloat(), isInCombat );
+				me->GetVisionInterface()->ForEachKnownEntity( neighbor );
+
+				if ( neighbor.m_mostInjured )
+				{
+					float healthRatio = neighbor.m_injuredHealthRatio;
+					if ( healthRatio < 0.95f )		// meaningfully hurt
+					{
+						m_opportunisticPatient = neighbor.m_mostInjured;
+						m_opportunisticStickTimer.Start( 10.0f );	// grace period
+						actualHealTarget = m_opportunisticPatient;
+					}
+				}
 			}
 		}
 
@@ -660,7 +763,7 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 				// uber if I'm getting low and have recently taken damage
 				if ( me->GetHealth() < me->GetUberHealthThreshold() )
 				{
-					if ( me->GetTimeSinceLastInjury( GetEnemyTeam( me->GetTeamNumber() ) ) < 1.0f || TFGameRules()->IsMannVsMachineMode() )
+					if ( me->GetTimeSinceLastInjury( GetEnemyTeam( me->GetTeamNumber() ) ) < 1.0f || ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() != TF_TEAM_PVE_DEFENDERS ) )
 					{
 						useUber = true;
 					}
@@ -673,7 +776,7 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 				}
 
 				// special case for bots in mvm spawn zones
-				if ( TFGameRules()->IsMannVsMachineMode() )
+				if ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() != TF_TEAM_PVE_DEFENDERS )
 				{
 					if ( m_patient->m_Shared.InCond( TF_COND_INVULNERABLE_HIDE_UNLESS_DAMAGED ) && 
 						 me->m_Shared.InCond( TF_COND_INVULNERABLE_HIDE_UNLESS_DAMAGED ) )
@@ -683,8 +786,24 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 				}
 			}
 
-			if ( useUber )
+            if ( useUber )
 			{
+				if ( !m_bUberLocked )
+				{
+					// Prefer current patient if it's a power class, otherwise reselect
+					if ( m_patient && IsGoodUberTarget( m_patient ) )
+					{
+						// Already good
+					}
+					else
+					{
+						// Favor power classes when ubering
+						m_patient = SelectPatient( me, NULL );
+					}
+
+					m_bUberLocked = true;
+				}
+
 				if ( !m_delayUberTimer.HasStarted() )
 				{
 					m_delayUberTimer.Start( me->GetUberDeployDelayDuration() );
@@ -693,8 +812,6 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 				if ( m_delayUberTimer.IsElapsed() )
 				{
 					m_delayUberTimer.Invalidate();
-
-					// start the uber
 					me->PressAltFireButton();
 				}
 			}
@@ -717,13 +834,13 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 		}
 	}
 
-	bool isThreatened = false;
+    bool isThreatened = false;
 	if ( knownThreat && knownThreat->IsVisibleRecently() && knownThreat->GetEntity() )
 	{
-		if ( actualHealTarget ) 
+		if ( actualHealTarget )
 		{
 			float patientRangeSq = me->GetRangeSquaredTo( actualHealTarget );
-			float threatRangeSq = me->GetRangeSquaredTo( knownThreat->GetEntity() );
+			float threatRangeSq  = me->GetRangeSquaredTo( knownThreat->GetEntity() );
 			isThreatened = threatRangeSq < patientRangeSq;
 		}
 		else
@@ -732,14 +849,20 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 		}
 	}
 
-	bool outOfHealRange = me->IsRangeGreaterThan( actualHealTarget, 1.1f * tf_bot_medic_max_heal_range.GetFloat() );
+	// Only consider "out of range" when we are significantly beyond heal range
+	bool outOfHealRange = me->IsRangeGreaterThan( actualHealTarget, 1.25f * tf_bot_medic_max_heal_range.GetFloat() );
 	bool isPatientObscured = actualHealTarget ? !me->IsLineOfFireClear( actualHealTarget->EyePosition() ) : true;
 
-	if ( !IsReadyToDeployUber( medigun ) && !me->m_Shared.InCond( TF_COND_INVULNERABLE ) && !isActivelyHealing && !isUsingProjectileShield && ( isThreatened || outOfHealRange || isPatientObscured ) )
-	{
-		// patient is too far to heal or obscured, equip combat weapon and defend ourselves while we move into position
-		me->EquipBestWeaponForThreat( knownThreat );
+	// Prefer staying on the Medigun while we are trying to reach someone
+	bool bWantCombatWeapon = !IsReadyToDeployUber( medigun )
+						  && !me->m_Shared.InCond( TF_COND_INVULNERABLE )
+						  && !isActivelyHealing
+						  && !isUsingProjectileShield
+						  && ( isThreatened || ( outOfHealRange && isPatientObscured ) );
 
+	if ( bWantCombatWeapon )
+	{
+		me->EquipBestWeaponForThreat( knownThreat );
 		if ( knownThreat && knownThreat->GetEntity() )
 		{
 			me->GetBodyInterface()->AimHeadTowards( knownThreat->GetEntity(), IBody::IMPORTANT, 1.0f, NULL, "Aiming at an enemy" );
@@ -747,7 +870,6 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 	}
 	else
 	{
-		// equip the medigun and prepare to heal
 		CBaseCombatWeapon *gun = me->Weapon_GetSlot( TF_WPN_TYPE_SECONDARY );
 		if ( gun )
 		{
@@ -755,30 +877,60 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 		}
 	}
 
-	// if we are ubering or are ready to uber (or lost our beam lock), stay close and locked on
-	if ( me->m_Shared.InCond( TF_COND_INVULNERABLE ) || IsReadyToDeployUber( medigun ) || isHealTargetBlocked )
+    CTFPlayer *followTarget = m_patient;
+	bool bForceChase = false;
+
+	if ( m_opportunisticPatient != NULL && m_opportunisticPatient->IsAlive() )
 	{
-		// if we're not close or can't see our patient, move closer, otherwise we're good where we are
-		if ( me->IsRangeGreaterThan( m_patient, tf_bot_medic_stop_follow_range.GetFloat() ) || !me->IsAbleToSee( m_patient, CBaseCombatCharacter::DISREGARD_FOV ) )
+		// Actively leave the power class and go heal the injured teammate
+		followTarget = m_opportunisticPatient;
+		//bForceChase  = true;
+	}
+
+	if ( me->m_Shared.InCond( TF_COND_INVULNERABLE ) || isHealTargetBlocked || bForceChase )
+	{
+		// Chase the current priority target (opportunistic or main)
+		if ( me->IsRangeGreaterThan( followTarget, tf_bot_medic_stop_follow_range.GetFloat() ) ||
+			 !me->IsAbleToSee( followTarget, CBaseCombatCharacter::DISREGARD_FOV ) )
 		{
-			CTFBotPathCost cost( me, FASTEST_ROUTE );
-			m_chasePath.Update( me, m_patient, cost );
+			CTFBotPathCost cost( me, SAFEST_ROUTE ); // We are a VERY important guy... We need to be VERY safe...
+			m_chasePath.Update( me, followTarget, cost );
 		}
 	}
 	else
 	{
-		// follow my patient (not my momentary heal target) and stay in cover
+		// Normal cover-following of the main patient
 		if ( m_coverTimer.IsElapsed() || IsVisibleToEnemy( me, me->EyePosition() ) )
 		{
 			m_coverTimer.Start( RandomFloat( 0.5f, 1.0f ) );
 
-			ComputeFollowPosition( me );
+		    CTFPlayer *oldPatient = m_patient;
+		    if ( followTarget != m_patient )
+		    	m_patient = followTarget;
 
-			CTFBotPathCost cost( me, FASTEST_ROUTE );
+	    	ComputeFollowPosition( me );
+
+	    	m_patient = oldPatient;		// Restore
+			CTFBotPathCost cost( me, SAFEST_ROUTE ); // We are a VERY important guy... We need to be VERY safe...
 			m_coverPath.Compute( me, m_followGoal, cost );
 		}
-
 		m_coverPath.Update( me );
+	}
+
+    // MVM defender Medics: Ready up only when we have full Uber
+	if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() &&
+		 me->GetTeamNumber() == TF_TEAM_PVE_DEFENDERS )
+	{
+		CWeaponMedigun *pMedigun = dynamic_cast< CWeaponMedigun * >( me->m_Shared.GetActiveTFWeapon() );
+		if ( pMedigun && pMedigun->GetChargeLevel() >= 1.0f && m_patient != NULL )
+		{
+			// Ready up...
+			if ( TFGameRules()->UsePlayerReadyStatusMode() &&
+				 !TFGameRules()->IsPlayerReady( me->entindex() ) )
+			{
+				TFGameRules()->PlayerReadyStatus_UpdatePlayerState( me, true );
+			}
+		}
 	}
 
 	return Continue();
@@ -906,11 +1058,9 @@ void CTFBotMedicHeal::ComputeFollowPosition( CTFBot *me )
 	m_followGoal = me->GetAbsOrigin();
 
 	if ( m_patient == NULL )
-	{
 		return;
-	}
 
-	bool isExposed;
+	bool isExposed = true;
 
 	if ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() == TF_TEAM_PVE_INVADERS )
 	{
@@ -927,16 +1077,19 @@ void CTFBotMedicHeal::ComputeFollowPosition( CTFBot *me )
 	patientForward.z = 0.0f;
 	patientForward.NormalizeInPlace();
 
-	bool isNearPatient = me->IsRangeLessThan( m_patient, tf_bot_medic_start_follow_range.GetFloat() ) && me->IsAbleToSee( m_patient, CBaseCombatCharacter::DISREGARD_FOV );
+	bool isNearPatient = me->IsRangeLessThan( m_patient, tf_bot_medic_start_follow_range.GetFloat() ) &&
+						 me->IsAbleToSee( m_patient, CBaseCombatCharacter::DISREGARD_FOV );
 
+	// If we are NOT exposed, just try to stay near
 	if ( !isExposed )
 	{
-		// we're not currently visible to any enemies - try to stay that way
 		if ( isNearPatient )
 		{
-			// if we haven't been in combat for awhile, move behind our patient if we're in front of him
+			// Move behind the patient if we are in front of him and he hasn't fired recently
 			Vector toPatient = m_patient->GetAbsOrigin() - me->GetAbsOrigin();
-			if ( !TFGameRules()->InSetup() && m_patient->GetTimeSinceWeaponFired() > 5.0f && DotProduct( patientForward, toPatient ) < 0.0f )
+			if ( !TFGameRules()->InSetup() &&
+				 m_patient->GetTimeSinceWeaponFired() > 5.0f &&
+				 DotProduct( patientForward, toPatient ) < 0.0f )
 			{
 				m_followGoal = m_patient->GetAbsOrigin() - tf_bot_medic_stop_follow_range.GetFloat() * patientForward;
 			}
@@ -951,100 +1104,110 @@ void CTFBotMedicHeal::ComputeFollowPosition( CTFBot *me )
 			// get closer to our patient
 			m_followGoal = m_patient->GetAbsOrigin();
 		}
-
 		return;
 	}
 
-	// we are visible to one or more enemies - try to move to nearby cover while remaining close enough to heal
-	Vector closeSafety = me->GetAbsOrigin();
-	float closeSafetyRangeSq = FLT_MAX;
+	// We ARE exposed, search for cover around our patient
+	Vector bestCoverPos = vec3_origin;
+	float bestCoverRangeSq = FLT_MAX;
+	bool bFoundCover = false;
 
 	trace_t trace;
 	NextBotTraceFilterIgnoreActors traceFilter( NULL, COLLISION_GROUP_NONE );
 
-	float angle;
-	float inc = M_PI / tf_bot_medic_cover_test_resolution.GetFloat();
+	const float inc = M_PI / tf_bot_medic_cover_test_resolution.GetFloat();
+	const float radiusInc = 75.0f;
 
-	float radius;
-	float radiusInc = 100.0f;
 	float maxRadius = tf_bot_medic_max_heal_range.GetFloat();
 	CWeaponMedigun *medigun = dynamic_cast< CWeaponMedigun * >( me->m_Shared.GetActiveTFWeapon() );
 
+	// stay close if our patient is on the move, or we have an uber ready
 	if ( IsPatientRunning() || IsReadyToDeployUber( medigun ) )
 	{
-		// stay close if our patient is on the move, or we have an uber ready
 		maxRadius = tf_bot_medic_start_follow_range.GetFloat();
 	}
 
-	for( radius = tf_bot_medic_stop_follow_range.GetFloat() + RandomFloat( 0.0f, radiusInc ); 
-		 radius <= maxRadius;
-		 radius += radiusInc )
+    const float minCoverRadius = 10.0f;
+
+    for ( float radius = minCoverRadius + RandomFloat( 0.0f, radiusInc );
+	      radius <= maxRadius;
+	      radius += radiusInc )
 	{
-		Vector offset = vec3_origin;
-
-		for( angle = 0.0f; angle <= 2.0f * M_PI; angle += inc )
+		for ( float angle = 0.0f; angle <= 2.0f * M_PI; angle += inc )
 		{
+			Vector offset;
 			SinCos( angle, &offset.y, &offset.x );
-			Vector pos = m_patient->WorldSpaceCenter() + radius * offset;
+			offset.z = 0.0f;
 
-			// find cover in this direction
-			UTIL_TraceLine( m_patient->WorldSpaceCenter(), pos, MASK_OPAQUE | CONTENTS_IGNORE_NODRAW_OPAQUE | CONTENTS_MONSTER, &traceFilter, &trace );
+			Vector testPos = m_patient->WorldSpaceCenter() + radius * offset;
+
+			// Trace from patient to the potential cover spot
+			UTIL_TraceLine( m_patient->WorldSpaceCenter(), testPos,
+							MASK_OPAQUE | CONTENTS_IGNORE_NODRAW_OPAQUE | CONTENTS_MONSTER,
+							&traceFilter, &trace );
 
 			Vector actualPos = trace.endpos;
+
+			// Back up a little so the Medic has room to stand
 			if ( trace.DidHit() )
 			{
-				// back up a bit if we hit something, so there is room for the medic to stand
-				actualPos -= 0.5f * me->GetBodyInterface()->GetHullWidth() * offset;
+				actualPos -= 0.6f * me->GetBodyInterface()->GetHullWidth() * offset;
 			}
 
+			// Put it on the ground
 			TheNavMesh->GetSimpleGroundHeight( actualPos, &actualPos.z );
 
-			// skip spots that are too low
+			// Skip spots that are too low relative to the patient
 			if ( m_patient->GetAbsOrigin().z - actualPos.z > me->GetLocomotionInterface()->GetStepHeight() )
-			{
-				if ( tf_bot_medic_debug.GetBool() )
-				{
-					NDebugOverlay::Cross3D( actualPos, 5.0f, 255, 100, 0, true, 1.0f );
-					NDebugOverlay::Line( m_patient->WorldSpaceCenter(), actualPos, 255, 100, 0, true, 1.0f );
-				}
-
 				continue;
-			}
 
-			actualPos.z += HumanEyeHeight;
+			// Eye height for visibility tests
+			Vector eyePos = actualPos + Vector( 0, 0, HumanEyeHeight );
 
-			if ( IsVisibleToEnemy( me, actualPos ) )
+			// IMPORTANT: Must still be able to see the patient from this cover
+			if ( !me->IsLineOfFireClear( m_patient->EyePosition(), eyePos ) )
+				continue;
+
+			// Must NOT be visible to any known enemy
+			if ( IsVisibleToEnemy( me, eyePos ) )
 			{
-				// this spot is visible to a threat
-				if ( tf_bot_medic_debug.GetBool() )
+				if ( tf_bot_medic_cover_debug.GetBool() )
 				{
-					//NDebugOverlay::Circle( actualPos, 5.0f, 255, 0, 0, 255, true, 1.0f );
 					NDebugOverlay::Cross3D( actualPos, 5.0f, 255, 0, 0, true, 1.0f );
 					NDebugOverlay::Line( m_patient->WorldSpaceCenter(), actualPos, 255, 0, 0, true, 1.0f );
 				}
+				continue;
 			}
-			else
-			{
-				// no threat can see this spot
-				// keep the closest safe position to our current position to minimize exposure
-				float rangeSq = ( me->EyePosition() - actualPos ).LengthSqr();
-				if ( rangeSq < closeSafetyRangeSq )
-				{
-					closeSafetyRangeSq = rangeSq;
-					closeSafety = actualPos;
-				}
 
-				if ( tf_bot_medic_debug.GetBool() )
-				{
-					//NDebugOverlay::Circle( actualPos, 5.0f, 0, 255, 0, 255, true, 1.0f );
-					NDebugOverlay::Cross3D( actualPos, 5.0f, 0, 255, 0, true, 1.0f );
-					NDebugOverlay::Line( m_patient->WorldSpaceCenter(), actualPos, 0, 255, 0, true, 1.0f );
-				}
+			// This is a valid cover spot, keep the closest one to our current position
+			float rangeSq = ( me->EyePosition() - eyePos ).LengthSqr();
+			if ( rangeSq < bestCoverRangeSq )
+			{
+				bestCoverRangeSq = rangeSq;
+				bestCoverPos = actualPos;
+				bFoundCover = true;
+			}
+
+			if ( tf_bot_medic_cover_debug.GetBool() )
+			{
+				NDebugOverlay::Cross3D( actualPos, 5.0f, 0, 255, 0, true, 1.0f );
+				NDebugOverlay::Line( m_patient->WorldSpaceCenter(), actualPos, 0, 255, 0, true, 1.0f );
 			}
 		}
 	}
 
-	m_followGoal = closeSafety;
+	//  Decide cover goal
+	if ( bFoundCover )
+	{
+		// We found real cover that still lets us see our patient
+		m_followGoal = bestCoverPos;
+	}
+	else
+	{
+		// No cover available, stand directly behind our patient
+		m_followGoal = m_patient->GetAbsOrigin() - ( tf_bot_medic_stop_follow_range.GetFloat() + 20.0f ) * patientForward;
+		TheNavMesh->GetSimpleGroundHeight( m_followGoal, &m_followGoal.z );
+	}
 }
 
 

@@ -185,6 +185,10 @@ CTFPlayer *CTFBotGetPasstimeJack::GetValidPassTarget( CTFBot *me ) const
 
         bool bIsAsker = ( pPlayer->m_Shared.AskForBallTime() > gpGlobals->curtime );
 
+		// Never pass to a cloaked and/or disguised Spy.
+		if ( pPlayer->m_Shared.IsStealthed() || pPlayer->m_Shared.InCond( TF_COND_DISGUISED ) )
+			continue;
+
 		// Never pass to a Medic, unless they asked for it.
 		if ( !bIsAsker && pPlayer->GetPlayerClass()->GetClassIndex() == TF_CLASS_MEDIC )
 			continue;
@@ -560,7 +564,33 @@ ActionResult< CTFBot > CTFBotGetPasstimeJack::Update( CTFBot *me, float interval
 		me->ReleaseFireButton();
 
     // Passing behavior
-	if ( !m_isPassing )
+	const bool bLowHealth = ( me->GetHealth() < 80 );
+	if ( bLowHealth )
+	{
+		CTFPlayer *pPass = GetValidPassTarget( me );
+		if ( pPass )
+		{
+			// Teammate nearby: pass to them
+			if ( !m_isPassing )
+			{
+				if ( m_isChargingThrow )
+				{
+					CancelThrow( me );
+				}
+				m_isPassing = true;
+				m_passTarget = pPass;
+				m_passLostSightTimer.Invalidate();
+			}
+		}
+		else if ( !m_isChargingThrow )
+		{
+			// No teammate nearby: panic throw the JACK in a random direction
+			m_throwTarget = me->WorldSpaceCenter() + Vector( RandomFloat( -500.0f, 500.0f ), RandomFloat( -500.0f, 500.0f ), RandomFloat( 0.0f, 200.0f ) );
+			StartChargeThrow( me );
+			return Continue();
+		}
+	}
+	else if ( !m_isPassing )
 	{
 		CTFPlayer *pPass = GetValidPassTarget( me );
 		if ( pPass )
@@ -676,7 +706,7 @@ ActionResult< CTFBot > CTFBotGetPasstimeJack::Update( CTFBot *me, float interval
 			{
 				if ( m_repathTimer.IsElapsed() || !m_path.IsValid() )
 				{
-					CTFBotPathCost cost( me, DEFAULT_ROUTE );
+					CTFBotPathCost cost( me, SAFEST_ROUTE );
 					m_path.Compute( me, m_backupPos, cost );
 					m_repathTimer.Start( 0.2f );
 				}
@@ -695,7 +725,7 @@ ActionResult< CTFBot > CTFBotGetPasstimeJack::Update( CTFBot *me, float interval
 			// SCORE_WALK: Simply walk into the goal
 			if ( !m_path.IsValid() || m_repathTimer.IsElapsed() )
 			{
-				CTFBotPathCost cost( me, DEFAULT_ROUTE );
+				CTFBotPathCost cost( me, SAFEST_ROUTE );
 				m_path.Compute( me, m_goalEntity->WorldSpaceCenter(), cost );
 				m_repathTimer.Start( 1.0f );
 			}
@@ -740,14 +770,6 @@ EventDesiredResult< CTFBot > CTFBotGetPasstimeJack::OnMoveToSuccess( CTFBot *me,
 EventDesiredResult< CTFBot > CTFBotGetPasstimeJack::OnMoveToFailure( CTFBot *me, const Path *path, MoveToFailureType reason )
 {
 	return TryContinue();
-}
-
-//---------------------------------------------------------------------------------------------
-// Purpose:
-//---------------------------------------------------------------------------------------------
-QueryResultType CTFBotGetPasstimeJack::ShouldHurry( const INextBot *me ) const
-{
-	return ANSWER_YES;
 }
 
 //---------------------------------------------------------------------------------------------

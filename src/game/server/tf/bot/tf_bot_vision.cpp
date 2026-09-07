@@ -22,7 +22,9 @@ ConVar tf_bot_sniper_choose_target_interval( "tf_bot_sniper_choose_target_interv
 // Update internal state
 void CTFBotVision::Update( void )
 {
-	if ( TFGameRules()->IsMannVsMachineMode() )
+	CTFBot *me = (CTFBot *)GetBot()->GetEntity();
+
+	if ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() != TF_TEAM_PVE_DEFENDERS )
 	{
 		// Throttle vision update rate of robots in MvM for perf at the expense of reaction times
 		if ( !m_scanTimer.IsElapsed() )
@@ -35,7 +37,6 @@ void CTFBotVision::Update( void )
 
 	IVision::Update();
 
-	CTFBot *me = (CTFBot *)GetBot()->GetEntity();
 	if ( !me )
 		return;
 
@@ -317,7 +318,7 @@ bool CTFBotVision::IsIgnored( CBaseEntity *subject ) const
 			{
 				// unless we're in MvM where buildings can have really large health pools,
 				// so an engineer can die and run back in time to repair their stuff
-				if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() )
+				if ( TFGameRules() && ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() != TF_TEAM_PVE_DEFENDERS ) )
 				{
 					return false;
 				}
@@ -388,7 +389,7 @@ bool CTFBotVision::IsVisibleEntityNoticed( CBaseEntity *subject ) const
 			return false;
 		}
 
-		if ( TFGameRules()->IsMannVsMachineMode() )	// in MvM mode, forget spies as soon as they are fully disguised
+		if ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() != TF_TEAM_PVE_DEFENDERS )	// in MvM mode, forget spies as soon as they are fully disguised
 		{
 			CTFBot::SuspectedSpyInfo_t* pSuspectInfo = me->IsSuspectedSpy( player );
 			// But only if we aren't suspecting them currently.  This happens when we bump into them.
@@ -408,7 +409,7 @@ bool CTFBotVision::IsVisibleEntityNoticed( CBaseEntity *subject ) const
 			return true;
 		}
 
-		if ( !TFGameRules()->IsMannVsMachineMode() )	// ignore in MvM mode
+		if ( !TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() != TF_TEAM_PVE_INVADERS )	// ignore in MvM mode
 		{
 			if ( player->IsPlacingSapper() )
 			{

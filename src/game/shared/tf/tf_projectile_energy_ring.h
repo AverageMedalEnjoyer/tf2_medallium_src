@@ -60,6 +60,8 @@ public:
 
 	float			GetInitialVelocity( void );
 
+    CNetworkVar( bool, m_bChargedRing );
+
 private:
 
 	bool			ShouldPenetrate() const;

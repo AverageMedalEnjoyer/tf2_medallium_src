@@ -271,7 +271,7 @@ ActionResult< CTFBot >	CTFBotTacticalMonitor::Update( CTFBot *me, float interval
 	// check if we need to get to cover
 	QueryResultType shouldRetreat = me->GetIntentionInterface()->ShouldRetreat( me );
 
-	if ( TFGameRules()->IsMannVsMachineMode() )
+	if ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() == TF_TEAM_PVE_INVADERS )
 	{
 		// never retreat in MvM mode
 		shouldRetreat = ANSWER_NO;
@@ -302,7 +302,7 @@ ActionResult< CTFBot >	CTFBotTacticalMonitor::Update( CTFBot *me, float interval
 
 	bool isAvailable = ( me->GetIntentionInterface()->ShouldHurry( me ) != ANSWER_YES );
 
-	if ( TFGameRules()->IsMannVsMachineMode() && me->HasTheFlag() )
+	if ( ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() == TF_TEAM_PVE_INVADERS ) && me->HasTheFlag() )
 	{
 		isAvailable = false;
 	}
@@ -336,7 +336,7 @@ ActionResult< CTFBot >	CTFBotTacticalMonitor::Update( CTFBot *me, float interval
 
 		bool shouldDestroySentries = true;
 
-		if ( TFGameRules()->IsMannVsMachineMode() )
+		if ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() == TF_TEAM_PVE_INVADERS )
 		{
 			shouldDestroySentries = false;
 		}

@@ -305,6 +305,38 @@ public:
 	void ScriptSetActionPoint( HSCRIPT hPoint ) { SetActionPoint( ScriptToEntClass< CTFBotActionPoint >( hPoint ) ); }
 	HSCRIPT ScriptGetActionPoint( void ) const { return ToHScript( GetActionPoint() ); }
 
+    void UpdateStickybombLauncher();
+    bool ShouldUseStickybombLauncher() const;
+    void AimStickybombLauncher( const CKnownEntity *threat );
+    void DetonateStickies();
+    bool StickiesNearEnemies() const;
+
+    CountdownTimer m_stickyLastEnemySeenTimer;
+    CountdownTimer m_stickyAimHoldTimer;
+    bool m_bStickyCombatActive;
+
+    void UpdateDoubleJump();
+    bool TryStartDoubleJump();
+    void PressDoubleJump( int direction );
+
+    CountdownTimer m_DoubleJumpTimer;
+    int m_DoubleJumpDir;
+    bool m_bDoubleJumpPending;
+    float m_flDoubleJumpStartTime;
+
+	CBaseEntity        *GetKiller() { return m_hKiller; }
+    CBaseEntity        *GetVictim() { return m_hVictim; }
+    bool                WasKilledByCrit() const { return m_bKilledByCrit; }
+    bool                WasKilledByRandomCrit() const { return m_bKilledByRandomCrit; }
+
+    void Say( const char *pszMessage );
+    void SayTeam( const char *pszMessage );
+
+    const char *GetRandomDeathMessage( CBaseEntity *pKiller );
+    const char *GetRandomCritDeathMessage( CBaseEntity *pKiller );
+    const char *GetRandomKillMessage( CBaseEntity *pVictim );
+    const char *GetRandomPraiseMessage( CBaseEntity *pTeammate );
+
 	bool HasProxy( void ) const;
 	void SetProxy( CTFBotProxy *proxy );					// attach this bot to a bot_proxy entity for map I/O communications
 	CTFBotProxy *GetProxy( void ) const;
@@ -497,6 +529,11 @@ private:
 	CTFBotBody			*m_body;
 	CTFBotVision		*m_vision;
 
+    EHANDLE m_hKiller;
+    EHANDLE m_hVictim;
+    bool    m_bKilledByCrit;
+	bool    m_bKilledByRandomCrit;
+
 	CountdownTimer m_lookAtEnemyInvasionAreasTimer;
 
 	CTFNavArea *m_spawnArea;			// where we spawned
@@ -562,6 +599,14 @@ private:
 		float m_when;
 	};
 	CUtlVector< DelayedNoticeInfo > m_delayedNoticeVector;
+
+    struct QueuedChatMessage_t
+    {
+    	CUtlString m_message;
+	    bool m_bTeamOnly;
+    };
+    CUtlVector< QueuedChatMessage_t > m_queuedChatMessages;
+    void DeliverQueuedChatMessage( void );
 
 	float m_maxVisionRangeOverride;
 

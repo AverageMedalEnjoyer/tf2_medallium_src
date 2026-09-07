@@ -170,7 +170,15 @@ void CTFProjectile_Arrow::InitArrow( const QAngle &vecAngles, const float fSpeed
 	Vector vecForward, vecRight, vecUp;
 	AngleVectors( vecAngles, &vecForward, &vecRight, &vecUp );
 
-	Vector vecVelocity = vecForward * fSpeed;
+    CBaseEntity *pLauncher = GetLauncher();
+
+    float flSpeedModifier = 1.0f;
+	if ( pLauncher )
+	{
+		CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( GetLauncher(), flSpeedModifier, mult_projectile_speed );
+	}
+
+	Vector vecVelocity = vecForward * ( fSpeed * flSpeedModifier );
 	
 	SetAbsVelocity( vecVelocity );	
 	SetupInitialTransmittedGrenadeVelocity( vecVelocity );

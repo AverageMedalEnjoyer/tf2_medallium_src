@@ -151,7 +151,7 @@ ActionResult< CTFBot >	CTFBotMainAction::Update( CTFBot *me, float interval )
 
 	// should I try to change class?
 	if ( tf_bot_reevaluate_class_in_spawnroom.GetBool() &&
-	     !TFGameRules()->IsMannVsMachineMode() && 
+	     !( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() == TF_TEAM_PVE_INVADERS ) && 
 		 !TFGameRules()->IsInTraining() && 
 		 myArea && myArea->HasAttributeTF( spawnRoomFlag ) )
 	{
@@ -474,7 +474,7 @@ EventDesiredResult< CTFBot > CTFBotMainAction::OnStuck( CTFBot *me )
 	}
 */
 
-	if ( TFGameRules()->IsMannVsMachineMode() )
+	if ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() == TF_TEAM_PVE_INVADERS )
 	{
 		if ( me->m_Shared.InCond( TF_COND_MVM_BOT_STUN_RADIOWAVE ) )
 		{
@@ -1076,7 +1076,7 @@ const CKnownEntity *CTFBotMainAction::SelectMoreDangerousThreatInternal( const I
 	// close range sentries are the most dangerous of all
 	bool shouldFearSentryGuns = true;
 
-	if ( TFGameRules()->IsMannVsMachineMode() )
+	if ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() == TF_TEAM_PVE_INVADERS )
 	{
 		// MvM bots are not afraid of sentry guns and treat them like other enemy players
 		shouldFearSentryGuns = false;
@@ -1309,7 +1309,7 @@ void CTFBotMainAction::FireWeaponAtEnemy( CTFBot *me )
 	}
 
 	// if our target is uber'd, most weapons are useless - unless we're in MvM, where invuln tanking is valuable
-	if ( TFGameRules() && !TFGameRules()->IsMannVsMachineMode() )
+	if ( TFGameRules() && !( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() == TF_TEAM_PVE_INVADERS ) )
 	{
 		CTFPlayer *playerThreat = ToTFPlayer( threat->GetEntity() );
 		if ( playerThreat && playerThreat->m_Shared.IsInvulnerable() )
@@ -1380,7 +1380,7 @@ void CTFBotMainAction::FireWeaponAtEnemy( CTFBot *me )
 	}
 
 	// limit range of hitscan weapon fire in MvM
-	if ( TFGameRules()->IsMannVsMachineMode() && !me->IsPlayerClass( TF_CLASS_SNIPER ) && me->IsHitScanWeapon( myWeapon ) )
+	if ( ( TFGameRules()->IsMannVsMachineMode() && me->GetTeamNumber() == TF_TEAM_PVE_INVADERS ) && !me->IsPlayerClass( TF_CLASS_SNIPER ) && me->IsHitScanWeapon( myWeapon ) )
 	{
 		if ( me->IsRangeGreaterThan( threat->GetEntity(), tf_bot_hitscan_range_limit.GetFloat() ) )
 		{

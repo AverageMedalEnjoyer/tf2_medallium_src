@@ -278,7 +278,7 @@ bool CCurrencyPack::MyTouch( CBasePlayer *pPlayer )
 		if ( !pTFTouchPlayer )
 			return false;
 
-		if ( pTFTouchPlayer->IsBot() )
+		if ( pTFTouchPlayer->IsBot() && pTFTouchPlayer->GetTeamNumber() != TF_TEAM_PVE_DEFENDERS )
 			return false;
 
 		if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() )

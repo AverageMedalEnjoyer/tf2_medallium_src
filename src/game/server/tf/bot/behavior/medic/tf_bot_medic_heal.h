@@ -57,6 +57,11 @@ private:
 
 	bool IsGoodUberTarget( CTFPlayer *who ) const;
 
+    CHandle< CTFPlayer > m_opportunisticPatient;
+	CountdownTimer m_opportunisticStickTimer;
+
+	bool m_bUberLocked;
+
 	bool CanDeployUber( CTFBot *me, const CWeaponMedigun* pMedigun ) const;
 };
 

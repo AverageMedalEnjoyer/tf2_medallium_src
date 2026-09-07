@@ -50,6 +50,11 @@ const char* g_pszEnergyProjectileImpactParticle	( "drg_pomson_impact" );
 IMPLEMENT_NETWORKCLASS_ALIASED( TFProjectile_EnergyRing, DT_TFProjectile_EnergyRing )
 
 BEGIN_NETWORK_TABLE( CTFProjectile_EnergyRing, DT_TFProjectile_EnergyRing )
+#ifdef GAME_DLL
+	SendPropBool( SENDINFO( m_bChargedRing ) ),
+#else
+	RecvPropBool( RECVINFO( m_bChargedRing ) ),
+#endif
 END_NETWORK_TABLE()
 
 //-----------------------------------------------------------------------------
@@ -74,6 +79,7 @@ ConVar tf_bison_tick_time( "tf_bison_tick_time", "0.025", FCVAR_CHEAT );
 CTFProjectile_EnergyRing::CTFProjectile_EnergyRing()
 {
 	m_vecPrevPos = vec3_origin;
+    m_bChargedRing = false;
 
 #ifdef GAME_DLL
 	m_flLastHitTime = 0.f;
@@ -98,7 +104,22 @@ float CTFProjectile_EnergyRing::GetGravity( void )
 
 float CTFProjectile_EnergyRing::GetInitialVelocity( void )
 {
-	return 1200.f; 
+	CBaseEntity* pLauncher = const_cast< CTFProjectile_EnergyRing* >( this )->GetLauncher();
+	CTFRaygun* pRaygun = assert_cast< CTFRaygun* >( pLauncher );
+
+    float flSpeedModifier = 1.0f;
+
+	float flChargeSpeed = 1.0f;
+
+	if ( pRaygun && pRaygun->m_bChargedShot )
+		flChargeSpeed = 1.40f;
+
+	if ( pRaygun )
+        CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pRaygun, flSpeedModifier, mult_projectile_speed );
+
+	float flFinalSpeed = 1500.f * flSpeedModifier * flChargeSpeed;
+
+	return flFinalSpeed; 
 }
 
 //-----------------------------------------------------------------------------
@@ -126,7 +147,13 @@ CTFProjectile_EnergyRing *CTFProjectile_EnergyRing::Create( CTFWeaponBaseGun *pL
 	// Spawn.
 	pRing->Spawn();
 
-	Vector vecVelocity = vecForward * pRing->GetInitialVelocity();
+    float flSpeedModifier = 1.0f;
+	if ( pLauncher )
+	{
+		CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pLauncher, flSpeedModifier, mult_projectile_speed );
+	}
+
+	Vector vecVelocity = vecForward * ( pRing->GetInitialVelocity() * flSpeedModifier );
 	pRing->SetAbsVelocity( vecVelocity );	
 
 	// Setup the initial angles.
@@ -150,16 +177,20 @@ CTFProjectile_EnergyRing *CTFProjectile_EnergyRing::Create( CTFWeaponBaseGun *pL
 
 	if ( pRaygun && !pRaygun->UseNewProjectileCode() )
 	{
+        float flSpeedModifier = 1.0f;
+		CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pRaygun, flSpeedModifier, mult_projectile_speed );
+		float flFinalSpeed = 1500.f * flSpeedModifier;
+
 		if ( pRaygun->GetWeaponID() == TF_WEAPON_DRG_POMSON )
 		{
 			pRing = static_cast<CTFProjectile_EnergyRing*>( CTFBaseProjectile::Create( "tf_projectile_energy_ring", vecOrigin, vecAngles, pOwner, 
-																					   1200.f, g_sModelIndexRing, 
+																					   flFinalSpeed, g_sModelIndexRing, 
 																					   ENERGY_RING_DISPATCH_EFFECT_POMSON, pScorer, bCritical, vColor1, vColor2 ) );
 		}
 		else
 		{
 			pRing = static_cast<CTFProjectile_EnergyRing*>( CTFBaseProjectile::Create( "tf_projectile_energy_ring", vecOrigin, vecAngles, pOwner, 
-																					   1200.f, g_sModelIndexRing, 
+																					   flFinalSpeed, g_sModelIndexRing, 
 																					   ENERGY_RING_DISPATCH_EFFECT, pScorer, bCritical, vColor1, vColor2 ) );
 		}
 
@@ -188,6 +219,18 @@ void CTFProjectile_EnergyRing::Spawn()
 	SetRenderMode( kRenderNone	);
 	SetSolidFlags( FSOLID_TRIGGER | FSOLID_NOT_SOLID );
 	SetCollisionGroup( TFCOLLISION_GROUP_ROCKETS );
+
+    CTFWeaponBaseGun* pTFGun = dynamic_cast< CTFWeaponBaseGun* >( GetLauncher() );
+	if ( pTFGun )
+	{
+		CTFRaygun* pRaygun = dynamic_cast< CTFRaygun* >( pTFGun );
+		if ( pRaygun && pRaygun->IsChargedShot() )
+		{
+			Vector vecMins = -Vector( 4.f, 4.f, 4.f ) * 1.4f;
+			Vector vecMaxs = Vector( 4.f, 4.f, 4.f ) * 1.4f;
+			SetCollisionBounds( vecMins, vecMaxs );
+		}
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -358,7 +401,22 @@ void CTFProjectile_EnergyRing::OnDataChanged( DataUpdateType_t updateType )
 //-----------------------------------------------------------------------------
 float CTFProjectile_EnergyRing::GetDamage()
 {
-	return ShouldPenetrate() ? 20.f : 60.f;
+	float flChargedDamage = 0.f;
+	float flPenetrateDamage = 60.f;
+
+	if ( m_bChargedRing )
+		flChargedDamage = 1.40f;
+	else
+		flChargedDamage = 1.0f;
+
+	if ( ShouldPenetrate() )
+		flPenetrateDamage = 1.60f;
+	else
+		flPenetrateDamage = 1.0f;
+
+	float flDamage = 20.f * flPenetrateDamage * flChargedDamage;
+
+	return flDamage;
 }
 
 bool CTFProjectile_EnergyRing::ShouldPenetrate() const
@@ -371,7 +429,10 @@ bool CTFProjectile_EnergyRing::ShouldPenetrate() const
 
 const char*	CTFProjectile_EnergyRing::GetTrailParticleName() const
 {
-	if ( ShouldPenetrate() )	// Righteous Bison
+	CBaseEntity* pLauncher = const_cast< CTFProjectile_EnergyRing* >( this )->GetLauncher();
+	CTFRaygun* pRaygun = assert_cast< CTFRaygun* >( pLauncher );
+
+	if ( pRaygun && pRaygun->GetWeaponID() == TF_WEAPON_RAYGUN )	// Righteous Bison
 	{
 		return IsCritical() ? g_pszBisonTrailParticleCrit : g_pszBisonTrailParticle;
 	}

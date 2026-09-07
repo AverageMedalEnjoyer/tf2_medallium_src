@@ -330,6 +330,9 @@ public:
 	static int		CalcPlayerScore( RoundStats_t *pRoundStats, CTFPlayer *pPlayer );
 	static int		CalcPlayerSupportScore( RoundStats_t *pRoundStats, int iPlayerIdx );
 
+	virtual void	GetBotChatMessages( void );
+    virtual void	GetBotVoiceCommands( void );
+
 	bool			IsBirthday( void ) const;
 	bool			IsBirthdayOrPyroVision( void ) const;
 	virtual bool	IsHolidayActive( /*EHoliday*/ int eHoliday ) const;

@@ -80,7 +80,13 @@ public:
 		CollisionProp()->SetCollisionBounds( Vector( -1, -1, -1 ), Vector( 1, 1, 1 ) );
 		CollisionProp()->UseTriggerBounds( true, flRadius, true );
 
-		m_vecInitialVelocity = GetAbsVelocity().Normalized() * tf_fireball_speed.GetFloat();
+        float flSpeedModifier = 1.0f;
+    	if ( GetLauncher() )
+    	{
+	    	CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( GetLauncher(), flSpeedModifier, mult_projectile_speed );
+	    }
+
+	    m_vecInitialVelocity = GetAbsVelocity().Normalized() * ( tf_fireball_speed.GetFloat() * flSpeedModifier );
 		SetAbsVelocity( m_vecInitialVelocity );
 
 		float flDamage = tf_fireball_damage.GetFloat();
@@ -115,7 +121,13 @@ public:
 			return;
 		}
 
-		const float flMaxDist = tf_fireball_distance.GetFloat();
+        float flSpeedModifier = 1.0f;
+	    if ( GetLauncher() )
+	    {
+	    	CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( GetLauncher(), flSpeedModifier, mult_projectile_speed );
+	    }
+	    
+	    const float flMaxDist = tf_fireball_distance.GetFloat() * flSpeedModifier;
 		float flDistance = ( GetAbsOrigin() - m_vecSpawnOrigin ).Length();
 		const float flDt = gpGlobals->frametime;
 
