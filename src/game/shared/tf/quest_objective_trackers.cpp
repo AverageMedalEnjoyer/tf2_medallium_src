@@ -56,11 +56,19 @@ CBaseQuestObjectiveTracker::CBaseQuestObjectiveTracker( const QuestObjectiveInst
 	, m_pEvaluator( NULL )
 	, m_steamIDOwner( ownerSteamID )
 {
-	KeyValues *pKVConditions = m_objectiveInstance.GetObjectiveDef()->GetConditionsKeyValues();
-	
-	AssertMsg( !m_pEvaluator, "%s", CFmtStr( "Too many input for operator '%s'.", GetConditionName() ).Get() );
+    const CQuestObjectiveDefinition* pDef = m_objectiveInstance.GetObjectiveDef();
+    if (!pDef) {
+        AssertMsg(false, "Missing objective definition in CBaseQuestObjectiveTracker ctor");
+        return;
+    }
 
-	const char *pszType = pKVConditions->GetString( "type" );
+    KeyValues* pKVConditions = pDef->GetConditionsKeyValues();
+    if (!pKVConditions) {
+        AssertMsg(false, "Missing conditions KeyValues for objective def %d", pDef->GetDefIndex());
+        return;
+    }
+
+    const char* pszType = pKVConditions->GetString("type");
 	m_pEvaluator = CreateEvaluatorByName( pszType, this );
 	AssertMsg( m_pEvaluator != NULL, "%s", CFmtStr( "Failed to create quest condition name '%s' for '%s'", pszType, GetConditionName() ).Get() );
 
