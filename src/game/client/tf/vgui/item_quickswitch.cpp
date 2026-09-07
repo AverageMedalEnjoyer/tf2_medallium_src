@@ -338,7 +338,7 @@ bool CItemQuickSwitchPanel::CalculateClassAndSlot( void )
 
 	// Get the current class
 	m_iClass = pPlayer->GetPlayerClass()->GetClassIndex();
-	if ( m_iClass < TF_FIRST_NORMAL_CLASS || m_iClass >= TF_LAST_NORMAL_CLASS )
+	if ( m_iClass < TF_FIRST_NORMAL_CLASS || m_iClass > TF_CLASS_COUNT )
 		return false;
 
 	if ( m_pLoadoutPresetPanel )

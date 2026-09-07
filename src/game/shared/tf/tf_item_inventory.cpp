@@ -247,7 +247,7 @@ void CTFInventoryManager::GenerateBaseItems( void )
 	//
 	const CEconItemSchema::BaseItemDefinitionMap_t& mapItems = GetItemSchema()->GetBaseItemDefinitionMap();
 	int iStart = 0;
-	for ( int it = iStart; it != mapItems.InvalidIndex(); it = mapItems.NextInorder( it ) )
+	for ( int it = mapItems.FirstInorder(); it != mapItems.InvalidIndex(); it = mapItems.NextInorder( it ) )
 	{
 		CEconItemView *pItem = new CEconItemView;
 		pItem->Init( mapItems[it]->GetDefinitionIndex(), AE_USE_SCRIPT_VALUE, AE_USE_SCRIPT_VALUE, false );
@@ -762,11 +762,19 @@ CEconItemView *CTFInventoryManager::GetBaseItemForClass( int iClass, int iSlot )
 		return m_pDefaultItem;
 
 	// Traverse List
-	FOR_EACH_VEC( m_pBaseLoadoutItems, iItem )
-	{
-		if ( m_pBaseLoadoutItems[iItem]->GetItemDefinition()->GetLoadoutSlot( iClass ) == iSlot )
-			return m_pBaseLoadoutItems[iItem];
-	}
+    FOR_EACH_VEC( m_pBaseLoadoutItems, iItem )
+    {
+        CEconItemView *pItemView = m_pBaseLoadoutItems[iItem];
+        if ( !pItemView )
+            continue;
+
+        CTFItemDefinition *pDef = pItemView->GetStaticData();
+        if ( !pDef || !pDef->CanBeUsedByClass( iClass ) )
+            continue;
+
+        if ( pDef->GetLoadoutSlot( iClass ) == iSlot )
+            return m_pBaseLoadoutItems[iItem];
+    }
 
 	return m_pDefaultItem;
 }
@@ -1542,7 +1550,7 @@ CEconItemView *CTFPlayerInventory::GetItemInLoadout( int iClass, int iSlot )
 	}
 	else
 	{
-		if ( iClass < TF_FIRST_NORMAL_CLASS || iClass >= TF_LAST_NORMAL_CLASS  )
+		if ( iClass < TF_FIRST_NORMAL_CLASS || iClass > TF_CLASS_COUNT )
 			return NULL;
 
 		// If we don't have an item in the loadout at that slot, we return the base item
@@ -1581,7 +1589,7 @@ CEconItemView *CTFPlayerInventory::GetCacheServerItemInLoadout( int iClass, int 
 {
 	if ( iSlot < 0 || iSlot >= CLASS_LOADOUT_POSITION_COUNT )
 		return NULL;
-	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass >= TF_LAST_NORMAL_CLASS )
+	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass > TF_CLASS_COUNT )
 		return NULL;
 
 	// If we don't have an item in the loadout at that slot, we return the base item
@@ -1679,7 +1687,7 @@ bool CTFPlayerInventory::ClearLoadoutSlot( int iClass, int iSlot )
 	}
 	else
 	{
-		if ( iClass < TF_FIRST_NORMAL_CLASS || iClass >= TF_LAST_NORMAL_CLASS )
+		if ( iClass < TF_FIRST_NORMAL_CLASS || iClass > TF_CLASS_COUNT )
 			return false;
 
 		if ( m_LoadoutItems[iClass][iSlot] == LOADOUT_SLOT_USE_BASE_ITEM )

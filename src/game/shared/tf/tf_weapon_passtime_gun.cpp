@@ -1034,7 +1034,7 @@ static void GetThrowParams( CTFPlayer *pPlayer, float *speed, float *arc )
 	if ( !pPlayer ) return;
 
 	auto iClass = pPlayer->GetPlayerClass()->GetClassIndex();
-	if ( iClass <= TF_CLASS_UNDEFINED || iClass >= TF_LAST_NORMAL_CLASS ) 
+	if ( iClass <= TF_CLASS_UNDEFINED || iClass > TF_CLASS_COUNT ) 
 	{
 		if ( speed ) *speed = 1000.0f;
 		if ( arc ) *arc = 0.3f;

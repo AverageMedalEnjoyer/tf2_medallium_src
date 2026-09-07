@@ -1908,7 +1908,7 @@ public:
 	int GetClassFromData( KeyValues *pClassData )
 	{
 		const int iClass = pClassData->GetInt( "class", TF_CLASS_SOLDIER );
-		if ( iClass < TF_FIRST_NORMAL_CLASS || iClass >= TF_LAST_NORMAL_CLASS )
+		if ( iClass < TF_FIRST_NORMAL_CLASS || iClass > TF_CLASS_COUNT )
 		{
 			return TF_CLASS_SOLDIER;
 		}

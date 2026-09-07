@@ -149,7 +149,7 @@ void CTFStorePageBase::OnItemDetails( vgui::Panel *panel )
 //-----------------------------------------------------------------------------
 void CTFStorePageBase::ShowPreview( int iClass, const econ_store_entry_t* pEntry )
 {
-	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass >= TF_LAST_NORMAL_CLASS )
+	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass > TF_CLASS_COUNT )
 	{
 		iClass = TF_CLASS_SCOUT;
 	}

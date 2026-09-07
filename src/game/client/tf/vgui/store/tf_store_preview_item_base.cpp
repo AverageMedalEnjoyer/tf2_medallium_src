@@ -330,7 +330,7 @@ void CTFStorePreviewItemPanelBase::OnCommand( const char *command )
 void CTFStorePreviewItemPanelBase::OnClassIconSelected( KeyValues *data )
 {
 	int iClass = data->GetInt( "class", 0 );
-	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass >= TF_LAST_NORMAL_CLASS )
+	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass > TF_CLASS_COUNT )
 	{
 		iClass = TF_CLASS_SCOUT;
 	}
