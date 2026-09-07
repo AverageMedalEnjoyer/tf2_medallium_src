@@ -26,8 +26,12 @@
 #include "tf_weapon_buff_item.h"
 #include "tf_weapon_lunchbox.h"
 #include "tf_weapon_medigun.h"
+#include "tf_weapon_pipebomblauncher.h"
 #include "func_respawnroom.h"
 #include "soundenvelope.h"
+
+#include "bot/behavior/demoman/tf_bot_prepare_stickybomb_trap.h"
+#include "bot/behavior/demoman/tf_bot_stickybomb_sentrygun.h"
 
 #include "econ_entity_creation.h"
 
@@ -390,12 +394,6 @@ void CreateBotName( int iTeam, int iClassIndex, CTFBot::DifficultyType skill, ch
 			int iHumanTeam = TFGameRules()->GetAssignedHumanTeam();
 			if ( iHumanTeam != TEAM_ANY )
 			{
-				if ( iHumanTeam == iTeam )
-				{
-					pBotTitle = "#TF_Bot_Title_Friendly";
-				}
-				else
-				{
 				pBotTitle = ( iHumanTeam == iTeam ) ? "#TF_Bot_Title_Friendly" : "#TF_Bot_Title_Enemy";
 			}
 		}
@@ -418,26 +416,35 @@ void CreateBotName( int iTeam, int iClassIndex, CTFBot::DifficultyType skill, ch
 			pLocalizedName = g_pVGuiLocalize->Find( "#TF_Bot_Generic_ClassName" );
 		}
 		g_pVGuiLocalize->ConvertUnicodeToANSI( pLocalizedName, szBotNameBuffer, sizeof( szBotNameBuffer ) );
-		pBotName = szBotNameBuffer;
+
+		CFmtStr name( "%s%s%s", pDifficultyString, pFriendlyOrEnemyTitle, szBotNameBuffer );
+		Q_strncpy( pBuffer, name.Access(), iBufferSize );
+		return;
 	}
 
 	// Collect names currently claimed by connected players
 	CUtlVector< const char * > usedNames;
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
 	{
-		pBotName = GetRandomBotName();
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
 		if ( !pPlayer || !pPlayer->IsConnected() )
 			continue;
+
+		const char *pszName = pPlayer->GetPlayerName();
 		if ( pszName && *pszName )
+			usedNames.AddToTail( pszName );
 	}
 
-	CFmtStr name( "%s%s%s", 
-				  pDifficultyString, pFriendlyOrEnemyTitle, pBotName );
+	const int kMaxAttempts = 64; // The max amount of times the bot will attempt to find a name. it shouldn't actually hit this limit EVER. But, ya know.
+	for ( int attempt = 0; attempt < kMaxAttempts; ++attempt )
 	{
 		const char *pBaseName = GetRandomBotName();
 		CFmtStr candidate( "%s%s%s", pDifficultyString, pFriendlyOrEnemyTitle, pBaseName );
 
+		bool bAlreadyUsed = false;
 		for ( int u = 0; u < usedNames.Count(); ++u )
 		{
+			if ( FStrEq( candidate.Access(), usedNames[u] ) )
 			{
 				bAlreadyUsed = true;
 				break;
@@ -528,6 +535,31 @@ CON_COMMAND_F( tf_bot_add, "Add a bot.", FCVAR_GAMEDLL )
 	if ( TFGameRules()->IsInTraining() )
 	{
 		skill = CTFBot::EASY;
+	}
+
+    if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() && iTeam == TF_TEAM_RED )
+	{
+		int nCurrentDefenders = 0;
+		for ( int j = 1; j <= gpGlobals->maxClients; ++j )
+		{
+			CTFPlayer *pPlayer = ToTFPlayer( UTIL_PlayerByIndex( j ) );
+			if ( !pPlayer || !pPlayer->IsConnected() )
+				continue;
+
+			if ( pPlayer->GetTeamNumber() == TF_TEAM_RED )
+				++nCurrentDefenders;
+		}
+
+		const int maxDefenders = tf_mvm_defenders_team_size.GetInt();
+		const int remaining = MAX( 0, maxDefenders - nCurrentDefenders );
+
+		if ( botCount > remaining )
+		{
+			botCount = remaining;
+		}
+
+		if ( botCount <= 0 )
+			return;
 	}
 	
 	char name[256];
@@ -1469,6 +1501,10 @@ CTFBot::CTFBot()
 
 	ClearSniperSpots();
 
+    m_bStickyCombatActive = false;
+	m_stickyAimHoldTimer.Invalidate();
+	//m_stickyLastEnemySeenTimer.Invalidate();
+
 	ListenForGameEvent( "teamplay_point_startcapture" );
 	ListenForGameEvent( "teamplay_point_captured" );
 	ListenForGameEvent( "teamplay_round_win" );
@@ -1521,6 +1557,10 @@ void CTFBot::Spawn()
 	m_requiredWeaponStack.Clear();
 	SetShouldQuickBuild( false );
 
+    m_bStickyCombatActive = false;
+	m_stickyAimHoldTimer.Invalidate();
+	//m_stickyLastEnemySeenTimer.Invalidate();
+
 	SetSquadFormationError( 0.0f );
 	SetBrokenFormation( false );
 
@@ -1572,6 +1612,12 @@ void CTFBot::PhysicsSimulate( void )
 {
 	BaseClass::PhysicsSimulate();
 
+    if ( IsAlive() )
+	{
+		UpdateDoubleJump();
+        UpdateStickybombLauncher();
+	}
+
 	if ( m_spawnArea == NULL )
 	{
 		m_spawnArea = GetLastKnownArea();
@@ -1600,12 +1646,498 @@ void CTFBot::PhysicsSimulate( void )
 	// sometimes force an immediate respawn, which will destroy the bot's existing actions out from under it.
 	if ( !IsAlive() && !m_didReselectClass && tf_bot_keep_class_after_death.GetBool() == false && TFGameRules()->CanBotChangeClass( this ) )
 	{
-		if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() )
+		if ( TFGameRules() && ( TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() == TF_TEAM_PVE_INVADERS ) )
 			return;
 
 		HandleCommand_JoinClass( GetNextSpawnClassname() );
 
 		m_didReselectClass = true;
+	}
+}
+
+
+//-----------------------------------------------------------------------------------------------------
+void CTFBot::PressDoubleJump( int direction )
+{
+	PressJumpButton( 0.1f );
+
+	if ( direction < 0 )
+	{
+		PressLeftButton( 0.25f );
+		ReleaseRightButton();
+	}
+	else
+	{
+		PressRightButton( 0.25f );
+		ReleaseLeftButton();
+	}
+}
+
+
+//-----------------------------------------------------------------------------------------------------
+bool CTFBot::TryStartDoubleJump()
+{
+	if ( !IsPlayerClass( TF_CLASS_SCOUT ) )
+		return false;
+
+	if ( !IsAlive() || GetGroundEntity() == NULL )
+		return false;
+
+	if ( m_bDoubleJumpPending )
+		return false;
+
+	// Mostly try to predict projectiles
+	Vector vecEye = EyePosition();
+	Vector vecForward, vecRight, vecUp;
+	AngleVectors( EyeAngles(), &vecForward, &vecRight, &vecUp );
+
+	Vector vecCenter = vecEye + vecForward * 256.0f;
+	Vector vecSize( 200, 200, 100 );
+
+	const int maxCollectedEntities = 64;
+	CBaseEntity *pObjects[ maxCollectedEntities ];
+	int count = UTIL_EntitiesInBox( pObjects, maxCollectedEntities,
+									vecCenter - vecSize, vecCenter + vecSize,
+									FL_CLIENT | FL_GRENADE );
+
+	bool bIncomingProjectile = false;
+	Vector projectileVel;
+
+	for ( int i = 0; i < count; ++i )
+	{
+		CBaseEntity *pObject = pObjects[i];
+		if ( !pObject || pObject == this )
+			continue;
+
+		if ( pObject->GetTeamNumber() == GetTeamNumber() )
+			continue;
+
+		if ( !FClassnameIs( pObject, "tf_projectile_rocket" ) &&
+			 !FClassnameIs( pObject, "tf_projectile_pipe" ) &&
+			 !FClassnameIs( pObject, "tf_projectile_pipe_remote" ) &&
+			 !FClassnameIs( pObject, "tf_projectile_arrow" ) &&
+			 !FClassnameIs( pObject, "tf_projectile_energy_ball" ) &&
+			 !FClassnameIs( pObject, "tf_projectile_flare" ) )
+		{
+			continue;
+		}
+
+		// Is it heading roughly toward us?
+		Vector toMe = WorldSpaceCenter() - pObject->WorldSpaceCenter();
+		float dist = toMe.Length();
+		if ( dist > 500.0f )
+			continue;
+
+		Vector vel = pObject->GetAbsVelocity();
+		if ( vel.LengthSqr() < 1.0f )
+			continue;
+
+		vel.NormalizeInPlace();
+		toMe.NormalizeInPlace();
+
+		if ( DotProduct( vel, toMe ) > 0.6f )	// Coming toward us
+		{
+			bIncomingProjectile = true;
+			projectileVel = pObject->GetAbsVelocity();
+			break;
+		}
+	}
+
+	// Randomly double-jump in combat, with or without a projectile incoming.
+	bool bRandomDoubleJump = false;
+	if ( !bIncomingProjectile && GetVisionInterface()->GetPrimaryKnownThreat( true ) )
+	{
+		if ( TransientlyConsistentRandomValue( 2.0f ) < 0.30f ) // 30% of the time
+			bRandomDoubleJump = true;
+	}
+
+	if ( !bIncomingProjectile && !bRandomDoubleJump )
+		return false;
+
+	Vector left  = -vecRight;
+	Vector right =  vecRight;
+
+	trace_t trLeft, trRight;
+	UTIL_TraceLine( WorldSpaceCenter(), WorldSpaceCenter() + left  * 120.0f, MASK_SOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &trLeft );
+	UTIL_TraceLine( WorldSpaceCenter(), WorldSpaceCenter() + right * 120.0f, MASK_SOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &trRight );
+
+	int dir = 0;
+	if ( trLeft.fraction < 0.5f && trRight.fraction >= 0.5f )
+		dir = +1;
+	else if ( trRight.fraction < 0.5f && trLeft.fraction >= 0.5f )
+		dir = -1;
+	else
+		dir = ( RandomInt( 0, 1 ) == 0 ) ? -1 : +1;
+
+	m_DoubleJumpDir = dir;
+	m_bDoubleJumpPending = true;
+	m_flDoubleJumpStartTime = gpGlobals->curtime;
+	m_DoubleJumpTimer.Start( 0.5f );
+
+	PressDoubleJump( dir );
+	return true;
+}
+
+
+//-----------------------------------------------------------------------------------------------------
+void CTFBot::UpdateDoubleJump()
+{
+	if ( !IsPlayerClass( TF_CLASS_SCOUT ) )
+		return;
+
+	// Try to start a new double jump if we are free
+	if ( !m_bDoubleJumpPending )
+	{
+		TryStartDoubleJump();
+		return;
+	}
+
+	// We are in the middle of a double jump
+	if ( GetGroundEntity() != NULL )
+	{
+		m_bDoubleJumpPending = false;
+		return;
+	}
+
+	if ( m_DoubleJumpTimer.IsElapsed() )
+	{
+		Vector vecRight;
+		AngleVectors( EyeAngles(), NULL, &vecRight, NULL );
+
+		Vector checkDir = ( m_DoubleJumpDir < 0 ) ? -vecRight : vecRight;
+		trace_t tr;
+		UTIL_TraceLine( WorldSpaceCenter(), WorldSpaceCenter() + checkDir * 80.0f,
+						MASK_SOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &tr );
+
+		int finalDir = m_DoubleJumpDir;
+		if ( tr.fraction < 0.4f )
+		{
+			// Close to a wall, try to jump in the opposite direction.
+			finalDir = -m_DoubleJumpDir;
+		}
+
+		PressDoubleJump( finalDir );
+
+		m_bDoubleJumpPending = false;
+	}
+}
+
+
+//-----------------------------------------------------------------------------
+bool CTFBot::ShouldUseStickybombLauncher() const
+{
+	if ( !IsPlayerClass( TF_CLASS_DEMOMAN ) )
+		return false;
+
+	CTFPipebombLauncher *sticky = dynamic_cast< CTFPipebombLauncher * >( Weapon_GetSlot( TF_WPN_TYPE_SECONDARY ) );
+	if ( !sticky || IsWeaponRestricted( sticky ) )
+		return false;
+
+	// Never override our behavior when we're doing other things with stickies
+	//if ( CTFBotPrepareStickybombTrap::IsPossible( const_cast< CTFBot * >( this ) ) )
+	//	return false;
+
+	//CObjectSentrygun *sentry = GetEnemySentry();
+	//if ( sentry && sentry->IsAlive() )
+	//	return false;
+
+	const CKnownEntity *threat = GetVisionInterface()->GetPrimaryKnownThreat( true );
+
+	if ( !threat || !threat->GetEntity() )
+		return false;
+
+	float flDistSq = ( GetAbsOrigin() - threat->GetEntity()->GetAbsOrigin() ).LengthSqr();
+	if ( flDistSq <= ( 300.0f * 300.0f ) )
+		return false;
+
+	return true;
+}
+
+
+//-----------------------------------------------------------------------------
+void CTFBot::AimStickybombLauncher( const CKnownEntity *threat )
+{
+	if ( !threat || !threat->GetEntity() )
+		return;
+
+	Vector aimSpot = threat->GetLastKnownPosition();
+	bool bIsVisible = ( threat->IsVisibleInFOVNow() || threat->GetTimeSinceLastSeen() < 1.25f );
+
+	if ( bIsVisible )
+	{
+		aimSpot = threat->GetEntity()->WorldSpaceCenter();
+		aimSpot.z = threat->GetEntity()->GetAbsOrigin().z;
+	}
+	else
+	{
+		aimSpot = threat->GetLastKnownPosition();
+		Vector toLast = aimSpot - EyePosition();
+		toLast.z = 0.0f;
+		if ( toLast.NormalizeInPlace() > 0.0f )
+		{
+			aimSpot += toLast * 80.0f;
+		}
+		aimSpot.z = threat->GetLastKnownPosition().z;
+	}
+
+	trace_t tr;
+	UTIL_TraceLine( EyePosition(), aimSpot, MASK_SHOT, this, COLLISION_GROUP_NONE, &tr );
+
+	// If a wall blocks the direct line to our target spot
+	if ( tr.fraction < 1.0f && tr.DidHitWorld() )
+	{
+		float distToHit = ( tr.endpos - EyePosition() ).Length();
+
+		// Wall is too close, don't bother trying to aim at it, just fire at the last-known position.
+		if ( distToHit < 60.0f )
+		{
+			return; 
+		}
+		else
+		{
+			Vector toHit = tr.endpos - EyePosition();
+			toHit.z = 0.0f;
+			toHit.NormalizeInPlace();
+
+			aimSpot = tr.endpos - ( toHit * 15.0f );
+			aimSpot.z = threat->GetLastKnownPosition().z;
+		}
+	}
+
+	GetBodyInterface()->AimHeadTowards( aimSpot, IBody::CRITICAL, 0.25f, NULL, "Aiming sticky" );
+}
+
+
+//-----------------------------------------------------------------------------
+bool CTFBot::StickiesNearEnemies() const
+{
+	CTFPipebombLauncher *sticky = dynamic_cast< CTFPipebombLauncher * >( Weapon_GetSlot( TF_WPN_TYPE_SECONDARY ) );
+	if ( !sticky )
+		return false;
+
+	const CUtlVector< CHandle< CTFGrenadePipebombProjectile > > &pipeVector = sticky->GetPipeBombVector();
+	if ( pipeVector.Count() == 0 )
+		return false;
+
+	const float enemyDetonateRadius = 200.0f;
+	const float selfSafeRadius      = 220.0f;
+
+	CUtlVector< CTFPlayer * > enemyVector;
+	CollectPlayers( &enemyVector, GetEnemyTeam( GetTeamNumber() ), COLLECT_ONLY_LIVING_PLAYERS );
+
+	for ( int i = 0; i < pipeVector.Count(); ++i )
+	{
+		CTFGrenadePipebombProjectile *pipe = pipeVector[i];
+		if ( !pipe )
+			continue;
+
+		// Is an enemy close enough that we want to det?
+		bool bEnemyNear = false;
+		for ( int e = 0; e < enemyVector.Count(); ++e )
+		{
+			if ( ( pipe->GetAbsOrigin() - enemyVector[e]->GetAbsOrigin() ).IsLengthLessThan( enemyDetonateRadius ) )
+			{
+				bEnemyNear = true;
+				break;
+			}
+		}
+
+		if ( !bEnemyNear )
+			continue;
+
+		// Only detonate if we are safely away from the blast radius
+		if ( ( pipe->GetAbsOrigin() - GetAbsOrigin() ).IsLengthLessThan( selfSafeRadius ) )
+			continue;
+
+		return true;	// Enemy near and we're safe, detonate.
+	}
+
+	return false;
+}
+
+
+//-----------------------------------------------------------------------------
+void CTFBot::DetonateStickies()
+{
+	if ( !IsPlayerClass( TF_CLASS_DEMOMAN ) )
+		return;
+
+	CTFPipebombLauncher *sticky = dynamic_cast< CTFPipebombLauncher * >( Weapon_GetSlot( TF_WPN_TYPE_SECONDARY ) );
+	if ( !sticky || sticky->GetPipeBombCount() == 0 )
+		return;
+
+	// Never auto-detonate when we're doing other things with stickies
+	//if ( CTFBotPrepareStickybombTrap::IsPossible( this ) )
+	//	return;
+
+	//CObjectSentrygun *sentry = GetEnemySentry();
+	//if ( sentry && sentry->IsAlive() )
+	//	return;
+
+	if ( StickiesNearEnemies() )
+	{
+		PressAltFireButton();
+	}
+}
+
+
+//-----------------------------------------------------------------------------
+void CTFBot::UpdateStickybombLauncher()
+{
+	if ( !IsPlayerClass( TF_CLASS_DEMOMAN ) || !IsAlive() )
+		return;
+
+	const CKnownEntity *threat = GetVisionInterface()->GetPrimaryKnownThreat( true );
+	if ( threat && threat->IsVisibleInFOVNow() )
+	{
+		m_stickyLastEnemySeenTimer.Start( 25.0f );
+	}
+
+	CTFPipebombLauncher *sticky = dynamic_cast< CTFPipebombLauncher * >( Weapon_GetSlot( TF_WPN_TYPE_SECONDARY ) );
+
+	// Avoid our own stickies if they are near enemies
+	if ( sticky && StickiesNearEnemies() )
+	{
+		const CUtlVector< CHandle< CTFGrenadePipebombProjectile > > &pipes = sticky->GetPipeBombVector();
+		const float avoidRadius = 230.0f;
+
+		for ( int i = 0; i < pipes.Count(); ++i )
+		{
+			CTFGrenadePipebombProjectile *pipe = pipes[i];
+			if ( !pipe )
+				continue;
+
+			bool bDangerous = false;
+			CUtlVector< CTFPlayer * > enemies;
+			CollectPlayers( &enemies, GetEnemyTeam( GetTeamNumber() ), COLLECT_ONLY_LIVING_PLAYERS );
+			for ( int e = 0; e < enemies.Count(); ++e )
+			{
+				if ( ( pipe->GetAbsOrigin() - enemies[e]->GetAbsOrigin() ).IsLengthLessThan( 150.0f ) )
+				{
+					bDangerous = true;
+					break;
+				}
+			}
+
+			if ( bDangerous )
+			{
+				Vector toPipe = pipe->GetAbsOrigin() - GetAbsOrigin();
+				toPipe.z = 0.0f;
+				if ( toPipe.NormalizeInPlace() > 0.0f )
+				{
+					Vector safePos = pipe->GetAbsOrigin() + toPipe * ( avoidRadius + 30.0f );
+					GetLocomotionInterface()->Approach( safePos, 1.0f );
+				}
+			}
+		}
+	}
+
+	DetonateStickies();
+
+	bool bWantSticky = ShouldUseStickybombLauncher();
+
+	if ( bWantSticky )
+	{
+		if ( !m_bStickyCombatActive )
+		{
+			m_bStickyCombatActive = true;
+
+			if ( sticky )
+			{
+				PushRequiredWeapon( sticky );
+			}
+		}
+
+		if ( sticky )
+		{
+			if ( m_Shared.GetActiveTFWeapon() != sticky )
+			{
+				Weapon_Switch( sticky );
+			}
+		}
+
+		/*
+		if ( threat && threat->GetEntity() )
+		{
+			const float stickyHoldRange     = 420.0f;
+			const float stickyHoldTolerance = 70.0f;
+
+			Vector threatPos = threat->GetLastKnownPosition();
+			float dist = GetRangeTo( threatPos );
+
+			if ( dist < stickyHoldRange - stickyHoldTolerance )
+			{
+				// Too close → back away
+				Vector away = GetAbsOrigin() - threatPos;
+				away.z = 0.0f;
+				if ( away.NormalizeInPlace() > 0.0f )
+				{
+					Vector holdPos = threatPos + away * stickyHoldRange;
+					GetLocomotionInterface()->Approach( holdPos, 1.0f );
+				}
+			}
+			else if ( dist > stickyHoldRange + stickyHoldTolerance )
+			{
+				// Too far → close the gap a little
+				Vector toward = threatPos - GetAbsOrigin();
+				toward.z = 0.0f;
+				if ( toward.NormalizeInPlace() > 0.0f )
+				{
+					Vector holdPos = GetAbsOrigin() + toward * ( dist - stickyHoldRange );
+					GetLocomotionInterface()->Approach( holdPos, 1.0f );
+				}
+			}
+		}
+		*/
+
+		if ( threat )
+		{
+			AimStickybombLauncher( threat );
+
+			float flDist = ( threat->GetLastKnownPosition() - WorldSpaceCenter() ).Length();
+
+			float flChargeDuration;
+			if ( flDist > 400.0f )
+			{
+				float flNormalizedDist = clamp( ( flDist - 400.0f ) / 1400.0f, 0.0f, 1.0f );
+				flChargeDuration = 0.04f + flNormalizedDist * 0.85f;
+			}
+			else
+			{
+				flChargeDuration = 0.04f;
+			}
+
+			if ( flChargeDuration < 0.04f )
+				flChargeDuration = 0.04f;
+
+			if ( flChargeDuration > 0.9f )
+				flChargeDuration = 0.9f;
+			
+			if ( !m_stickyAimHoldTimer.HasStarted() || m_stickyAimHoldTimer.IsElapsed() )
+			{
+				m_stickyAimHoldTimer.Start( flChargeDuration );
+				PressFireButton(flChargeDuration);
+			}
+			else
+			{
+				ReleaseFireButton();
+			}
+		}
+	}
+	else
+	{
+		if ( m_bStickyCombatActive || ( sticky && m_Shared.GetActiveTFWeapon() == sticky ) )
+		{
+			PopRequiredWeapon();
+			m_bStickyCombatActive = false;
+
+			// We're too close to the enemy, switch to primary weapon if possible.
+			CTFWeaponBase *primary = dynamic_cast< CTFWeaponBase * >( Weapon_GetSlot( TF_WPN_TYPE_PRIMARY ) );
+			if ( primary && !IsWeaponRestricted( primary ) )
+			{
+				Weapon_Switch( primary );
+			}
+		}
 	}
 }
 
@@ -1621,7 +2153,7 @@ void CTFBot::Touch( CBaseEntity *pOther )
 		if ( them->m_Shared.IsStealthed() || them->m_Shared.InCond( TF_COND_DISGUISED ) )
 		{
 			// bumped a spy - they are discovered!
-			if ( TFGameRules()->IsMannVsMachineMode() )	// we have to build up to knowing that they are a spy in MvM
+			if ( TFGameRules()->IsMannVsMachineMode() && them->GetTeamNumber() != TF_TEAM_PVE_DEFENDERS )	// we have to build up to knowing that they are a spy in MvM
 			{
 				SuspectSpy( them );
 			}
@@ -1654,7 +2186,7 @@ void CTFBot::AvoidPlayers( CUserCmd *pCmd )
 	Vector avoidVector = vec3_origin;
 
 	float tooClose = 50.0f;
-	if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() )
+	if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() != TF_TEAM_PVE_DEFENDERS )
 	{
 		// bots stay farther apart in MvM mode
 		tooClose = 150.0f;
@@ -1869,6 +2401,19 @@ void CTFBot::FireGameEvent( IGameEvent *event )
 			}
 		}
 	}
+    else if ( FStrEq( eventName, "player_death" ) )
+	{
+		// Did *I* get the kill?
+		CBasePlayer *pAttacker = UTIL_PlayerByUserId( event->GetInt( "attacker" ) );
+		if ( pAttacker == this )
+		{
+			CBasePlayer *pVictim = UTIL_PlayerByUserId( event->GetInt( "userid" ) );
+			if ( pVictim )
+			{
+				m_hVictim = pVictim;
+			}
+		}
+	}
 }
 
 	
@@ -1878,7 +2423,14 @@ void CTFBot::Event_Killed( const CTakeDamageInfo &info )
 	BaseClass::Event_Killed( info );
 
     m_hKiller = info.GetAttacker();
+	m_bKilledByCrit = ( info.GetDamageType() & DMG_CRITICAL ) != 0;
+
+	m_bKilledByRandomCrit = false;
+	if ( m_bKilledByCrit ) // Check if our crit was random or not
+	{
+		CTFPlayer *pTFAttacker = ToTFPlayer( m_hKiller );
 		m_bKilledByRandomCrit = ( pTFAttacker && !pTFAttacker->m_Shared.IsCritBoosted() );
+	}
 
 	if ( HasProxy() )
 	{
@@ -3367,7 +3919,7 @@ float CTFBot::GetDesiredAttackRange( void ) const
 	
 	if ( myWeapon->IsWeapon( TF_WEAPON_FLAMETHROWER ) )
 	{
-		return 100.0f;
+		return 200.0f;
 	}
 
 	if ( WeaponID_IsSniperRifle( myWeapon->GetWeaponID() ) )
@@ -3376,7 +3928,7 @@ float CTFBot::GetDesiredAttackRange( void ) const
 		return FLT_MAX;
 	}
 
-	if ( myWeapon->IsWeapon( TF_WEAPON_ROCKETLAUNCHER ) && !TFGameRules()->IsMannVsMachineMode() )
+	if ( myWeapon->IsWeapon( TF_WEAPON_ROCKETLAUNCHER | TF_WEAPON_PIPEBOMBLAUNCHER ) && !( TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() == TF_TEAM_PVE_DEFENDERS ) )
 	{
 		return 1250.0f;
 	}
@@ -3391,9 +3943,21 @@ float CTFBot::GetDesiredAttackRange( void ) const
 bool CTFBot::EquipRequiredWeapon( void )
 {
 	// if we have a required weapon on our stack, it takes precedence (items, etc)
-	if ( m_requiredWeaponStack.Count() )
+    while ( m_requiredWeaponStack.Count() )
 	{
-		CBaseCombatWeapon *pWeapon = m_requiredWeaponStack.Top().Get();
+		CHandle<CTFWeaponBase> hRequired = m_requiredWeaponStack.Top();
+		CTFWeaponBase *pWeapon = hRequired.Get();
+
+		if ( !pWeapon )
+		{
+			// Dead or invalid entry, throw it away and try the next one
+			PopRequiredWeapon();
+			continue;
+		}
+
+		if ( m_Shared.GetActiveTFWeapon() == pWeapon )
+			return true;
+
 		return Weapon_Switch( pWeapon );
 	}
 
@@ -3605,7 +4169,7 @@ void CTFBot::EquipBestWeaponForThreat( const CKnownEntity *threat )
 bool CTFBot::EquipLongRangeWeapon( void )
 {
 	// no secondary weapons in MvM
-	if ( TFGameRules()->IsMannVsMachineMode() )
+	if ( TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() != TF_TEAM_PVE_DEFENDERS )
 		return false;
 
 	if ( IsPlayerClass( TF_CLASS_SOLDIER ) || 
@@ -3643,6 +4207,9 @@ bool CTFBot::EquipLongRangeWeapon( void )
 // Force us to equip and use this weapon until popped off the required stack
 void CTFBot::PushRequiredWeapon( CTFWeaponBase *weapon )
 {
+    if ( !weapon )
+		return;
+
 	m_requiredWeaponStack.Push( weapon );
 }
 
@@ -3651,7 +4218,10 @@ void CTFBot::PushRequiredWeapon( CTFWeaponBase *weapon )
 // Pop top required weapon off of stack and discard
 void CTFBot::PopRequiredWeapon( void )
 {
-	m_requiredWeaponStack.Pop();
+    if ( m_requiredWeaponStack.Count() > 0 )
+	{
+		m_requiredWeaponStack.Pop();
+	}
 }
 
 
@@ -4277,7 +4847,7 @@ bool CTFBot::ShouldFireCompressionBlast( void )
 		}
 	}
 
-	bool shouldPushPlayers = !TFGameRules()->IsMannVsMachineMode();
+	bool shouldPushPlayers = !TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() != TF_TEAM_PVE_DEFENDERS;
 
 	if ( shouldPushPlayers )
 	{
@@ -4984,7 +5554,7 @@ void CTFBot::OnEventChangeAttributes( const CTFBot::EventChangeAttributes_t* pEv
 
 		SetMaxVisionRangeOverride( pEvent->m_maxVisionRange );
 
-		if ( TFGameRules()->IsMannVsMachineMode() )
+		if ( TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() != TF_TEAM_PVE_DEFENDERS )
 		{
 			SetAttribute( CTFBot::BECOME_SPECTATOR_ON_DEATH );
 			SetAttribute( CTFBot::RETAIN_BUILDINGS );
@@ -5265,8 +5835,37 @@ const char *CTFBot::GetRandomDeathMessage( CBaseEntity *pKiller )
 	if ( deathMessages.Count() == 0 )
 		return "NULL! MSG FILE EMPTY!";
 
-	int RandMsg = RandomInt( 0, deathMessages.Count() - 1 );
-	return deathMessages[ RandMsg ].Get();
+	static const char *pszDeathByPlayerTag = "[deathbyplayer]";
+	static const int nDeathByPlayerTagLen = Q_strlen( pszDeathByPlayerTag );
+
+	static CUtlVector< CUtlString > eligibleMessages;
+	eligibleMessages.RemoveAll();
+
+	const bool bKilledByPlayer = ( pKiller && pKiller->IsPlayer() );
+
+	for ( int i = 0; i < deathMessages.Count(); ++i )
+	{
+		const char *pszLine = deathMessages[i].Get();
+
+		// Lines that start with [deathbyplayer] are only used when a player killed us
+		if ( !Q_strnicmp( pszLine, pszDeathByPlayerTag, nDeathByPlayerTagLen ) )
+		{
+			if ( !bKilledByPlayer )
+				continue;
+
+			pszLine += nDeathByPlayerTagLen;
+			while ( *pszLine == ' ' )
+				++pszLine;
+		}
+
+		eligibleMessages.AddToTail( pszLine );
+	}
+
+	if ( eligibleMessages.Count() == 0 )
+		return "";
+
+	int RandMsg = RandomInt( 0, eligibleMessages.Count() - 1 );
+	return eligibleMessages[ RandMsg ].Get();
 }
 
 //-----------------------------------------------------------------------------
@@ -5286,19 +5885,36 @@ const char *CTFBot::GetRandomCritDeathMessage( CBaseEntity *pKiller )
 	static const char *pszRandCritTag = "[randcrit]";
 	static const int nRandCritTagLen = Q_strlen( pszRandCritTag );
 
+	static const char *pszDeathByPlayerTag = "[deathbyplayer]";
+	static const int nDeathByPlayerTagLen = Q_strlen( pszDeathByPlayerTag );
+
 	static CUtlVector< CUtlString > eligibleMessages;
 	eligibleMessages.RemoveAll();
+
+	const bool bKilledByPlayer = ( pKiller && pKiller->IsPlayer() );
 
 	for ( int i = 0; i < deathMessages.Count(); ++i )
 	{
 		const char *pszLine = deathMessages[i].Get();
 
+		// Handle [randcrit]
 		if ( !Q_strnicmp( pszLine, pszRandCritTag, nRandCritTagLen ) )
 		{
 			if ( !WasKilledByRandomCrit() )
 				continue;
 
 			pszLine += nRandCritTagLen;
+			while ( *pszLine == ' ' )
+				++pszLine;
+		}
+
+		// Handle [deathbyplayer]
+		if ( !Q_strnicmp( pszLine, pszDeathByPlayerTag, nDeathByPlayerTagLen ) )
+		{
+			if ( !bKilledByPlayer )
+				continue;
+
+			pszLine += nDeathByPlayerTagLen;
 			while ( *pszLine == ' ' )
 				++pszLine;
 		}
@@ -5320,15 +5936,15 @@ const char *CTFBot::GetRandomKillMessage( CBaseEntity *pVictim )
     if ( RandomFloat( 0.0f, 1.0f ) > 0.30f )
         return "";
 
-	static CUtlVector< CUtlString > deathMessages;
+	static CUtlVector< CUtlString > killMessages;
 
-	LoadScript( "scripts/bot/bot_killmsgs.txt", deathMessages, pVictim, this );
+    LoadScript( "scripts/bot/bot_killmsgs.txt", killMessages, this, pVictim );
 
-	if ( deathMessages.Count() == 0 )
+	if ( killMessages.Count() == 0 )
 		return "NULL! MSG FILE EMPTY!";
 
-	int RandMsg = RandomInt( 0, deathMessages.Count() - 1 );
-	return deathMessages[ RandMsg ].Get();
+	int RandMsg = RandomInt( 0, killMessages.Count() - 1 );
+	return killMessages[ RandMsg ].Get();
 }
 
 //-----------------------------------------------------------------------------
@@ -5340,13 +5956,13 @@ const char *CTFBot::GetRandomPraiseMessage( CBaseEntity *pTeammate )
     //if ( RandomFloat( 0.0f, 1.0f ) > 0.20f )
     //    return "";
 
-	static CUtlVector< CUtlString > deathMessages;
+	static CUtlVector< CUtlString > praiseMessages;
 
-	LoadScript( "scripts/bot/bot_praisemsgs.txt", deathMessages, NULL, NULL, pTeammate );
+	LoadScript( "scripts/bot/bot_praisemsgs.txt", praiseMessages, NULL, NULL, pTeammate );
 
-	if ( deathMessages.Count() == 0 )
+	if ( praiseMessages.Count() == 0 )
 		return "NULL! MSG FILE EMPTY!";
 
-	int RandMsg = RandomInt( 0, deathMessages.Count() - 1 );
-	return deathMessages[ RandMsg ].Get();
+	int RandMsg = RandomInt( 0, praiseMessages.Count() - 1 );
+	return praiseMessages[ RandMsg ].Get();
 }

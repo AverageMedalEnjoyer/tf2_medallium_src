@@ -17,8 +17,11 @@
 #include "bot/map_entities/tf_bot_hint_sentrygun.h"
 #include "bot/behavior/tf_bot_get_ammo.h"
 #include "bot/behavior/tf_bot_retreat_to_cover.h"
+#include "bot/behavior/engineer/tf_bot_engineer_build_teleport_entrance.h"
 #include "bot/behavior/engineer/tf_bot_engineer_build_teleport_exit.h"
+#include "bot/behavior/tf_bot_mvm_defenders.h"
 #include "trigger_area_capture.h"
+#include "entity_capture_flag.h"
 
 #include "raid/tf_raid_logic.h"
 
@@ -236,6 +239,192 @@ void CTFBotEngineerMoveToBuild::SelectBuildLocation( CTFBot *me )
 		return;
 	}
 
+	// MVM defender Engineers: Build near the invader spawn room, the bomb carrier, or the bomb if it's dropped.
+    if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() &&
+         me->GetTeamNumber() == TF_TEAM_PVE_DEFENDERS )
+    {
+        CBaseObject *pSentry    = me->GetObjectOfType( OBJ_SENTRYGUN );
+        CBaseObject *pDispenser = me->GetObjectOfType( OBJ_DISPENSER );
+
+        if ( !pSentry && !pDispenser )
+        {
+            CCaptureFlag *pBomb   = NULL;
+            CTFPlayer    *pCarrier = NULL;
+            Vector        bombPos  = vec3_origin;
+            bool          bCarried = false;
+
+            for ( CBaseEntity *pEnt = gEntList.FindEntityByClassname( NULL, "item_teamflag" );
+                  pEnt;
+                  pEnt = gEntList.FindEntityByClassname( pEnt, "item_teamflag" ) )
+            {
+                CCaptureFlag *pFlag = dynamic_cast< CCaptureFlag * >( pEnt );
+                if ( !pFlag )
+                    continue;
+
+                Vector flagPos = pFlag->WorldSpaceCenter();
+
+                if ( pFlag->IsStolen() )
+                {
+                    CTFPlayer *pOwner = ToTFPlayer( pFlag->GetOwnerEntity() );
+                    if ( pOwner && pOwner->IsAlive() &&
+                         !IsPointInsideInvaderSpawnRoom( pOwner->WorldSpaceCenter() ) )
+                    {
+                        CNavArea *pArea = TheNavMesh->GetNearestNavArea( pOwner->WorldSpaceCenter() );
+                        if ( !IsNavAreaInsideInvaderSpawnRoom( pArea ) )
+                        {
+                            pBomb    = pFlag;
+                            pCarrier = pOwner;
+                            bombPos  = pOwner->WorldSpaceCenter();
+                            bCarried = true;
+                            break;
+                        }
+                    }
+                }
+                else if ( !IsPointInsideInvaderSpawnRoom( flagPos ) )
+                {
+                    CNavArea *pArea = TheNavMesh->GetNearestNavArea( flagPos );
+                    if ( !IsNavAreaInsideInvaderSpawnRoom( pArea ) )
+                    {
+                        pBomb   = pFlag;
+                        bombPos = flagPos;
+                        bCarried = false;
+                        break;
+                    }
+                }
+            }
+
+            if ( pBomb )
+            {
+                // Choose radius based on whether the bomb is being carried
+                float flMinRadius, flMaxRadius;
+                if ( bCarried )
+                {
+                    flMinRadius = 450.0f;
+                    flMaxRadius = 850.0f;
+                }
+                else
+                {
+                    // dropped, random range of 400
+                    flMinRadius = 0.0f;
+                    flMaxRadius = 400.0f;
+                }
+
+				// Attempt to find a valid build location around the bomb
+                for ( int attempt = 0; attempt < 48; ++attempt )
+                {
+                    float angle = RandomFloat( 0.0f, 6.2831853f );
+                    float dist  = RandomFloat( flMinRadius, flMaxRadius );
+                    Vector offset( cosf( angle ) * dist, sinf( angle ) * dist, 0.0f );
+                    Vector candidate = bombPos + offset;
+
+                    CNavArea *pArea = TheNavMesh->GetNearestNavArea( candidate,
+                                                                     false, 600.0f, false, true, TEAM_ANY );
+                    if ( !pArea )
+                        continue;
+
+                    // Never build inside an invader spawnroom
+                    if ( IsNavAreaInsideInvaderSpawnRoom( pArea ) )
+                        continue;
+
+                    if ( IsPointInsideInvaderSpawnRoom( pArea->GetCenter() ) )
+                        continue;
+
+                    Vector buildPos = pArea->GetCenter();
+                    buildPos.z += 8.0f;
+
+                    m_sentryBuildLocation = buildPos;
+                    return;
+                }
+            }
+        }
+
+		CUtlVector< CBaseEntity * > rooms;
+		for ( CBaseEntity *pEnt = gEntList.FindEntityByClassname( NULL, "func_respawnroom" );
+			  pEnt;
+			  pEnt = gEntList.FindEntityByClassname( pEnt, "func_respawnroom" ) )
+		{
+			if ( pEnt->GetTeamNumber() == TF_TEAM_PVE_INVADERS )
+				rooms.AddToTail( pEnt );
+		}
+
+		if ( rooms.Count() > 0 )
+		{
+			for ( int attempt = 0; attempt < 64; ++attempt )
+			{
+				CBaseEntity *pRoom = rooms[ RandomInt( 0, rooms.Count() - 1 ) ];
+				Vector roomOrigin = pRoom->WorldSpaceCenter();
+
+				// Get the actual brush bounds
+				Vector mins, maxs;
+				pRoom->CollisionProp()->WorldSpaceAABB( &mins, &maxs );
+
+				float angle = RandomFloat( 0.0f, 6.2831853f );
+				float dist  = RandomFloat( 420.0f, 1100.0f );	// a bit farther so we stay clear of walls
+				Vector offset( cosf( angle ) * dist, sinf( angle ) * dist, 0.0f );
+				Vector candidate = roomOrigin + offset;
+
+				CNavArea *pArea = TheNavMesh->GetNearestNavArea( candidate,
+																 false, 700.0f, false, true, TEAM_ANY );
+				if ( !pArea )
+					continue;
+
+				// Never build inside a spawnroom nav area
+				CTFNavArea *pTFArea = (CTFNavArea *)pArea;
+				if ( pTFArea && ( pTFArea->HasAttributeTF( TF_NAV_SPAWN_ROOM_BLUE ) ||
+								  pTFArea->HasAttributeTF( TF_NAV_SPAWN_ROOM_RED ) ) )
+					continue;
+
+				Vector buildPos = pArea->GetCenter();
+				buildPos.z += 8.0f;
+
+				// Also reject if the candidate is still inside an expanded version of the room brush
+				Vector expandedMins = mins - Vector( 80, 80, 40 );
+				Vector expandedMaxs = maxs + Vector( 80, 80, 40 );
+				if ( buildPos.x >= expandedMins.x && buildPos.x <= expandedMaxs.x &&
+					 buildPos.y >= expandedMins.y && buildPos.y <= expandedMaxs.y &&
+					 buildPos.z >= expandedMins.z && buildPos.z <= expandedMaxs.z )
+				{
+					continue;
+				}
+
+				Vector testPoints[5];
+				testPoints[0] = roomOrigin;
+				testPoints[1] = Vector( mins.x, mins.y, (mins.z + maxs.z) * 0.5f );
+				testPoints[2] = Vector( maxs.x, mins.y, (mins.z + maxs.z) * 0.5f );
+				testPoints[3] = Vector( mins.x, maxs.y, (mins.z + maxs.z) * 0.5f );
+				testPoints[4] = Vector( maxs.x, maxs.y, (mins.z + maxs.z) * 0.5f );
+
+				bool bCanSeeBrush = false;
+				Vector eye = buildPos + Vector( 0, 0, 60 );
+
+				for ( int t = 0; t < 5; ++t )
+				{
+					trace_t tr;
+					UTIL_TraceLine( eye, testPoints[t] + Vector( 0, 0, 20 ),
+									MASK_SOLID_BRUSHONLY, me, COLLISION_GROUP_NONE, &tr );
+
+					if ( tr.fraction > 0.85f )
+					{
+						bCanSeeBrush = true;
+						break;
+					}
+				}
+
+				if ( !bCanSeeBrush )
+					continue;
+
+				// Spot that can see the invader spawn brush
+				m_sentryBuildLocation = buildPos;
+				return;
+			}
+		}
+
+		// Fallback
+		// Note: Seems to break Engineer bots in a few MVM maps, where they will attempt to build inside of spawn. Not sure why this happens yet.
+		m_sentryBuildLocation = me->GetAbsOrigin();
+		return;
+	}
+
 	// if we have a set of specific build locations, pick one of them
 	CUtlVector< CTFBotHintSentrygun * > sentryHintVector;
 
@@ -425,6 +614,22 @@ ActionResult< CTFBot >	CTFBotEngineerMoveToBuild::Update( CTFBot *me, float inte
 					}
 				}
 			}
+		}
+	}
+
+    // MVM defender Engineers: Place a teleporter exit near the sentry once we have one
+	if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() &&
+		 me->GetTeamNumber() == TF_TEAM_PVE_DEFENDERS )
+	{
+		CObjectTeleporter *pExit = (CObjectTeleporter *)me->GetObjectOfType( OBJ_TELEPORTER, MODE_TELEPORTER_EXIT );
+		CBaseObject *pSentry = me->GetObjectOfType( OBJ_SENTRYGUN );
+		CBaseObject *pDispenser = me->GetObjectOfType( OBJ_DISPENSER );
+
+		if ( !pExit && pSentry && pDispenser )
+		{
+			// We already have a sentry and dispenser up front, go place an exit nearby
+			// Note: Doesn't seem to work.
+			return SuspendFor( new CTFBotEngineerBuildTeleportExit, "Placing teleporter exit near sentry" );
 		}
 	}
 

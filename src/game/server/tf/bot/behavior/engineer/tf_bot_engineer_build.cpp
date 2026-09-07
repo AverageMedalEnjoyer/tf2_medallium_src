@@ -51,6 +51,26 @@ ActionResult< CTFBot >	CTFBotEngineerBuild::Update( CTFBot *me, float interval )
 		me->GiveAmmo( 1000, TF_AMMO_METAL, true );
 	}
 
+    // MVM defender Engineers: Ready up only when our buildings are finished
+	if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() &&
+		 me->GetTeamNumber() == TF_TEAM_PVE_DEFENDERS )
+	{
+		CObjectSentrygun *pSentry = (CObjectSentrygun *)me->GetObjectOfType( OBJ_SENTRYGUN );
+		CObjectDispenser *pDispenser = (CObjectDispenser *)me->GetObjectOfType( OBJ_DISPENSER );
+
+		bool bSentryDone = ( pSentry && !pSentry->IsBuilding() && !pSentry->IsPlacing() && pSentry->GetUpgradeLevel() >= 2 );
+		bool bDispenserDone = ( pDispenser && !pDispenser->IsBuilding() && !pDispenser->IsPlacing() && pDispenser->GetUpgradeLevel() >= 1 );
+
+		if ( bSentryDone && bDispenserDone )
+		{
+			if ( TFGameRules()->UsePlayerReadyStatusMode() &&
+				 !TFGameRules()->IsPlayerReady( me->entindex() ) )
+			{
+				TFGameRules()->PlayerReadyStatus_UpdatePlayerState( me, true );
+			}
+		}
+	}
+
 	return Continue();
 }
 

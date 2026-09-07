@@ -18,6 +18,8 @@
 #define CTFDRGPomson C_TFDRGPomson
 #endif
 
+#define TF_RAYGUN_MAX_CHARGE_TIME 1.5f
+
 class CTFRaygun : public CTFRocketLauncher
 {
 public:
@@ -41,8 +43,19 @@ public:
 	virtual bool		Deploy( void );
 	virtual void		ItemPostFrame( void );
 
+    virtual void	    WeaponReset( void );
+
 	virtual void		PrimaryAttack( void );
+    virtual void		SecondaryAttack( void );
+	virtual void		FireChargedShot();
 	virtual void		ModifyProjectile( CBaseEntity* pProj );
+
+    virtual float		GetChargeBeginTime( void ) { return m_flChargeBeginTime; }
+	virtual float		GetChargeMaxTime( void ) { return TF_RAYGUN_MAX_CHARGE_TIME; }
+	virtual float		GetChargeForceReleaseTime( void ) { return GetChargeMaxTime(); }
+	
+	bool				CanChargeFire( void ) { if ( Energy_FullyCharged() && (m_flChargeBeginTime <= 0) ) return true; else return false; }
+    bool				IsChargedShot( void ) const { return m_bChargedShot; }
 
 	virtual const char*	GetMuzzleFlashParticleEffect( void );
 
@@ -65,11 +78,19 @@ public:
 #ifdef CLIENT_DLL
 	virtual void		DispatchMuzzleFlash( const char* effectName, C_BaseEntity* pAttachEnt );
 	void				ClientEffectsThink( void );
+    void				CreateChargeEffect( void );
+	virtual void	    OnDataChanged( DataUpdateType_t updateType );
 	virtual bool		ShouldPlayClientReloadSound() { return true; }
 	virtual const char *GetIdleParticleEffect( void ) { return "drg_bison_idle"; }
+    virtual void		AddViewmodelBob( CBaseViewModel *viewmodel, Vector &origin, QAngle &angles ) OVERRIDE;
 #endif
 
 	bool				UseNewProjectileCode() const { return m_bUseNewProjectileCode; }
+
+    CNetworkVar( float, m_flChargeBeginTime );
+	CNetworkVar( int,   m_iChargeEffect );
+	int		        	m_iChargeEffectBase;
+    CNetworkVar( bool,  m_bChargedShot );
 
 private:
 

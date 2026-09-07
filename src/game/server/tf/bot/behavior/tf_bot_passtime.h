@@ -95,7 +95,7 @@ public:
 	virtual EventDesiredResult< CTFBot > OnMoveToSuccess( CTFBot *me, const Path *path );
 	virtual EventDesiredResult< CTFBot > OnMoveToFailure( CTFBot *me, const Path *path, MoveToFailureType reason );
 
-	virtual QueryResultType ShouldHurry( const INextBot *me ) const	{ return ANSWER_YES; }
+	virtual QueryResultType ShouldHurry( const INextBot *me ) const	{ return ANSWER_UNDEFINED; }
 	virtual const char *GetName( void ) const { return "FollowPasstimeJackCarrier"; }
 
 private:

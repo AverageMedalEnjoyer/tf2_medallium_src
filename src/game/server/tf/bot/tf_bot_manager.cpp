@@ -350,6 +350,7 @@ bool CTFBotManager::RemoveBotFromTeamAndKick( int nTeam )
 }
 
 //----------------------------------------------------------------------------------------------------------------
+extern ConVar tf_mvm_defenders_team_size;
 void CTFBotManager::MaintainBotQuota()
 {
 	if ( TheNavMesh->IsGenerating() )
@@ -645,6 +646,12 @@ CTFBot* CTFBotManager::GetAvailableBotFromPool()
 //----------------------------------------------------------------------------------------------------------------
 void CTFBotManager::OnForceAddedBots( int iNumAdded )
 {
+    if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() )
+	{
+		m_flNextPeriodicThink = gpGlobals->curtime + 1.0f;
+		return;
+	}
+
 	tf_bot_quota.SetValue( tf_bot_quota.GetInt() + iNumAdded );
 	m_flNextPeriodicThink = gpGlobals->curtime + 1.0f;
 }

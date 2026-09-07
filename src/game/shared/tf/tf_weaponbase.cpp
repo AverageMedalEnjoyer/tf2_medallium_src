@@ -6361,7 +6361,25 @@ float CTFWeaponBase::Energy_GetMaxEnergy( void ) const
 	// and return the amount of energy required for that.
 
 	int iNumShots = ENERGY_WEAPON_MAX_CHARGE / Energy_GetShotCost();
-	CALL_ATTRIB_HOOK_FLOAT( iNumShots, mult_clipsize_upgrade );
+    CALL_ATTRIB_HOOK_INT( iNumShots, mult_clipsize );
+
+    CTFPlayer *pPlayer = ToTFPlayer( GetOwner() );
+	if ( pPlayer )
+	{
+		CALL_ATTRIB_HOOK_INT( iNumShots, mult_clipsize_upgrade );
+
+		int iClipSizeOnKills = 0;
+		CALL_ATTRIB_HOOK_INT( iClipSizeOnKills, clipsize_increase_on_kill );
+		if ( iClipSizeOnKills )
+		{
+			iNumShots += Min( pPlayer->m_Shared.GetDecapitations(), iClipSizeOnKills );
+		}
+
+		if ( pPlayer->m_Shared.GetCarryingRuneType() == RUNE_HASTE )
+		{
+			iNumShots *= 2;
+		}
+	}
 
 	return ( iNumShots * Energy_GetShotCost() );
 }

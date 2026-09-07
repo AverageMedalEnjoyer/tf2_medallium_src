@@ -1206,6 +1206,18 @@ void CPopulationManager::WaveEnd( bool bSuccess )
 		}
 		m_pMVMStats->SetCurrentWave( m_iCurrentWaveIndex );
 
+        CUtlVector< CTFPlayer * > playerVector;
+		CollectPlayers( &playerVector, TF_TEAM_PVE_DEFENDERS );
+		for ( int i = 0; i < playerVector.Count(); ++i )
+		{
+			CTFPlayer *pPlayer = playerVector[i];
+			if ( pPlayer && pPlayer->IsBot() )
+			{
+				// Bots get a bonus of 1000 currency after a round for being bots
+				pPlayer->AddCurrency( 1000 );
+			}
+		}
+
 		// get Current Wave
 		CWave *nextWave = GetCurrentWave();
 		if ( nextWave )
@@ -1388,9 +1400,14 @@ void CPopulationManager::RestorePlayerCurrency ()
 
 	for( int i=0; i<playerVector.Count(); ++i )
 	{
+		CTFPlayer *pPlayer = playerVector[i];
+
+		// Bots get a bonus to their starting currency for being bots
+		int nBotBonus = ( pPlayer->IsBot() && pPlayer->GetTeamNumber() == TF_TEAM_PVE_DEFENDERS ) ? 1000 : 0;
+
 		// deduct any cash that has already been spent
-		int spentCurrency = GetPlayerCurrencySpent( playerVector[i] );
-		playerVector[i]->SetCurrency( nRoundCurrency - spentCurrency );
+		int spentCurrency = GetPlayerCurrencySpent( pPlayer );
+		pPlayer->SetCurrency( ( nRoundCurrency + nBotBonus ) - spentCurrency );
 	}
 }
 

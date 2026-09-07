@@ -429,6 +429,36 @@ void CTFSniperRifle::ItemPostFrame( void )
 			pPlayer->m_Shared.ActivateRageBuff( pPlayer, iBuffType );
 		}
 	}
+
+#ifdef CLIENT_DLL
+	// Apply iron-sights
+	if ( UsesIronSights() && pPlayer->m_Shared.InCond( TF_COND_AIMING ) )
+	{
+		if ( !m_bIronSightsParsed )
+		{
+			GetIronSightsOffset( m_vecIronSightsOffset, m_angIronSightsOffset );
+			m_bIronSightsParsed = true;
+		}
+
+		C_BaseViewModel *pVM = pPlayer->GetViewModel( 0 );
+		if ( pVM )
+		{
+			pVM->SetLocalOrigin( m_vecIronSightsOffset );
+
+			pVM->SetLocalAngles( m_angIronSightsOffset );
+		}
+	}
+	else if ( UsesIronSights() )
+	{
+		// Reset when not aiming
+		C_BaseViewModel *pVM = pPlayer->GetViewModel( 0 );
+		if ( pVM )
+		{
+			pVM->SetLocalOrigin( vec3_origin );
+			pVM->SetLocalAngles( vec3_angle );
+		}
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -494,6 +524,45 @@ void CTFSniperRifle::Zoom( void )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+bool CTFSniperRifle::UsesIronSights( void ) const
+{
+	int iUsesIronSights = 0;
+	CALL_ATTRIB_HOOK_INT( iUsesIronSights, weapon_uses_iron_sights );
+	return ( iUsesIronSights != 0 );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CTFSniperRifle::GetIronSightsOffset( Vector &vecOffset, QAngle &angOffset ) const
+{
+	vecOffset = vec3_origin;
+	angOffset.Init();
+
+	CAttribute_String attr;
+	CALL_ATTRIB_HOOK_STRING( attr, iron_sights_position );
+	const char *psz = attr.value().c_str();
+	if ( !psz || !*psz )
+		return;
+
+	// In order, X Y Z PITCH YAW ROLL.
+	float x = 0.f, y = 0.f, z = 0.f, pitch = 0.f, yaw = 0.f, roll = 0.f;
+	int nParsed = sscanf( psz, "%f %f %f %f %f %f", &x, &y, &z, &pitch, &yaw, &roll );
+	if ( nParsed >= 3 )
+	{
+		vecOffset.x = x;
+		vecOffset.y = y;
+		vecOffset.z = z;
+
+		if ( nParsed >= 4 ) angOffset.x = pitch;
+		if ( nParsed >= 5 ) angOffset.y = yaw;
+		if ( nParsed >= 6 ) angOffset.z = roll;
+	}
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 void CTFSniperRifle::ZoomOutIn( void )
@@ -530,6 +599,19 @@ void CTFSniperRifle::ZoomIn( void )
 
 	if ( pPlayer->GetAmmoCount( m_iPrimaryAmmoType ) <= 0 )
 		return;
+
+	// Iron sights
+	if ( UsesIronSights() )
+	{
+		pPlayer->m_Shared.AddCond( TF_COND_AIMING );
+		pPlayer->TeamFortress_SetSpeed();
+
+#ifdef GAME_DLL
+		//CreateSniperDot();
+		pPlayer->ClearExpression();
+#endif
+		return;
+	}
 
 	BaseClass::ZoomIn();
 
@@ -573,7 +655,11 @@ bool CTFSniperRifle::IsFullyCharged( void ) const
 //-----------------------------------------------------------------------------
 void CTFSniperRifle::ZoomOut( void )
 {
-	BaseClass::ZoomOut();
+	// Iron sights
+	if ( !UsesIronSights() )
+	{
+		BaseClass::ZoomOut();
+	}
 
 	// Stop aiming
 	CTFPlayer *pPlayer = GetTFPlayerOwner();

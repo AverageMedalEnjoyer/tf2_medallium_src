@@ -259,7 +259,7 @@ Action< CTFBot > *CTFBotScenarioMonitor::DesiredScenarioAndClassAction( CTFBot *
 
 		    if ( me->IsPlayerClass( TF_CLASS_ENGINEER ) )
 		    {
-	    		return new CTFBotMvMEngineerIdle;
+			    return new CTFBotEngineerBuild;
 			}
 
 	    	// NOTE: Snipers are intentionally left out so they go after the flag. Actual sniping behavior is done as a mission.

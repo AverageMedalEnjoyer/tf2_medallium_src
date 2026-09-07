@@ -115,6 +115,9 @@ public:
 	virtual int	GetDamageType() const;
 	int		GetRifleType( void ) const { int iMode = 0; CALL_ATTRIB_HOOK_INT( iMode, set_weapon_mode ); return iMode; };
 
+    bool			UsesIronSights( void ) const;
+    void            GetIronSightsOffset( Vector &vecOffset, QAngle &angOffset ) const;
+
 	virtual void WeaponReset( void );
 
 	virtual bool CanFireCriticalShot( bool bIsHeadshot = false, CBaseEntity *pTarget = NULL ) OVERRIDE;
@@ -193,6 +196,10 @@ protected:
 	CHandle<CSniperDot>		m_hSniperDot;
 #else
 	bool m_bPlayedBell;
+    bool m_bIronSightsParsed;
+    Vector m_vecIronSightsOffset;
+    QAngle m_angIronSightsOffset;
+
 #endif
 
 	bool m_bRezoomAfterShot;

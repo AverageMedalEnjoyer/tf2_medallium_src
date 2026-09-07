@@ -305,6 +305,25 @@ public:
 	void ScriptSetActionPoint( HSCRIPT hPoint ) { SetActionPoint( ScriptToEntClass< CTFBotActionPoint >( hPoint ) ); }
 	HSCRIPT ScriptGetActionPoint( void ) const { return ToHScript( GetActionPoint() ); }
 
+    void UpdateStickybombLauncher();
+    bool ShouldUseStickybombLauncher() const;
+    void AimStickybombLauncher( const CKnownEntity *threat );
+    void DetonateStickies();
+    bool StickiesNearEnemies() const;
+
+    CountdownTimer m_stickyLastEnemySeenTimer;
+    CountdownTimer m_stickyAimHoldTimer;
+    bool m_bStickyCombatActive;
+
+    void UpdateDoubleJump();
+    bool TryStartDoubleJump();
+    void PressDoubleJump( int direction );
+
+    CountdownTimer m_DoubleJumpTimer;
+    int m_DoubleJumpDir;
+    bool m_bDoubleJumpPending;
+    float m_flDoubleJumpStartTime;
+
 	CBaseEntity        *GetKiller() { return m_hKiller; }
     CBaseEntity        *GetVictim() { return m_hVictim; }
     bool                WasKilledByCrit() const { return m_bKilledByCrit; }
