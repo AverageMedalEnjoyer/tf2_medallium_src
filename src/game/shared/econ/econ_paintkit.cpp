@@ -110,7 +110,28 @@ void CPaintKitDefinition::GenerateSupportedItems() const
 				const CPaintKitItemDefinition *pItemObj = assert_cast< const CPaintKitItemDefinition * >( GetProtoObjectDefinitionFromMsg( &pItemMsg->item_definition_template() ) );
 				const CMsgPaintKit_ItemDefinition *pItemDefMsg = assert_cast< const CMsgPaintKit_ItemDefinition* >( pItemObj->GetMsg() );
 				static CSchemaItemDefHandle pPaintkitToolItemDef( "Paintkit" );
-				if ( pItemDefMsg->item_definition_index() == pPaintkitToolItemDef->GetDefinitionIndex() )
+
+				// Cache so we only check the handle once per process
+				static bool s_paintkitResolved = false;
+				static item_definition_index_t s_paintkitDefIndex = (item_definition_index_t)-1;
+				static bool s_paintkitWarned = false;
+
+				if ( !s_paintkitResolved )
+				{
+					if ( pPaintkitToolItemDef.operator->() )
+					{
+						s_paintkitDefIndex = pPaintkitToolItemDef->GetDefinitionIndex();
+					}
+					else if  (!s_paintkitWarned )
+					{
+						Warning( "[PaintKit] Schema entry 'Paintkit' not found or failed.\n Make sure attribute names are correct and there are no out of bounds brackets inside the items schema TXT.\n" );
+						s_paintkitWarned = true;
+					}
+					s_paintkitResolved = true;
+				}
+
+				if ( s_paintkitDefIndex != ( item_definition_index_t )-1 &&
+					pItemDefMsg->item_definition_index() == s_paintkitDefIndex )
 				{
 					bHasPaintKitTool = true;
 				}
