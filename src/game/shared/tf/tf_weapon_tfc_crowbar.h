@@ -1,4 +1,4 @@
-//====== Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. =======
+//====== Copyright © 1996-2005, Valve Corporation, All rights reserved. =======
 //
 // Purpose: 
 //
@@ -79,7 +79,7 @@ public:
 	virtual float		InternalGetEffectBarRechargeTime(void);
 	virtual const char	*GetEffectLabelText(void) { return "Boost"; }
 
-	virtual float	GetMeleeDamage( CBaseEntity *pTarget, int *piDamageType, int *piCustomDamage );
+	virtual float GetMeleeDamage( CBaseEntity *pTarget, int *piDamageType, int *piCustomDamage );
 
 	//virtual bool       	SendWeaponAnim(int iActivity);
 

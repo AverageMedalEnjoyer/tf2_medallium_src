@@ -1,4 +1,4 @@
-//====== Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. =======
+//====== Copyright © 1996-2005, Valve Corporation, All rights reserved. =======
 //
 // Purpose: 
 //
@@ -67,6 +67,7 @@ CTFCCrowbar::CTFCCrowbar()
 //-----------------------------------------------------------------------------
 CTFCUmbrella::CTFCUmbrella()
 {
+	//m_flEffectBarRegenTime = 0.0f;
 	UseClientSideAnimation();
 	StartEffectBarRegen();
 }
@@ -105,7 +106,9 @@ void CTFCUmbrella::SecondaryAttack(void)
 	//CTraceFilterIgnorePlayers *pFilter = new CTraceFilterIgnorePlayers( this, COLLISION_GROUP_NONE );
 	CTraceFilterSimple *pFilter = new CTraceFilterSimple(pPlayer, COLLISION_GROUP_NONE);
 
-	UTIL_TraceLine(vecStart, vecEnd, MASK_ALL, pFilter, &tr);
+	Ray_t ray; ray.Init( vecStart, vecEnd );
+
+	//UTIL_TraceLine(vecStart, vecEnd, MASK_ALL, pFilter, &tr);
 
 	//UTIL_Portal_TraceRay( ray, MASK_ALL, pFilter, &tr );
 
@@ -114,20 +117,20 @@ void CTFCUmbrella::SecondaryAttack(void)
 		return;
 
 	CTFPlayer *pTarget = ToTFPlayer(tr.m_pEnt);
-	//CAI_BaseNPC *pNPC = tr.m_pEnt->MyNPCPointer(); // no NPC-ally support in this project yet
+	//CAI_BaseNPC *pNPC = tr.m_pEnt->MyNPCPointer();//dynamic_cast<CAI_BaseNPC *>(tr.m_pEnt);
 
 	if (pPlayer->InSameTeam(tr.m_pEnt) || ( pTarget && ( ( pTarget->m_Shared.InCond( TF_COND_DISGUISED ) ) && ( pTarget->m_Shared.GetDisguiseTeam() == pPlayer->GetTeamNumber() ) ) ) )
 	{
 		if (pTarget)
 		{
 			SendWeaponAnim(ACT_VM_SECONDARYATTACK);
-			pTarget->m_Shared.AddCond((ETFCond)GetBuffType( GetUmbrellaType() ), 8.0f);
+			pTarget->m_Shared.AddCond(/*FC_COND_CIVILIAN_ENERGY_BUFF*/(ETFCond) GetBuffType( GetUmbrellaType() ), 8.0f);
 			//SetEffectBarProgress(-15.0f);
 		}
 		//else if (pNPC)
 		//{
 		//	SendWeaponAnim(ACT_VM_SECONDARYATTACK);
-		//	pNPC->AddCond(GetBuffType( GetUmbrellaType() ), 8.0f);
+		//	pNPC->AddCond(/*FC_COND_CIVILIAN_ENERGY_BUFF*/GetBuffType( GetUmbrellaType() ), 8.0f);
 		//	//SetEffectBarProgress(-15.0f);
 		//}
 
@@ -148,6 +151,8 @@ void CTFCUmbrella::SecondaryAttack(void)
 
 	// There is nothing that un-sets this
 	//m_bFiring = true;
+
+//	m_flEffectBarRegenTime = gpGlobals->curtime + InternalGetEffectBarRechargeTime();
 
 	StartEffectBarRegen();
 
@@ -204,10 +209,9 @@ float CTFCUmbrella::GetMeleeDamage( CBaseEntity *pTarget, int *piDamageType, int
 			{
 				fDamage = MAX( fDamage, pTFPlayerTarget->GetHealth() * 3 );
 				*piDamageType |= DMG_DONT_COUNT_DAMAGE_TOWARDS_CRIT_RATE;
-				//piCustomDamage = TF_DMG_CUSTOM_DECAPITATION;
+				//*piCustomDamage = TF_DMG_CUSTOM_DECAPITATION;
 			}
 		}
 	}
-
 	return fDamage;
 }
