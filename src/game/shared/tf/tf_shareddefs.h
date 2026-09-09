@@ -638,7 +638,7 @@ extern const char *g_pszInvasionMaps[];
 bool IsPlayingInvasionMap( void );
 
 #define SCOREBOARD_DOMINATION_ICONS		17
-#define SCOREBOARD_CLASS_ICONS			19
+#define SCOREBOARD_CLASS_ICONS			( 1 + 2 * ( TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS + 1 ) )
 #define SCOREBOARD_PING_ICONS			6
 
 extern const char *g_pszClassIcons[];

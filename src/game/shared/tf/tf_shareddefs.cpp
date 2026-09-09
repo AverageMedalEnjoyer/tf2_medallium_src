@@ -1873,6 +1873,7 @@ const char *g_pszClassIcons[SCOREBOARD_CLASS_ICONS] =
 	"../hud/leaderboard_class_pyro",
 	"../hud/leaderboard_class_spy",
 	"../hud/leaderboard_class_engineer",
+	"../hud/leaderboard_class_civilian",
 	"../hud/leaderboard_class_scout_d",
 	"../hud/leaderboard_class_sniper_d",
 	"../hud/leaderboard_class_soldier_d",
@@ -1882,6 +1883,7 @@ const char *g_pszClassIcons[SCOREBOARD_CLASS_ICONS] =
 	"../hud/leaderboard_class_pyro_d",
 	"../hud/leaderboard_class_spy_d",
 	"../hud/leaderboard_class_engineer_d",
+	"../hud/leaderboard_class_civilian_d",
 };
 
 const char *g_pszClassIconsAlt[SCOREBOARD_CLASS_ICONS] =
@@ -1896,6 +1898,7 @@ const char *g_pszClassIconsAlt[SCOREBOARD_CLASS_ICONS] =
 	"class_icons/class_icon_orange_pyro",
 	"class_icons/class_icon_orange_spy",
 	"class_icons/class_icon_orange_engineer",
+	"class_icons/class_icon_orange_civilian",
 	"class_icons/class_icon_orange_scout_d",
 	"class_icons/class_icon_orange_sniper_d",
 	"class_icons/class_icon_orange_soldier_d",
@@ -1905,6 +1908,7 @@ const char *g_pszClassIconsAlt[SCOREBOARD_CLASS_ICONS] =
 	"class_icons/class_icon_orange_pyro_d",
 	"class_icons/class_icon_orange_spy_d",
 	"class_icons/class_icon_orange_engineer_d",
+	"class_icons/class_icon_orange_civilian_d",
 };
 
 const char *g_pszItemClassImagesRed[] =
