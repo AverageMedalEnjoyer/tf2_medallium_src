@@ -1,4 +1,4 @@
-//====== Copyright © 1996-2005, Valve Corporation, All rights reserved. =======
+//====== Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. =======
 //
 // Purpose: 
 //
@@ -146,7 +146,10 @@ void CTFCUmbrella::SecondaryAttack(void)
 	// There is nothing that un-sets this
 	//m_bFiring = true;
 
-	m_flEffectBarRegenTime = m_flNextSecondaryAttack;
+	// m_flEffectBarRegenTime is a private CNetworkVar on the base class, so we can't
+	// assign it directly. StartEffectBarRegen() sets it to curtime + GetEffectBarRechargeTime()
+	// (== m_flNextSecondaryAttack) when the bar is expired, which is exactly what we want here.
+	StartEffectBarRegen();
 
 #ifdef GAME_DLL
 	if (pPlayer->m_Shared.InCond(TF_COND_STEALTHED))
