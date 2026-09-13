@@ -683,7 +683,7 @@ void CTFClassMenu::ShowPanel( bool bShow )
 	}
 }
 
-const char *g_pszLegacyClassSelectVCDWeapons[TF_LAST_NORMAL_CLASS] =
+const char *g_pszLegacyClassSelectVCDWeapons[TF_CLASS_COUNT_ALL] =
 {
 	"",										// TF_CLASS_UNDEFINED = 0,
 	"",										// TF_CLASS_SCOUT,				// weapons handled individually
@@ -694,10 +694,11 @@ const char *g_pszLegacyClassSelectVCDWeapons[TF_LAST_NORMAL_CLASS] =
 	"tf_weapon_minigun",					// TF_CLASS_HEAVYWEAPONS,
 	"tf_weapon_flamethrower",				// TF_CLASS_PYRO,
 	"",										// TF_CLASS_SPY,				// weapons handled individually
-	"tf_weapon_wrench",						// TF_CLASS_ENGINEER,		
+	"tf_weapon_wrench",						// TF_CLASS_ENGINEER,
+	"",										// TF_CLASS_CIVILIAN,			// class_select VCD has no weapon-specific content
 };
 
-int g_iLegacyClassSelectWeaponSlots[TF_LAST_NORMAL_CLASS] =
+int g_iLegacyClassSelectWeaponSlots[TF_CLASS_COUNT_ALL] =
 {
 	LOADOUT_POSITION_PRIMARY,		// TF_CLASS_UNDEFINED = 0,
 	LOADOUT_POSITION_PRIMARY,		// TF_CLASS_SCOUT,			// TF_FIRST_NORMAL_CLASS
@@ -708,7 +709,8 @@ int g_iLegacyClassSelectWeaponSlots[TF_LAST_NORMAL_CLASS] =
 	LOADOUT_POSITION_PRIMARY,		// TF_CLASS_HEAVYWEAPONS,
 	LOADOUT_POSITION_PRIMARY,		// TF_CLASS_PYRO,
 	LOADOUT_POSITION_MELEE,			// TF_CLASS_SPY,
-	LOADOUT_POSITION_MELEE,			// TF_CLASS_ENGINEER,		
+	LOADOUT_POSITION_MELEE,			// TF_CLASS_ENGINEER,
+	LOADOUT_POSITION_MELEE,			// TF_CLASS_CIVILIAN,
 };
 
 //-----------------------------------------------------------------------------

@@ -6532,11 +6532,11 @@ void CTFWeaponBase::CheckReload( void )
 float CTFWeaponBase::GetEffectBarProgress( void )
 {
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
-	if ( pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) < pPlayer->GetMaxAmmo( GetEffectBarAmmo() )) || (GetWeaponID() == TF_WEAPON_TFC_UMBRELLA) )
+	if ( GetWeaponID() == TF_WEAPON_TFC_UMBRELLA || ( pPlayer && pPlayer->GetAmmoCount( GetEffectBarAmmo() ) < pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
 	{
-		float flTime = GetEffectBarRechargeTime();
+		float flTime = Max( GetEffectBarRechargeTime(), FLT_EPSILON );
 		float flProgress = (flTime - (m_flEffectBarRegenTime - gpGlobals->curtime)) / flTime;
-		return flProgress;
+		return clamp( flProgress, 0.f, 1.f );
 	}
 
 	return 1.f;
@@ -6550,7 +6550,7 @@ void CTFWeaponBase::StartEffectBarRegen( void )
 	// Only reset regen if its less then curr time or we were full
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
 	bool bWasFull = false;
-	if ( pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) + 1 == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
+	if ( GetWeaponID() != TF_WEAPON_TFC_UMBRELLA && pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) + 1 == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
 	{
 		bWasFull = true;
 	}
@@ -6571,7 +6571,7 @@ void CTFWeaponBase::CheckEffectBarRegen( void )
 	
 	// If we're full stop the timer.  Fixes a bug with "double" throws after respawning or touching a supply cab
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
-	if ( pPlayer->GetAmmoCount( GetEffectBarAmmo() ) == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) && !(GetWeaponID() == TF_WEAPON_TFC_UMBRELLA) )
+	if ( GetWeaponID() != TF_WEAPON_TFC_UMBRELLA && pPlayer->GetAmmoCount( GetEffectBarAmmo() ) == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) )
 	{
 		m_flEffectBarRegenTime = 0;
 		return;
@@ -6589,6 +6589,10 @@ void CTFWeaponBase::CheckEffectBarRegen( void )
 //-----------------------------------------------------------------------------
 void CTFWeaponBase::EffectBarRegenFinished( void )
 {
+	// The umbrella recharges its boost without using ammunition.
+	if ( GetWeaponID() == TF_WEAPON_TFC_UMBRELLA )
+		return;
+
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
 	if ( pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) < pPlayer->GetMaxAmmo( GetEffectBarAmmo() )) )
 	{

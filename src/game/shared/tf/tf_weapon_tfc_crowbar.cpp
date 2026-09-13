@@ -67,9 +67,7 @@ CTFCCrowbar::CTFCCrowbar()
 //-----------------------------------------------------------------------------
 CTFCUmbrella::CTFCUmbrella()
 {
-	//m_flEffectBarRegenTime = 0.0f;
 	UseClientSideAnimation();
-	StartEffectBarRegen();
 }
 
 
@@ -103,20 +101,16 @@ void CTFCUmbrella::SecondaryAttack(void)
 	vecStart = pPlayer->EyePosition();
 	vecEnd = vecStart + (vecDir * fc_civilian_buff_range.GetFloat());
 
-	//CTraceFilterIgnorePlayers *pFilter = new CTraceFilterIgnorePlayers( this, COLLISION_GROUP_NONE );
-	CTraceFilterSimple *pFilter = new CTraceFilterSimple(pPlayer, COLLISION_GROUP_NONE);
-
-	Ray_t ray; ray.Init( vecStart, vecEnd );
-
-	//UTIL_TraceLine(vecStart, vecEnd, MASK_ALL, pFilter, &tr);
-
-	//UTIL_Portal_TraceRay( ray, MASK_ALL, pFilter, &tr );
+	CTraceFilterSimple filter( pPlayer, COLLISION_GROUP_NONE );
+	UTIL_TraceLine( vecStart, vecEnd, MASK_ALL, &filter, &tr );
 
 	// A wall is stopping our fire
 	if (tr.DidHitWorld() || !tr.m_pEnt)
 		return;
 
 	CTFPlayer *pTarget = ToTFPlayer(tr.m_pEnt);
+	if ( !pTarget || !pTarget->IsAlive() )
+		return;
 	//CAI_BaseNPC *pNPC = tr.m_pEnt->MyNPCPointer();//dynamic_cast<CAI_BaseNPC *>(tr.m_pEnt);
 
 	if (pPlayer->InSameTeam(tr.m_pEnt) || ( pTarget && ( ( pTarget->m_Shared.InCond( TF_COND_DISGUISED ) ) && ( pTarget->m_Shared.GetDisguiseTeam() == pPlayer->GetTeamNumber() ) ) ) )
@@ -145,16 +139,14 @@ void CTFCUmbrella::SecondaryAttack(void)
 
 	m_flNextPrimaryAttack = gpGlobals->curtime + 1.0f;
 	// Wait until next fully charged time?
-	m_flNextSecondaryAttack = gpGlobals->curtime + InternalGetEffectBarRechargeTime();
+	m_flNextSecondaryAttack = gpGlobals->curtime + GetEffectBarRechargeTime();
 	// This is done in SendWeaponAnim by animation time
 	//SetWeaponIdleTime(m_flNextFireTime);
 
 	// There is nothing that un-sets this
 	//m_bFiring = true;
 
-//	m_flEffectBarRegenTime = gpGlobals->curtime + InternalGetEffectBarRechargeTime();
-
-	StartEffectBarRegen();
+	m_flEffectBarRegenTime = m_flNextSecondaryAttack;
 
 #ifdef GAME_DLL
 	if (pPlayer->m_Shared.InCond(TF_COND_STEALTHED))
