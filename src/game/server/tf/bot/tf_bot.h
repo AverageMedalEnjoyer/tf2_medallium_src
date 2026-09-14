@@ -305,6 +305,19 @@ public:
 	void ScriptSetActionPoint( HSCRIPT hPoint ) { SetActionPoint( ScriptToEntClass< CTFBotActionPoint >( hPoint ) ); }
 	HSCRIPT ScriptGetActionPoint( void ) const { return ToHScript( GetActionPoint() ); }
 
+	bool IsOnObjective() const;
+    bool IsAdvantageousEngagement( const CKnownEntity *threat ) const;
+
+    void UpdateCombatMovement();
+	void StartCombatStrafe();
+	void DoCombatJump();
+
+	CountdownTimer m_combatStrafeTimer;
+	CountdownTimer m_combatStrafeCooldownTimer;
+	CountdownTimer m_combatJumpTimer;
+	int  m_combatStrafeDir;
+	bool m_bCombatStrafing;
+
     void UpdateStickybombLauncher();
     bool ShouldUseStickybombLauncher() const;
     void AimStickybombLauncher( const CKnownEntity *threat );

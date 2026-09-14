@@ -179,6 +179,12 @@ void CHudScopeCharge::Paint( void )
 	if ( !pWeapon )
 		return;
 
+	int iNoScope = 0;
+	CALL_ATTRIB_HOOK_INT_ON_OTHER( pWeapon, iNoScope, no_sniper_scope );
+
+	if ( iNoScope )
+		return;
+
 	if ( pWeapon->IsJarateRifle() && !m_bJarateMode )
 	{
 		vgui::surface()->DrawSetTextureFile(m_iChargeupTexture, "HUD/sniperscope_numbers_jar", true, false);
@@ -379,6 +385,16 @@ bool CHudScope::ShouldDraw( void )
 	}
 
 	if ( !pPlayer || !pPlayer->m_Shared.InCond( TF_COND_ZOOMED ) )
+		return false;
+
+	CTFSniperRifle *pWeapon = assert_cast<CTFSniperRifle*>(pPlayer->GetActiveTFWeapon());
+	if ( !pWeapon )
+		return false;
+
+	int iNoScope = 0;
+	CALL_ATTRIB_HOOK_INT_ON_OTHER( pWeapon, iNoScope, no_sniper_scope );
+
+	if ( iNoScope )
 		return false;
 
 	if ( pPlayer->GetActiveTFWeapon() )

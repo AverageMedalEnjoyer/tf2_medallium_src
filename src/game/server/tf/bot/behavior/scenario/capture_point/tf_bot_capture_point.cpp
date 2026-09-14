@@ -61,7 +61,8 @@ ActionResult< CTFBot >	CTFBotCapturePoint::Update( CTFBot *me, float interval )
 	}
 
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
-	if ( threat && threat->IsVisibleRecently() )
+	if ( threat && threat->IsVisibleRecently() &&
+        me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 	{
 		// prepare to fight
 		me->EquipBestWeaponForThreat( threat );
@@ -79,7 +80,8 @@ ActionResult< CTFBot >	CTFBotCapturePoint::Update( CTFBot *me, float interval )
 	// if we see an enemy at a good combat range, stop and engage them unless we're running out of time
 	if ( !isPushingToCapture )
 	{
-		if ( threat && threat->IsVisibleRecently() )
+		if ( threat && threat->IsVisibleRecently() &&
+            me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 		{
 			return SuspendFor( new CTFBotSeekAndDestroy( RandomFloat( tf_bot_capture_seek_and_destroy_min_duration.GetFloat(), tf_bot_capture_seek_and_destroy_max_duration.GetFloat() ) ), "Too early to capture - hunting" );
 		}

@@ -91,7 +91,8 @@ ActionResult< CTFBot >	CTFBotCompanion::Update( CTFBot *me, float interval )
 	if ( me->IsSelf( leader ) )
 	{
 		const float engageRange = 500.0f;
-		if ( threat && threat->IsVisibleRecently() && me->IsRangeLessThan( threat->GetEntity(), engageRange ) )
+		if ( threat && threat->IsVisibleRecently() &&
+            me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) && me->IsRangeLessThan( threat->GetEntity(), engageRange ) )
 		{
 			// stop pushing ahead and kill nearby threats
 			return SuspendFor( new CTFBotAttack, "Attacking nearby threats" );

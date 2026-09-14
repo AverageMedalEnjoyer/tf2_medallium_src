@@ -117,6 +117,9 @@ ActionResult< CTFBot >	CTFBotAttack::Update( CTFBot *me, float interval )
 		}
 	}
 
+    if ( threat && !me->IsAdvantageousEngagement( threat ) )
+        return Done( "Bad fight, disengaging" );
+
 	return Continue();
 }
 

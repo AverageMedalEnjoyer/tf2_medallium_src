@@ -95,7 +95,8 @@ ActionResult< CTFBot > CTFBotEscortFlagCarrier::Update( CTFBot *me, float interv
 	}
 
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
-	if ( threat && threat->IsVisibleRecently() )
+	if ( threat && threat->IsVisibleRecently() &&
+        me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 	{
 		// prepare to fight
 		me->EquipBestWeaponForThreat( threat );

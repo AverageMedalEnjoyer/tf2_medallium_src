@@ -247,7 +247,7 @@ void CTFInventoryManager::GenerateBaseItems( void )
 	//
 	const CEconItemSchema::BaseItemDefinitionMap_t& mapItems = GetItemSchema()->GetBaseItemDefinitionMap();
 	int iStart = 0;
-	for ( int it = iStart; it != mapItems.InvalidIndex(); it = mapItems.NextInorder( it ) )
+	for (int it = mapItems.FirstInorder(); it != mapItems.InvalidIndex(); it = mapItems.NextInorder(it) )
 	{
 		CEconItemView *pItem = new CEconItemView;
 		pItem->Init( mapItems[it]->GetDefinitionIndex(), AE_USE_SCRIPT_VALUE, AE_USE_SCRIPT_VALUE, false );
@@ -260,7 +260,7 @@ void CTFInventoryManager::GenerateBaseItems( void )
 	iStart = 0;
 	if (mapItemsMod.Count() != 0)
 	{
-		for (int it = iStart; it != mapItemsMod.InvalidIndex(); it = mapItemsMod.NextInorder(it))
+		for (int it = mapItemsMod.FirstInorder(); it != mapItemsMod.InvalidIndex(); it = mapItemsMod.NextInorder(it))
 			AddModItem(mapItemsMod[it]->GetDefinitionIndex());
 		Msg("Loaded %i mod items.\n", mapItemsMod.Count());
 	}

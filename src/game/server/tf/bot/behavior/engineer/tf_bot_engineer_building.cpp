@@ -290,7 +290,8 @@ ActionResult< CTFBot >	CTFBotEngineerBuilding::Update( CTFBot *me, float interva
 
 		// react to nearby threats if our sentry is down
 		const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
-		if ( threat && threat->IsVisibleRecently() )
+		if ( threat && threat->IsVisibleRecently() &&
+            me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 		{
 			me->EquipBestWeaponForThreat( threat );
 		}

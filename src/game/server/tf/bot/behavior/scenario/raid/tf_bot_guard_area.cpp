@@ -139,7 +139,8 @@ ActionResult< CTFBot >	CTFBotGuardArea::Update( CTFBot *me, float interval )
 	}
 
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
-	if ( threat && threat->IsVisibleRecently() )
+	if ( threat && threat->IsVisibleRecently() &&
+        me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 	{
 		m_pathToVantageArea.Invalidate();
 

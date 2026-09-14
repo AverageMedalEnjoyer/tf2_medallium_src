@@ -1894,8 +1894,18 @@ bool CTFWeaponBase::CanOverload( void ) const
 
 float CTFWeaponBase::ApplyFireDelay( float flDelay ) const
 {
+	CTFPlayer *pPlayer = ToTFPlayer( GetPlayerOwner() );
+
 	float flDelayMult = 1.0f;
 	CALL_ATTRIB_HOOK_FLOAT( flDelayMult, mult_postfiredelay );
+
+	int iNoScope = 0;
+	CALL_ATTRIB_HOOK_INT( iNoScope, no_sniper_scope );
+
+	if ( pPlayer->m_Shared.InCond( TF_COND_SNIPERCHARGE_RAGE_BUFF ) && iNoScope )
+	{
+		flDelayMult *= 0.40f; // 60% faster firing speed when rage buffed and no scope
+	}
 
 	float flComboBoost = 0.0f;
 	CALL_ATTRIB_HOOK_FLOAT( flComboBoost, kill_combo_fire_rate_boost );
@@ -1904,7 +1914,6 @@ float CTFWeaponBase::ApplyFireDelay( float flDelay ) const
 	flDelayMult -= flComboBoost;
 
 	// Haste Powerup Rune adds multiplier to fire delay time. Flare guns get double boost
-	CTFPlayer *pPlayer = ToTFPlayer( GetPlayerOwner() );
 	if ( pPlayer && pPlayer->m_Shared.GetCarryingRuneType() == RUNE_HASTE )
 	{
 		if ( pPlayer->IsPlayerClass( TF_CLASS_PYRO ) && GetWeaponID() == TF_WEAPON_FLAREGUN )
@@ -5279,9 +5288,12 @@ void CTFWeaponBase::ApplyOnHitAttributes( CBaseEntity *pVictimBaseEntity, CTFPla
 			}
 		}
 	}
+
+	int iNoScope = 0;
+	CALL_ATTRIB_HOOK_INT( iNoScope, no_sniper_scope );
 	
 	// Lower rage on hit.
-	if ( pAttacker->IsPlayerClass( TF_CLASS_SOLDIER ) || pAttacker->IsPlayerClass( TF_CLASS_PYRO ) )
+	if ( pAttacker->IsPlayerClass( TF_CLASS_SOLDIER ) || pAttacker->IsPlayerClass( TF_CLASS_PYRO ) || ( pAttacker->IsPlayerClass( TF_CLASS_SNIPER ) && iNoScope ) )
 	{
 		int iRageOnHit = 0;
 		CALL_ATTRIB_HOOK_INT( iRageOnHit, rage_on_hit );

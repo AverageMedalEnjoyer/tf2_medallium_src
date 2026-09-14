@@ -1624,6 +1624,9 @@ QueryResultType	CTFBotMainAction::ShouldRetreat( const INextBot *bot ) const
 		return ANSWER_YES;
 	}
 
+    if ( threat && !me->IsAdvantageousEngagement( threat ) )
+        return ANSWER_YES;
+
 	return ANSWER_NO;
 }
 
@@ -1678,7 +1681,8 @@ void CTFBotMainAction::Dodge( CTFBot *me )
 #endif // TF_RAID_MODE
 
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
-	if ( threat && threat->IsVisibleRecently() )
+	if ( threat && threat->IsVisibleRecently() &&
+     me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 	{
 		bool isShotClear = true;
 

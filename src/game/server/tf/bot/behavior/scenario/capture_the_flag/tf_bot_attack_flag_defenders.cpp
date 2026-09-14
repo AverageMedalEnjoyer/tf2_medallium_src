@@ -44,7 +44,8 @@ ActionResult< CTFBot >	CTFBotAttackFlagDefenders::OnStart( CTFBot *me, Action< C
 ActionResult< CTFBot > CTFBotAttackFlagDefenders::Update( CTFBot *me, float interval )
 {
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
-	if ( threat && threat->IsVisibleRecently() )
+	if ( threat && threat->IsVisibleRecently() && 
+		me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 	{
 		// prepare to fight
 		me->EquipBestWeaponForThreat( threat );
