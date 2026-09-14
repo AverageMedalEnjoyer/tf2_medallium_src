@@ -1614,8 +1614,9 @@ void CTFBot::PhysicsSimulate( void )
 
     if ( IsAlive() )
 	{
-		UpdateDoubleJump();
+		UpdateDoubleJump(); // Only used by Scouts
         UpdateStickybombLauncher();
+		UpdateCombatMovement();
 	}
 
 	if ( m_spawnArea == NULL )
@@ -1652,6 +1653,250 @@ void CTFBot::PhysicsSimulate( void )
 		HandleCommand_JoinClass( GetNextSpawnClassname() );
 
 		m_didReselectClass = true;
+	}
+}
+
+
+//-----------------------------------------------------------------------------------------------------
+bool CTFBot::IsOnObjective() const
+{
+	if ( const_cast<CTFBot*>( this )->IsCapturingPoint() )
+		return true;
+
+	if ( const_cast<CTFBot*>( this )->GetControlPointStandingOn() )
+		return true;
+
+	if ( const_cast<CTFBot*>( this )->GetCaptureZoneStandingOn() )
+		return true;
+
+	if ( TFGameRules()->GetGameType() == TF_GAMETYPE_ESCORT )
+	{
+		CBaseEntity *pTrain = gEntList.FindEntityByClassname( NULL, "func_tracktrain" );
+		while ( pTrain )
+		{
+			if ( IsRangeLessThan( pTrain, 200.0f ) )
+				return true;
+			pTrain = gEntList.FindEntityByClassname( pTrain, "func_tracktrain" );
+		}
+	}
+
+	return false;
+}
+
+
+//-----------------------------------------------------------------------------------------------------
+bool CTFBot::IsAdvantageousEngagement( const CKnownEntity *threat ) const
+{
+	// We're robots. We don't give a fuck.
+	if ( GetTeamNumber() == TF_TEAM_PVE_INVADERS )
+		return true;
+
+	// We are invulnerable or crit boosted, so we should engage no matter what.
+	if ( m_Shared.InCond( TF_COND_INVULNERABLE ) ||
+		 m_Shared.InCond( TF_COND_INVULNERABLE_WEARINGOFF ) ||
+		 m_Shared.InCond( TF_COND_CRITBOOSTED ) ||
+		 m_Shared.InCond( TF_COND_CRITBOOSTED_USER_BUFF ) )
+	{
+		return true;
+	}
+
+	// If we're on an objective, we should fight to defend it.
+    if ( IsOnObjective() )
+		return true;
+
+	CBaseEntity *ent = threat->GetEntity();
+	if ( !ent )
+		return false;
+
+	// We should not engage sentry guns that are too far away, unless we have a good reason to.
+	if ( ent->IsBaseObject() )
+	{
+		CBaseObject *obj = static_cast<CBaseObject*>( ent );
+		if ( obj->GetType() == OBJ_SENTRYGUN )
+		{
+			const float SentryEngageRange = 400.0f;
+			if ( IsRangeGreaterThan( obj->GetAbsOrigin(), SentryEngageRange ) )
+				return false;
+		}
+
+	}
+
+	CTFPlayer *enemy = ToTFPlayer( ent );
+	if ( !enemy )
+		return true;
+
+	const bool theyAreLookingAtMe = IsThreatAimingTowardMe( enemy, 0.7f );
+	const bool theyAreFiringAtMe  = IsThreatFiringAtMe( enemy );
+
+	bool theyHaveNoticedMe = theyAreLookingAtMe || theyAreFiringAtMe;
+
+	if ( !theyHaveNoticedMe )
+		return true;
+
+	// Compare our health to the enemy...
+	float myHealthFrac    = (float)GetHealth() / (float)GetMaxHealth();
+	float theirHealthFrac = (float)enemy->GetHealth() / (float)enemy->GetMaxHealth();
+
+	// We should not fight the enemy if we are at a significant health disadvantage (we have less than 40% health and they have at least 15% more health than us).
+	if ( myHealthFrac < 0.40f && theirHealthFrac > myHealthFrac + 0.15f )
+		return false;
+
+	int myClass    = GetPlayerClass()->GetClassIndex();
+	int theirClass = enemy->GetPlayerClass()->GetClassIndex();
+
+	if ( myClass == TF_CLASS_SCOUT )
+	{
+		if ( theirClass == TF_CLASS_HEAVYWEAPONS ||
+			 theirClass == TF_CLASS_SOLDIER ||
+			 theirClass == TF_CLASS_DEMOMAN )
+		{
+			if ( theirHealthFrac > 0.5f && myHealthFrac < 0.7f )
+			{
+				const float safeRange = 800.0f;
+				if ( IsRangeLessThan( enemy, safeRange ) )
+					return false;
+			}
+		}
+	}
+
+	// If we are these classes, we should not engage a Heavy at close range if the Heavy has more than 40% health.
+	if ( myClass == ( TF_CLASS_ENGINEER | TF_CLASS_MEDIC | TF_CLASS_SPY | TF_CLASS_SNIPER ) )
+	{
+		if ( theirClass == TF_CLASS_HEAVYWEAPONS )
+		{
+			const float HeavyEngageRange = 500.0f;
+			if ( IsRangeLessThan( enemy, HeavyEngageRange ) && theirHealthFrac > 0.5f )
+				return false;
+		}
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------------------------------
+void CTFBot::StartCombatStrafe()
+{
+	// Pick a random direction
+	Vector vecRight;
+	AngleVectors( EyeAngles(), NULL, &vecRight, NULL );
+
+	trace_t trLeft, trRight;
+	UTIL_TraceLine( WorldSpaceCenter(), WorldSpaceCenter() - vecRight * 100.0f,
+					MASK_SOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &trLeft );
+	UTIL_TraceLine( WorldSpaceCenter(), WorldSpaceCenter() + vecRight * 100.0f,
+					MASK_SOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &trRight );
+
+	int dir = 0;
+	if ( trLeft.fraction < 0.5f && trRight.fraction >= 0.5f )
+		dir = +1;		// Left blocked, go right.
+	else if ( trRight.fraction < 0.5f && trLeft.fraction >= 0.5f )
+		dir = -1;		// Right blocked, go left.
+	else
+		dir = ( RandomInt( 0, 1 ) == 0 ) ? -1 : +1;
+
+	m_combatStrafeDir = dir;
+	m_bCombatStrafing = true;
+
+	m_combatStrafeTimer.Start( RandomFloat( 0.25f, 0.55f ) );
+
+	m_combatStrafeCooldownTimer.Start( RandomFloat( 0.35f, 0.80f ) );
+}
+
+
+//-----------------------------------------------------------------------------------------------------
+void CTFBot::DoCombatJump()
+{
+	if ( GetGroundEntity() == NULL )
+		return;
+
+	PressJumpButton( 0.1f );
+
+	// Short cooldown before trying again
+	m_combatJumpTimer.Start( RandomFloat( 0.8f, 1.6f ) );
+}
+
+
+//-----------------------------------------------------------------------------------------------------
+void CTFBot::UpdateCombatMovement()
+{
+	// If we don't have a threat, we shouldn't be combat strafing or jumping
+	const CKnownEntity *threat = GetVisionInterface()->GetPrimaryKnownThreat( true );
+	if ( !threat || !threat->IsVisibleRecently() )
+	{
+		// Stop combat strafing if we don't have a threat
+		if ( m_bCombatStrafing )
+		{
+			ReleaseLeftButton();
+			ReleaseRightButton();
+			m_bCombatStrafing = false;
+			m_combatStrafeDir = 0;
+		}
+		return;
+	}
+
+	// We shouldn't combat strafe or jump if we're stunned, taunting, or zoomed in.
+	if ( m_Shared.IsControlStunned() ||
+		 m_Shared.InCond( TF_COND_TAUNTING ) ||
+		 m_Shared.InCond( TF_COND_STUNNED ) ||
+		 m_Shared.InCond( TF_COND_ZOOMED ) )
+	{
+		ReleaseLeftButton();
+		ReleaseRightButton();
+		return;
+	}
+
+	// We should strafe in combat
+	if ( m_bCombatStrafing )
+	{
+		if ( m_combatStrafeTimer.IsElapsed() )
+		{
+			// Strafe finished
+			ReleaseLeftButton();
+			ReleaseRightButton();
+			m_bCombatStrafing = false;
+			m_combatStrafeDir = 0;
+		}
+		else
+		{
+			// Keep pressing the current strafe direction
+			if ( m_combatStrafeDir < 0 )
+			{
+				PressLeftButton();
+				ReleaseRightButton();
+			}
+			else
+			{
+				PressRightButton();
+				ReleaseLeftButton();
+			}
+		}
+	}
+	// Check if we should start a new strafe burst
+	else if ( m_combatStrafeCooldownTimer.IsElapsed() )
+	{
+		if ( TransientlyConsistentRandomValue( 1.5f ) < 0.65f )	// 65% chance
+		{
+			StartCombatStrafe();
+		}
+		else
+		{
+			// Short cooldown before trying again
+			m_combatStrafeCooldownTimer.Start( RandomFloat( 0.2f, 0.5f ) );
+		}
+	}
+
+	// We should jump in combat
+	if ( m_combatJumpTimer.IsElapsed() && GetGroundEntity() != NULL )
+	{
+		if ( TransientlyConsistentRandomValue( 2.0f, 17 ) < 0.22f )	// 22% chance
+		{
+			DoCombatJump();
+		}
+		else
+		{
+			// Short cooldown before trying again
+			m_combatJumpTimer.Start( RandomFloat( 0.3f, 0.7f ) );
+		}
 	}
 }
 

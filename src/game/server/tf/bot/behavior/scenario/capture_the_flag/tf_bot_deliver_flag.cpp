@@ -220,7 +220,8 @@ ActionResult< CTFBot > CTFBotDeliverFlag::Update( CTFBot *me, float interval )
 	}
 
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
-	if ( threat && threat->IsVisibleRecently() )
+	if ( threat && threat->IsVisibleRecently() &&
+        me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 	{
 		// prepare to fight
 		me->EquipBestWeaponForThreat( threat );
@@ -373,7 +374,8 @@ ActionResult< CTFBot > CTFBotPushToCapturePoint::Update( CTFBot *me, float inter
 	}
 
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
-	if ( threat && threat->IsVisibleRecently() )
+	if ( threat && threat->IsVisibleRecently() &&
+        me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 	{
 		// prepare to fight
 		me->EquipBestWeaponForThreat( threat );

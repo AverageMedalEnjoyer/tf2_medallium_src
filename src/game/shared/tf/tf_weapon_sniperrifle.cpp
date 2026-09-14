@@ -142,12 +142,14 @@ CTFSniperRifle::CTFSniperRifle()
 	m_hSniperDot = NULL;
 #else
 	m_bPlayedBell = false;
+	m_bIronSightsParsed = false;
+	m_vecIronSightsOffset = vec3_origin;
+	m_angIronSightsOffset.Init();
 #endif
 
 	m_bCurrentShotIsHeadshot = false;
 	m_flChargedDamage = 0.0f;
 	m_flChargePerSec = TF_WEAPON_SNIPERRIFLE_CHARGE_PER_SEC;
-
 	m_bWasAimedAtEnemy = false;
 }
 
@@ -356,6 +358,10 @@ void CTFSniperRifle::ItemPostFrame( void )
 	}
 #endif
 
+	int iNoScope = 0;
+
+    CALL_ATTRIB_HOOK_INT( iNoScope, no_sniper_scope );
+
 	// Start charging when we're zoomed in, and allowed to fire
 	if ( pPlayer->m_Shared.IsJumping() )
 	{
@@ -372,7 +378,7 @@ void CTFSniperRifle::ItemPostFrame( void )
 	else if ( m_flNextSecondaryAttack <= gpGlobals->curtime )
 	{
 		// Don't start charging in the time just after a shot before we unzoom to play rack anim.
-		if ( pPlayer->m_Shared.InCond( TF_COND_AIMING ) && !m_bRezoomAfterShot )
+		if ( pPlayer->m_Shared.InCond( TF_COND_AIMING ) && !m_bRezoomAfterShot && !iNoScope )
 		{
 			float fSniperRifleChargePerSec = m_flChargePerSec;
 			ApplyChargeSpeedModifications( fSniperRifleChargePerSec );
@@ -630,13 +636,14 @@ void CTFSniperRifle::ZoomIn( void )
 bool CTFSniperRifle::IsZoomed( void )
 {
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
+	if ( !pPlayer )
+		return false;
 
-	if ( pPlayer )
-	{
-		return pPlayer->m_Shared.InCond( TF_COND_ZOOMED );
-	}
+	// Iron sights
+	if ( UsesIronSights() )
+		return pPlayer->m_Shared.InCond( TF_COND_AIMING );
 
-	return false;
+	return pPlayer->m_Shared.InCond( TF_COND_ZOOMED );
 }
 
 
@@ -892,13 +899,16 @@ void CTFSniperRifle::Fire( CTFPlayer *pPlayer )
 	// Fire the sniper shot.
 	PrimaryAttack();
 
+	int iScopeless = 0;
+    CALL_ATTRIB_HOOK_INT( iScopeless, no_sniper_scope );
+
 	if ( IsZoomed() )
 	{
 		// If we have more bullets, zoom out, play the bolt animation and zoom back in
 		if ( pPlayer->GetAmmoCount( m_iPrimaryAmmoType ) > 0 )
 		{
 			// do not zoom out if we're under rage or about to enter it
-			if ( !( pPlayer->m_Shared.InCond( TF_COND_SNIPERCHARGE_RAGE_BUFF ) ) )
+			if ( !( pPlayer->m_Shared.InCond( TF_COND_SNIPERCHARGE_RAGE_BUFF ) || iScopeless ) )
 			{
 				float flUnzoomDelay = 0.5f;
 				if ( !UsesClipsForAmmo1() )
@@ -1017,6 +1027,12 @@ void CTFSniperRifle::CreateSniperDot( void )
 	// Get the owning player (make sure we have one).
 	CBaseCombatCharacter *pPlayer = GetOwner();
 	if ( !pPlayer )
+		return;
+
+	int NoDot = 0;
+	CALL_ATTRIB_HOOK_INT( NoDot, no_sniper_scope );
+
+	if ( NoDot )
 		return;
 
 	// Create the sniper dot, but do not make it visible yet.
@@ -1700,8 +1716,16 @@ int CSniperDot::DrawModel( int flags )
 		pWeapon->ApplyChargeSpeedModifications( flChargePerSec );
 	}
 
+	int iScopeless = 0;
+
+	if ( pWeapon )
+	    CALL_ATTRIB_HOOK_INT_ON_OTHER( pWeapon, iScopeless, no_sniper_scope );
+
+	if ( iScopeless )
+		flChargePerSec = 0.0f;
+
 	// Sniper Rage
-	if ( pPlayer->m_Shared.InCond( TF_COND_SNIPERCHARGE_RAGE_BUFF ) ) 
+	if ( pPlayer->m_Shared.InCond( TF_COND_SNIPERCHARGE_RAGE_BUFF ) && !iScopeless ) 
 	{
 		flChargePerSec *= 1.25f;
 	}

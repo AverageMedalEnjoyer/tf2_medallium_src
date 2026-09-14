@@ -33,7 +33,8 @@ ActionResult< CTFBot >	CTFBotPayloadBlock::OnStart( CTFBot *me, Action< CTFBot >
 ActionResult< CTFBot >	CTFBotPayloadBlock::Update( CTFBot *me, float interval )
 {
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
-	if ( threat && threat->IsVisibleRecently() )
+	if ( threat && threat->IsVisibleRecently() &&
+        me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 	{
 		// prepare to fight
 		me->EquipBestWeaponForThreat( threat );

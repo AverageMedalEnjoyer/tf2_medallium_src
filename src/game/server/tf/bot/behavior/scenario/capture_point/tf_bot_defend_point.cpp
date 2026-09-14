@@ -175,7 +175,8 @@ ActionResult< CTFBot >	CTFBotDefendPoint::Update( CTFBot *me, float interval )
 
 	me->EquipBestWeaponForThreat( threat );
 
-	if ( threat && threat->IsVisibleRecently() )
+	if ( threat && threat->IsVisibleRecently() &&
+        me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 	{
 		// we're aware of an enemy
 		m_idleTimer.Reset();
