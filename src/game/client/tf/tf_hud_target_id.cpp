@@ -94,7 +94,7 @@ bool ShouldHealthBarBeVisible( CBaseEntity *pTarget, CTFPlayer *pLocalPlayer )
 	if ( ( iHideEnemyHealth > 0 ) && !pLocalPlayer->InSameTeam( pTarget ) )
 		return false;
 
-	if ( pLocalPlayer->IsPlayerClass( TF_CLASS_SPY ) )
+	if ( pLocalPlayer->IsPlayerClass( TF_CLASS_SPY | TF_CLASS_CIVILIAN ) )
 		return true;
 
 	if ( pLocalPlayer->InSameTeam( pTarget ) )
