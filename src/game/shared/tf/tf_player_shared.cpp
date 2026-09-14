@@ -14500,10 +14500,18 @@ void CTFPlayerShared::PulseCivilianRadiusHeal(void)
 
 		CTFPlayer* pOuter = m_pOuter;
 
+        float flHealingAuraRadius = TF_BUFF_RADIUS; // 450
+		CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pOuter, flHealingAuraRadius, mult_healaura_radius );
+
+		float flMaxAuraHeal = 15.0f;
+		float flMinAuraHeal = 1.0f;
+		CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pOuter, flMaxAuraHeal, mult_healaura_effective_healing);
+		CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pOuter, flMinAuraHeal, mult_healaura_effective_healing );
+
 		CBaseEntity* pEntity = NULL;
 		Vector vecOrigin = pOuter->GetAbsOrigin();
 
-		for (CEntitySphereQuery sphere(vecOrigin, TF_BUFF_RADIUS); (pEntity = sphere.GetCurrentEntity()) != NULL; sphere.NextEntity())
+		for (CEntitySphereQuery sphere(vecOrigin, flHealingAuraRadius); (pEntity = sphere.GetCurrentEntity()) != NULL; sphere.NextEntity())
 		{
 			if (!pEntity)
 				continue;
@@ -14513,7 +14521,7 @@ void CTFPlayerShared::PulseCivilianRadiusHeal(void)
 			Vector vecDir = vecHitPoint - vecOrigin;
 			CTFPlayer* pPlayer = ToTFPlayer(pEntity);
 
-			if (vecDir.LengthSqr() < (TF_BUFF_RADIUS * TF_BUFF_RADIUS))
+			if (vecDir.LengthSqr() < (flHealingAuraRadius * flHealingAuraRadius))
 			{
 				int iHealthRegenCivAOE = 0;
 				int iHealthRestoredCiv = 0;
@@ -14526,9 +14534,12 @@ void CTFPlayerShared::PulseCivilianRadiusHeal(void)
 
 					pPlayer->m_Shared.m_bCivilianBuffActive = false;
 
-					float flTimeSinceDamageCivAOE = gpGlobals->curtime - pPlayer->GetLastDamageReceivedTime();
-					float flScaleCivAoE = RemapValClamped(flTimeSinceDamageCivAOE, 5, 10, 1.f, 3.f);
-					iHealthRegenCivAOE = ceil(iAoEHealthBaseCiv * flScaleCivAoE);
+					float flDist = vecDir.Length();
+
+					// The closer we are to the civilian, the more healing we get. The further away we are, the less healing we get.
+					// Max (closest) is 15 health per second, min (furthest) is 1 health per second.
+	                float flHealAmount = RemapValClamped( flDist, 0.0f, flHealingAuraRadius, flMaxAuraHeal, flMinAuraHeal );
+                  	iHealthRegenCivAOE = (int)ceil(flHealAmount);
 
 					if (pPlayer != pOuter)
 					{

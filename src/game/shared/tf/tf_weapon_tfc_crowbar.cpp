@@ -1,4 +1,4 @@
-//====== Copyright � 1996-2005, Valve Corporation, All rights reserved. =======
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -30,7 +30,7 @@ CREATE_SIMPLE_WEAPON_TABLE(TFCCrowbar, tf_weapon_tfc_crowbar)
 // Umbrella Weapon tables.
 //
 
-ConVar fc_civilian_buff_range("fc_civilian_buff_range", "256.0", FCVAR_NONE, "Sets the distance Civilian can buff people using the umbrella.");
+ConVar fc_civilian_buff_range("fc_civilian_buff_range", "3000.0", FCVAR_NONE, "Sets the distance Civilian can buff people using the umbrella.");
 
 IMPLEMENT_NETWORKCLASS_ALIASED(TFCUmbrella, DT_TFC_Umbrella)
 
@@ -94,12 +94,15 @@ void CTFCUmbrella::SecondaryAttack(void)
 	if ((!pPlayer || !pPlayer->CanAttack()) || GetEffectBarProgress() < 1.0f )
 		return;
 
+	float flBuffRange = fc_civilian_buff_range.GetFloat();
+	CALL_ATTRIB_HOOK_FLOAT( flBuffRange, mult_umbrella_buff_range );
+
 	trace_t tr;
 	Vector vecStart, vecEnd, vecDir;
 	AngleVectors(pPlayer->EyeAngles(), &vecDir);
 
 	vecStart = pPlayer->EyePosition();
-	vecEnd = vecStart + (vecDir * fc_civilian_buff_range.GetFloat());
+	vecEnd = vecStart + (vecDir * flBuffRange);
 
 	CTraceFilterSimple filter( pPlayer, COLLISION_GROUP_NONE );
 	UTIL_TraceLine( vecStart, vecEnd, MASK_ALL, &filter, &tr );
@@ -118,7 +121,11 @@ void CTFCUmbrella::SecondaryAttack(void)
 		if (pTarget)
 		{
 			SendWeaponAnim(ACT_VM_SECONDARYATTACK);
-			pTarget->m_Shared.AddCond(/*FC_COND_CIVILIAN_ENERGY_BUFF*/(ETFCond) GetBuffType( GetUmbrellaType() ), 8.0f);
+
+			float flBuffDuration = 8.0f;
+		    CALL_ATTRIB_HOOK_FLOAT( flBuffDuration, mult_umbrella_buff_duration );
+
+			pTarget->m_Shared.AddCond(/*FC_COND_CIVILIAN_ENERGY_BUFF*/(ETFCond) GetBuffType( GetUmbrellaType() ), flBuffDuration );
 			//SetEffectBarProgress(-15.0f);
 		}
 		//else if (pNPC)
