@@ -140,7 +140,7 @@ bool CTFGameStats::AddDataForSend( KeyValues *pKV, StatSendType_t sendType )
 		pKV->AddSubKey( pKVData );
 
 		// save class stats
-		for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass <= TF_LAST_NORMAL_CLASS; iClass ++ )
+		for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass ++ )
 		{
 			TF_Gamestats_ClassStats_t &classStats = pCurrentMap->m_aClassStats[iClass];
 			if ( classStats.iTotalTime > 0 )
@@ -610,7 +610,7 @@ void CTFGameStats::Event_PlayerDisconnectedTF( CTFPlayer *pTFPlayer )
 //-----------------------------------------------------------------------------
 void CTFGameStats::Event_PlayerChangedClass( CTFPlayer *pPlayer, int iOldClass, int iNewClass )
 {
-	if ( iNewClass >= TF_FIRST_NORMAL_CLASS && iNewClass <= TF_LAST_NORMAL_CLASS )
+	if ( iNewClass >= TF_FIRST_NORMAL_CLASS && iNewClass < TF_CLASS_COUNT )
 	{
 		if ( m_reportedStats.m_pCurrentGame )
 		{
@@ -3402,7 +3402,7 @@ void CTFGameStats::SW_PasstimeRoundEnded()
 	// have to flatten class stats because stats system can't handle nested tables
 	{
 		char aClassKey[32] = { 0, };
-		for ( int nClass = TF_FIRST_NORMAL_CLASS; nClass <= TF_LAST_NORMAL_CLASS; ++nClass )
+		for ( int nClass = TF_FIRST_NORMAL_CLASS; nClass < TF_CLASS_COUNT; ++nClass )
 		{
 			V_sprintf_safe( aClassKey, "TotalScores_%s", g_aRawPlayerClassNamesShort[nClass] );
 			pKVData->SetInt( aClassKey, m_passtimeStats.classes[nClass].nTotalScores );

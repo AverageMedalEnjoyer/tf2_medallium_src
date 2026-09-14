@@ -604,7 +604,7 @@ static bool Coaching_ShouldRequestCoach()
 
 	// Grab generic stats and add time played to total time played
 	int totalTimePlayed = 0;
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
 	{		
 		ClassStats_t &classStats = CTFStatPanel::GetClassStats( iClass );
 		totalTimePlayed += classStats.accumulated.m_iStat[TFSTAT_PLAYTIME] + classStats.accumulatedMVM.m_iStat[TFSTAT_PLAYTIME];

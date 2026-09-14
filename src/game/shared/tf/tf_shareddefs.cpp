@@ -1630,7 +1630,7 @@ const unsigned char *GetTFEncryptionKey( void )
 struct wpntranslation_class_weapons_t
 {
 	const char *pszWpnString;
-	const char *pszClassWpn[TF_LAST_NORMAL_CLASS];
+	const char *pszClassWpn[TF_CLASS_COUNT];
 };
 
 wpntranslation_class_weapons_t pszWpnEntTranslationList[] = 
@@ -1648,6 +1648,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"tf_weapon_shotgun_pyro",	// TF_CLASS_PYRO,
 			"",							// TF_CLASS_SPY,
 			"tf_weapon_shotgun_primary",// TF_CLASS_ENGINEER,		
+			"",							// TF_CLASS_CIVILIAN,
 		}
 	},
 
@@ -1664,6 +1665,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"",							// TF_CLASS_PYRO,
 			"",							// TF_CLASS_SPY,
 			"tf_weapon_pistol",			// TF_CLASS_ENGINEER,		
+			"",							// TF_CLASS_CIVILIAN,
 		}
 	},
 
@@ -1680,6 +1682,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"",							// TF_CLASS_PYRO,
 			"",							// TF_CLASS_SPY,
 			"",							// TF_CLASS_ENGINEER,		
+			"",							// TF_CLASS_CIVILIAN,
 		}
 	},
 	{
@@ -1695,6 +1698,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"",							// TF_CLASS_PYRO,
 			"",							// TF_CLASS_SPY,
 			"",							// TF_CLASS_ENGINEER,		
+			"",							// TF_CLASS_CIVILIAN,
 		}
 	},
 	{
@@ -1710,6 +1714,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"tf_weapon_fireaxe",		// TF_CLASS_PYRO,
 			"tf_weapon_knife",			// TF_CLASS_SPY,
 			"tf_weapon_wrench",			// TF_CLASS_ENGINEER,		
+			"",							// TF_CLASS_CIVILIAN,
 		}
 	},
 	{
@@ -1725,6 +1730,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"tf_weapon_throwable_secondary",			// TF_CLASS_PYRO,
 			"tf_weapon_throwable_secondary",			// TF_CLASS_SPY,
 			"tf_weapon_throwable_secondary",			// TF_CLASS_ENGINEER,		
+			"",											// TF_CLASS_CIVILIAN,
 		}
 	},
 	{
@@ -1738,8 +1744,9 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"",			// TF_CLASS_MEDIC,
 			"",			// TF_CLASS_HEAVYWEAPONS
 			"",			// TF_CLASS_PYRO,
-			""			// TF_CLASS_SPY,
+			"",			// TF_CLASS_SPY,
 			"",			// TF_CLASS_ENGINEER,		
+			"",			// TF_CLASS_CIVILIAN,
 		}
 	},
 	{
@@ -1755,6 +1762,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"",			// TF_CLASS_PYRO,
 			"tf_weapon_revolver",				// TF_CLASS_SPY,
 			"tf_weapon_revolver_secondary",		// TF_CLASS_ENGINEER,		
+			"tf_weapon_revolver",				// TF_CLASS_CIVILIAN,
 		}
 	},
 };
@@ -1768,6 +1776,13 @@ const char *TranslateWeaponEntForClass( const char *pszName, int iClass )
 {
 	if ( pszName )
 	{
+		// Guard against an out-of-bounds class index reading past the end of pszClassWpn[].
+		if ( iClass < 0 || iClass >= TF_CLASS_COUNT )
+		{
+			Warning( false, "TranslateWeaponEntForClass: iClass %d out of range", iClass );
+			return pszName;
+		}
+
 		for ( int i = 0; i < ARRAYSIZE(pszWpnEntTranslationList); i++ )
 		{
 			if ( !Q_stricmp( pszName, pszWpnEntTranslationList[i].pszWpnString ) )

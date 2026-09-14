@@ -672,7 +672,7 @@ void CTFMatchSummary::UpdatePlayerList()
 			pKeyValues->SetInt( "score", g_TF_PR->GetTotalScore( playerIndex ) );
 
 			int iClass = g_TF_PR->GetPlayerClass( playerIndex );
-			if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass <= TF_LAST_NORMAL_CLASS )
+			if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT )
 			{
 				pKeyValues->SetInt( "class", tf_scoreboard_alt_class_icons.GetBool() ? m_iImageClassAlt[iClass] : m_iImageClass[iClass] );
 			}

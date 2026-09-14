@@ -9638,7 +9638,7 @@ static void cc_tf_player_lastdisguise( const CCommand &args )
 			// exclude some undesirable classes
 			do
 			{
-				nClass = random->RandomInt( TF_FIRST_NORMAL_CLASS, TF_LAST_NORMAL_CLASS );
+				nClass = random->RandomInt( TF_FIRST_NORMAL_CLASS, TF_CLASS_COUNT - 1 );
 			} while( nClass == TF_CLASS_SCOUT || nClass == TF_CLASS_SPY );
 
 			nTeam = iEnemyTeam;

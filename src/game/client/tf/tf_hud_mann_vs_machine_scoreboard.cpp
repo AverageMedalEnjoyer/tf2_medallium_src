@@ -317,7 +317,7 @@ void CTFHudMannVsMachineScoreboard::UpdatePlayerList ()
 				iClass = g_TF_PR->GetPlayerClass( playerIndex );
 			}
 
-			if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass <= TF_LAST_NORMAL_CLASS )
+			if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT )
 			{
 				if ( bAlive )
 				{

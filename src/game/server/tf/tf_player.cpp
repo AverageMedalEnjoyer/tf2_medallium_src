@@ -2759,7 +2759,7 @@ void CTFPlayer::PostThink()
 //-----------------------------------------------------------------------------
 void CTFPlayer::PrecacheMvM()
 {
-	for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; ++i )
+	for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; ++i )
 	{
 		COMPILE_TIME_ASSERT( ARRAYSIZE( g_szBotModels ) == TF_LAST_NORMAL_CLASS );
 		int iModelIndex = PrecacheModel( g_szBotModels[ i ] );
@@ -6881,7 +6881,7 @@ void CTFPlayer::HandleCommand_JoinClass( const char *pClassName, bool bAllowSpaw
 		int iClasses[ TF_LAST_NORMAL_CLASS - 1 ] = {}; // -1 to remove the civilian from the randomness
 		int iCurrentClass = GetPlayerClass()->GetClassIndex();
 
-		for ( iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
+		for ( iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
 		{
 			if ( iClass != iCurrentClass && TFGameRules()->CanPlayerChooseClass( this, iClass ) )
 			{
@@ -6952,7 +6952,7 @@ void CTFPlayer::HandleCommand_JoinClass( const char *pClassName, bool bAllowSpaw
 	// @note Tom Bui: we need to restrict the UI somehow
 	// if there's a class restriction on duels...
 	int iDuelClass = DuelMiniGame_GetRequiredPlayerClass( this );
-	if ( iDuelClass >= TF_FIRST_NORMAL_CLASS && iDuelClass < TF_LAST_NORMAL_CLASS )
+	if ( iDuelClass >= TF_FIRST_NORMAL_CLASS && iDuelClass < TF_CLASS_COUNT )
 	{
 		iClass = iDuelClass;
 	}
@@ -7100,7 +7100,7 @@ void CTFPlayer::CheckInstantLoadoutRespawn( void )
 
 	// Not if our current class's loadout hasn't changed
 	int iClass = GetPlayerClass() ? GetPlayerClass()->GetClassIndex() : TF_CLASS_UNDEFINED;
-	if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_LAST_NORMAL_CLASS )
+	if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT )
 	{
 		if ( m_Inventory.ClassLoadoutHasChanged( iClass ) )
 		{
@@ -19435,7 +19435,7 @@ void CTFPlayer::ModifyOrAppendCriteria( AI_CriteriaSet& criteriaSet )
 					}
 				}
 
-				if ( iClass > TF_CLASS_UNDEFINED && iClass <= TF_LAST_NORMAL_CLASS )
+				if ( iClass > TF_CLASS_UNDEFINED && iClass < TF_CLASS_COUNT )
 				{
 					criteriaSet.AppendCriteria( "crosshair_on", g_aPlayerClassNames_NonLocalized[iClass] );
 
@@ -19877,7 +19877,7 @@ IResponseSystem *CTFPlayer::GetResponseSystem()
 		iClass = m_Shared.GetDisguiseClass();
 	}
 
-	bool bValidClass = ( iClass >= TF_CLASS_SCOUT && iClass <= TF_LAST_NORMAL_CLASS );
+	bool bValidClass = ( iClass >= TF_CLASS_SCOUT && iClass < TF_CLASS_COUNT );
 	bool bValidConcept = ( m_iCurrentConcept >= 0 && m_iCurrentConcept < MP_TF_CONCEPT_COUNT );
 	Assert( bValidClass );
 	Assert( bValidConcept );
@@ -21360,7 +21360,7 @@ void CTFPlayer::ItemTesting_UpdateBots( KeyValues *pKV )
 	FOR_EACH_VEC( m_ItemsToTest, i )
 	{
 		CEconItemView *pItem = &m_ItemsToTest[i].scriptItem;
-		for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
+		for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
 		{
 			if ( pItem->GetStaticData()->CanBeUsedByClass(iClass) )
 			{
@@ -21396,7 +21396,7 @@ void CTFPlayer::ItemTesting_UpdateBots( KeyValues *pKV )
 	// Spawn bots of each class that uses the item (if we're doing auto addition)
 	if ( bAutoAdd )
 	{
-		for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; i++ )
+		for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; i++ )
 		{
 			if ( bNeedsBot[i] )
 			{

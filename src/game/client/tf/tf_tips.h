@@ -41,7 +41,7 @@ private:
 	const wchar_t *GetTip( int iClass, int iTip );
 	const char *GetRandomCaptainCanteenAsset( CUtlVector< CaptainCanteenAsset_t > *pAssetBucket );
 
-	int m_iTipCount[TF_LAST_NORMAL_CLASS+1];		// how many tips there are for each class
+	int m_iTipCount[TF_CLASS_COUNT];		// how many tips there are for each class
 	int m_iTipCountAll;								// how many tips there are total
 	int m_iCurrentClassTip;							// index of current per-class tip
 	bool m_bInited;									// have we been initialized

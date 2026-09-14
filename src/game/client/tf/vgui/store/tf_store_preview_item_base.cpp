@@ -482,7 +482,7 @@ void CTFStorePreviewItemPanelBase::UpdateIcons( void )
 			{
 				iMaxButtons -= 1;
 			}
-			for ( int iClass = TF_FIRST_NORMAL_CLASS + m_iCurrentIconPosition; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
+			for ( int iClass = TF_FIRST_NORMAL_CLASS + m_iCurrentIconPosition; iClass < TF_CLASS_COUNT; iClass++ )
 			{
 				if ( !pItemData->CanBeUsedByClass(iClass) )
 					continue;
@@ -870,7 +870,7 @@ void CTFStorePreviewItemPanelBase::OnShowClassIconMouseover( KeyValues *data )
 
 		// Set the text to the correct string
 		int iClass = data->GetInt( "class", 0 );
-		if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_LAST_NORMAL_CLASS )
+		if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT )
 		{
 			wchar_t wzLocalized[256];
 			const char *pszLocString = bIsABundle ? "#Store_ClassImageMouseoverBundle" : "#Store_ClassImageMouseover";

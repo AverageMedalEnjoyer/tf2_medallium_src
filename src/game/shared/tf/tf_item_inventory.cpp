@@ -1311,7 +1311,7 @@ void CTFPlayerInventory::ValidateInventoryPositions( void )
 		}
 
 		// Make sure it isn't equipped by any invalid classes.
-		for ( int j = TF_FIRST_NORMAL_CLASS; j <= TF_LAST_NORMAL_CLASS; j++ )
+		for ( int j = TF_FIRST_NORMAL_CLASS; j < TF_CLASS_COUNT; j++ )
 		{
 			if ( !pEconItemView->GetStaticData()->CanBeUsedByClass( j ) &&
 				 pEconItemView->IsEquippedForClass( j ) )
@@ -1463,7 +1463,7 @@ void CTFPlayerInventory::DumpInventoryToConsole( bool bRoot )
 		Msg("      %s (ID %llu) at backpack slot %d\n", m_aInventoryItems[i].GetStaticData()->GetDefinitionName(), m_aInventoryItems[i].GetItemID(), TFInventoryManager()->GetBackpackPositionFromBackend( m_aInventoryItems[i].GetInventoryPosition() ) );
 
 		int iEquipped = 0;
-		for ( equipped_class_t eq = TF_FIRST_NORMAL_CLASS; eq < TF_LAST_NORMAL_CLASS; eq++ )
+		for ( equipped_class_t eq = TF_FIRST_NORMAL_CLASS; eq < TF_CLASS_COUNT; eq++ )
 		{
 			if ( m_aInventoryItems[i].IsEquippedForClass( eq ) )
 			{
@@ -1821,7 +1821,7 @@ void CTFPlayerInventory::ItemHasBeenUpdated( CEconItemView *pItem, bool bUpdateA
 	bool bLocalInv = InventoryManager()->GetLocalInventory() == this;
 #endif // CLIENT_DLL
 
-	for ( equipped_class_t iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
+	for ( equipped_class_t iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
 	{
 		equipped_slot_t unSlot = pEconItem ? pEconItem->GetEquippedPositionForClass( iClass ) : INVALID_EQUIPPED_SLOT;
 
@@ -1981,7 +1981,7 @@ void CTFPlayerInventory::VerifyChangedLoadoutsAreValid()
 	// We maybe changed equip state for an item and it's possible if we're sending bad messages and/or
 	// hacking state that we'll now have conflicting items equipped. Walk all of our items for this class
 	// to verify our state is good.
-	for ( equipped_class_t iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
+	for ( equipped_class_t iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
 	{
 		if ( m_bLoadoutChanged[iClass] )
 		{
@@ -1996,7 +1996,7 @@ void CTFPlayerInventory::VerifyChangedLoadoutsAreValid()
 //-----------------------------------------------------------------------------
 void CTFPlayerInventory::ItemIsBeingRemoved( CEconItemView *pItem )
 {
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
 	{
 		if ( pItem->IsEquippedForClass( iClass ) )
 		{

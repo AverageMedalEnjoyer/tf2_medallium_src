@@ -34,7 +34,7 @@ bool CTFTips::Init()
 	{
 		// count how many tips there are for each class and in total
 		m_iTipCountAll = 0;
-		for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass <= TF_LAST_NORMAL_CLASS; iClass++ )
+		for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
 		{
 			// tip count per class is stored in resource file
 			wchar_t *wzTipCount = g_pVGuiLocalize->Find( CFmtStr( "Tip_%d_Count", iClass ) );
@@ -111,14 +111,14 @@ const wchar_t *CTFTips::GetRandomTip( int &iClassUsed )
 
 	if ( RandomInt( 1, 100 ) <= abuseHintChance )
 	{
-		iClassUsed = RandomInt( TF_FIRST_NORMAL_CLASS, TF_LAST_NORMAL_CLASS );
+		iClassUsed = RandomInt( TF_FIRST_NORMAL_CLASS, TF_CLASS_COUNT - 1 );
 		return GetAbuseReportTip();
 	}
 
 	// pick a random tip
 	int iTip = RandomInt( 0, m_iTipCountAll-1 );
 	// walk through each class until we find the class this tip lands in
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass <= TF_LAST_NORMAL_CLASS; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
 	{
 		Assert( iTip >= 0 );
 		int iClassTipCount = m_iTipCount[iClass]; 
@@ -145,7 +145,7 @@ const wchar_t *CTFTips::GetNextClassTip( int iClass )
 	int iTipClass = TF_CLASS_UNDEFINED;
 
 	// OK to call this function with TF_CLASS_UNDEFINED or TF_CLASS_RANDOM, just return a random tip for any class in that case
-	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass > TF_LAST_NORMAL_CLASS )
+	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass >= TF_CLASS_COUNT )
 		return GetRandomTip( iTipClass );
 
 	if ( TFGameRules() && TFGameRules()->IsInArenaMode() == true )
@@ -239,11 +239,11 @@ const wchar_t *CTFTips::GetRandomMvMTip( int &iClassUsed )
 	static wchar_t wzMvMTip[512] = L"";
 	static int iPrevMvMClass = -1;
 
-	iClassUsed = RandomInt( TF_FIRST_NORMAL_CLASS, TF_LAST_NORMAL_CLASS );
+	iClassUsed = RandomInt( TF_FIRST_NORMAL_CLASS, TF_CLASS_COUNT - 1 );
 
 	if ( iClassUsed == iPrevMvMClass )
 	{
-		iClassUsed = ( iClassUsed + 1 ) % TF_LAST_NORMAL_CLASS;
+		iClassUsed = ( iClassUsed + 1 ) % TF_CLASS_COUNT;
 	}
 	iPrevMvMClass = iClassUsed;
 

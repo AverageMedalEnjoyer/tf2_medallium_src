@@ -52,7 +52,7 @@ extern const ConVar *sv_cheats;
 
 
 extern const char *g_szItemBorders[AE_MAX_TYPES][5];
-extern int g_iLegacyClassSelectWeaponSlots[TF_LAST_NORMAL_CLASS];
+extern int g_iLegacyClassSelectWeaponSlots[TF_CLASS_COUNT];
 
 class CShowMannUpLootNotification : public CEconNotification
 {

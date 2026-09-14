@@ -1487,7 +1487,7 @@ void CTFClientScoreBoardDialog::UpdatePlayerList()
 						iClass = g_TF_PR->GetPlayerClass( playerIndex );
 					}
 
-					if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass <= TF_LAST_NORMAL_CLASS )
+					if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT )
 					{
 						if ( bAlive )
 						{
@@ -1495,7 +1495,7 @@ void CTFClientScoreBoardDialog::UpdatePlayerList()
 						}
 						else
 						{
-							pKeyValues->SetInt( "class", tf_scoreboard_alt_class_icons.GetBool() ? m_iImageClassAlt[iClass + ( TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS + 1 )] : m_iImageClass[iClass + ( TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS + 1 )] ); // Skip the living class icons to select the darker dead icons.
+							pKeyValues->SetInt( "class", tf_scoreboard_alt_class_icons.GetBool() ? m_iImageClassAlt[iClass + ( TF_CLASS_COUNT - TF_FIRST_NORMAL_CLASS )] : m_iImageClass[iClass + ( TF_CLASS_COUNT - TF_FIRST_NORMAL_CLASS )] ); // Skip the living class icons to select the darker dead icons.
 						}
 					}
 					else
@@ -1979,7 +1979,7 @@ void CTFClientScoreBoardDialog::UpdatePlayerDetails()
 		int iClass = pSelectedPlayer->m_Shared.GetDesiredPlayerClassIndex();
 		int iTeam = pSelectedPlayer->GetTeamNumber();
 		if ( ( pLocalPlayer->InSameTeam( pSelectedPlayer ) || pLocalPlayer->GetTeamNumber() < FIRST_GAME_TEAM ) && 
-			 iTeam >= FIRST_GAME_TEAM && iClass >= TF_FIRST_NORMAL_CLASS && iClass <= TF_LAST_NORMAL_CLASS )
+			 iTeam >= FIRST_GAME_TEAM && iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT )
 		{
 			if ( cl_hud_playerclass_use_playermodel.GetBool() )
 			{

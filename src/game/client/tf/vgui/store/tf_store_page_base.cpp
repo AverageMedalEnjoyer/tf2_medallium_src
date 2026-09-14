@@ -120,7 +120,7 @@ void CTFStorePageBase::GetFiltersForDef( GameItemDefinition_t *pDef, CUtlVector<
 	if ( pDef->CanBeUsedByAllClasses() )
 		pVecFilters->AddToTail( FILTER_ALLCLASS_ITEMS );
 
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
 	{
 		if ( pDef->CanBeUsedByClass( iClass ) )
 			pVecFilters->AddToTail( iClass );
@@ -188,7 +188,7 @@ void CTFStorePageBase::UpdateFilterComboBox( void )
 	}
 
 	// Individual classes
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
 	{
 		nCount = m_pPrimaryFilter->GetCountForFilterItem( iClass );
 		if ( !nCount )
@@ -224,7 +224,7 @@ void CTFStorePageBase::UpdateFilterComboBox( void )
 	}
 
 	// Individual classes
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
 	{
 		if ( m_vecFilterCounts[iClass] == 0 )
 			continue;

@@ -64,7 +64,7 @@ bool Training_TrainingProgressFileExists()
 
 static int Training_GetClassProgress( int iClass )	// Returns a percent, in the range [0,100]
 {
-	Assert( iClass >= TF_FIRST_NORMAL_CLASS && iClass <= TF_LAST_NORMAL_CLASS );
+	Assert( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT );
 
 	const int nDefaultResult = iClass == TF_CLASS_SOLDIER ? 0 : -1;
 
@@ -127,7 +127,7 @@ KeyValues *Training_LoadProgressFile()
 	if ( !pTrainingProgressData->LoadFromFile( g_pFullFileSystem, pFilename, "MOD" ) )
 	{
 		// File didn't exist - create from defaults
-		for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; ++i )
+		for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; ++i )
 		{
 			KeyValues *pClassSubKey = new KeyValues( g_aPlayerClassNames_NonLocalized[ i ] );
 			if ( !pClassSubKey )
@@ -163,7 +163,7 @@ void Training_SaveProgress( int pProgress[ TF_CLASS_COUNT ] )
 	if ( !pTrainingProgressData )
 		return;
 
-	for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; ++i )
+	for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; ++i )
 	{
 		KeyValues *pClassSubKey = Training_FindClassData( pTrainingProgressData, i );
 		if ( !pClassSubKey )
@@ -181,7 +181,7 @@ void Training_SaveProgress( int pProgress[ TF_CLASS_COUNT ] )
 
 void Training_MarkClassComplete( int iClass, int iStage )
 {
-	Assert( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_LAST_NORMAL_CLASS );
+	Assert( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT );
 	Assert( iStage >= 0 );
 
 	KeyValues *pTrainingProgressData = Training_LoadProgressFile();
@@ -284,7 +284,7 @@ int Training_GetNumCourses()
 
 	if ( !s_bComputed )
 	{
-		for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; ++i )
+		for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; ++i )
 		{
 			s_nTotal += Training_GetNumCoursesForClass( i );
 		}
@@ -302,7 +302,7 @@ int Training_GetProgressCount()
 	Training_GetProgress( aProgress );
 
 	int nTotalProgress = 0;
-	for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; ++i )
+	for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; ++i )
 	{
 		int nClassProgress = Training_GetClassProgress( i );
 		if ( nClassProgress > 0 )
@@ -328,7 +328,7 @@ void Training_Init()
 	int aProgress[ TF_CLASS_COUNT ];
 
 	int fProgressOld = cl_training_completed_with_classes.GetInt();
-	for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; ++i )
+	for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; ++i )
 	{
 		if ( ( fProgressOld & ( 1 << i ) ) != 0 )
 		{
@@ -1059,7 +1059,7 @@ public:
 		LoadControlSettings( "resource/ui/training/basictraining/classdetails.res" );
 
 		EditablePanel *pOverlayPanel = dynamic_cast< EditablePanel * >( FindChildByName( "OverlayPanel" ) );
-		if ( pOverlayPanel && m_iClass >= TF_FIRST_NORMAL_CLASS && m_iClass < TF_LAST_NORMAL_CLASS )
+		if ( pOverlayPanel && m_iClass >= TF_FIRST_NORMAL_CLASS && m_iClass < TF_CLASS_COUNT )
 		{
 			pOverlayPanel->SetDialogVariable( "classname", g_pVGuiLocalize->Find( g_aPlayerClassNames[ m_iClass ] ) );
 
@@ -2179,7 +2179,7 @@ void CL_ShowTrainingDialog( const CCommand &args )
 
 CON_COMMAND( cl_training_class_unlock_all, "Unlock all training" )
 {
-	for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; ++i )
+	for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; ++i )
 	{
 		Training_MarkClassComplete( i, 100 );
 	}
