@@ -1550,7 +1550,7 @@ CEconItemView *CTFPlayerInventory::GetItemInLoadout( int iClass, int iSlot )
 	}
 	else
 	{
-		if ( iClass < TF_FIRST_NORMAL_CLASS || iClass > TF_CLASS_COUNT )
+		if ( iClass < TF_FIRST_NORMAL_CLASS || iClass >= TF_LAST_NORMAL_CLASS  )
 			return NULL;
 
 		// If we don't have an item in the loadout at that slot, we return the base item
@@ -1589,7 +1589,7 @@ CEconItemView *CTFPlayerInventory::GetCacheServerItemInLoadout( int iClass, int 
 {
 	if ( iSlot < 0 || iSlot >= CLASS_LOADOUT_POSITION_COUNT )
 		return NULL;
-	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass > TF_CLASS_COUNT )
+	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass >= TF_LAST_NORMAL_CLASS )
 		return NULL;
 
 	// If we don't have an item in the loadout at that slot, we return the base item
@@ -1687,7 +1687,7 @@ bool CTFPlayerInventory::ClearLoadoutSlot( int iClass, int iSlot )
 	}
 	else
 	{
-		if ( iClass < TF_FIRST_NORMAL_CLASS || iClass > TF_CLASS_COUNT )
+		if ( iClass < TF_FIRST_NORMAL_CLASS || iClass >= TF_LAST_NORMAL_CLASS )
 			return false;
 
 		if ( m_LoadoutItems[iClass][iSlot] == LOADOUT_SLOT_USE_BASE_ITEM )
