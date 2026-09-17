@@ -32,7 +32,7 @@ class CStoreItemControlsPanel;
 extern const char *g_pszTipsClassImages[];
 
 #define FILTER_ALLCLASS_ITEMS		TF_LAST_NORMAL_CLASS
-#define FILTER_UNOWNED_ITEMS		(TF_LAST_NORMAL_CLASS + 1)
+#define FILTER_UNOWNED_ITEMS		( TF_LAST_NORMAL_CLASS )
 
 //-----------------------------------------------------------------------------
 // Purpose: A player class preview icon in the store's item preview panel
@@ -73,7 +73,7 @@ public:
 
 	void SetClass( int iClass )
 	{
-		if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT )
+		if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_LAST_NORMAL_CLASS )
 		{
 			m_pImagePanel->SetImage( g_pszTipsClassImages[iClass] );
 		}

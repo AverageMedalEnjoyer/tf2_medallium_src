@@ -110,10 +110,10 @@ void CTestItemRoot::SetupComboBoxes( void )
 {
 	// Setup our Bot Selection combo box
 	KeyValues *pKeyValues;
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass <= TF_LAST_NORMAL_CLASS; iClass++ )
 	{
-		//if ( iClass == TF_CLASS_CIVILIAN )
-		//	continue;
+		if ( iClass == TF_CLASS_CIVILIAN )
+			continue;
 		pKeyValues = new KeyValues( "data" );
 		pKeyValues->SetInt( "class", iClass );
 		m_pBotSelectionComboBox->AddItem( g_aPlayerClassNames[iClass], pKeyValues );
@@ -148,7 +148,7 @@ void CTestItemRoot::ApplySchemeSettings( vgui::IScheme *pScheme )
 	m_pClassUsagePanel = dynamic_cast<vgui::EditablePanel*>( FindChildByName( "ClassUsagePanel" ) );
 	if ( m_pClassUsagePanel )
 	{
-		for ( int i = 0; i < TF_CLASS_COUNT; i++ )
+		for ( int i = 0; i < TF_LAST_NORMAL_CLASS; i++ )
 		{
 			m_pClassCheckButtons[i] = dynamic_cast<vgui::CheckButton*>( m_pClassUsagePanel->FindChildByName( VarArgs("ClassCheckBox%d",i)) );
 			m_pClassCheckButtons[i]->AddActionSignalTarget( this );
@@ -256,7 +256,7 @@ void CTestItemRoot::OnButtonChecked( KeyValues *pData )
 	if ( pPanel == m_pClassCheckButtons[0] )
 	{
 		bool bAllClass = m_pClassCheckButtons[0]->IsSelected();
-		for ( int i = 1; i < TF_CLASS_COUNT; i++ )
+		for ( int i = 1; i < TF_LAST_NORMAL_CLASS; i++ )
 		{
 			m_pClassCheckButtons[i]->SetEnabled( !bAllClass );
 			if ( bAllClass )
@@ -269,7 +269,7 @@ void CTestItemRoot::OnButtonChecked( KeyValues *pData )
 	{
 		// If they've individually checked all boxes, switch to all-classes being checked
 		bool bAllChecked = true;
-		for ( int i = 1; i < TF_CLASS_COUNT; i++ )
+		for ( int i = 1; i < TF_LAST_NORMAL_CLASS; i++ )
 		{
 			if ( !m_pClassCheckButtons[i]->IsSelected() )
 			{
@@ -285,7 +285,7 @@ void CTestItemRoot::OnButtonChecked( KeyValues *pData )
 	}
 
 	m_iClassUsage = 0;
-	for ( int i = 0; i < TF_CLASS_COUNT; i++ )
+	for ( int i = 0; i < TF_LAST_NORMAL_CLASS; i++ )
 	{
 		if ( m_pClassCheckButtons[i]->IsSelected() )
 		{
@@ -348,7 +348,7 @@ void CTestItemRoot::ImportTestSetup( KeyValues *pKV )
 {
 	// Setup the class usage checkboxes
 	m_iClassUsage = pKV->GetInt( "class_usage", 0 );
-	for ( int i = 0; i < TF_CLASS_COUNT; i++ )
+	for ( int i = 0; i < TF_LAST_NORMAL_CLASS; i++ )
 	{
 		m_pClassCheckButtons[i]->SetSelected( (m_iClassUsage & (1<<i)) );
 	}
@@ -402,7 +402,7 @@ int CTestItemRoot::FindReplaceableItemsForSelectedClass( CUtlVector<item_definit
 {
 	// Build our list of checked classes
 	bool bClasses[TF_LAST_NORMAL_CLASS];
-	for ( int i = 0; i < TF_CLASS_COUNT; i++ )
+	for ( int i = 0; i < TF_LAST_NORMAL_CLASS; i++ )
 	{
 		bClasses[i] = m_iClassUsage & (1 << i);
 	}
@@ -462,7 +462,7 @@ int CTestItemRoot::FindReplaceableItemsForSelectedClass( CUtlVector<item_definit
 		else
 		{
 			bUsable = true;
-			for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
+			for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
 			{
 				if ( bClasses[iClass] && !pDef->CanBeUsedByClass(iClass) )
 				{
@@ -656,7 +656,7 @@ void CTestItemRoot::OnCommand( const char *command )
 	{
 		KeyValues *pKV = m_pBotSelectionComboBox->GetActiveItemUserData();
 		int iClass = pKV->GetInt( "class", TF_CLASS_UNDEFINED );
-		if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT )
+		if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_LAST_NORMAL_CLASS )
 		{
 			bool bBlueTeam = m_pBotsOnBlueTeamCheckBox->IsSelected();
 			engine->ClientCmd_Unrestricted( VarArgs( "bot -team %s -class %s\n", bBlueTeam ? "blue" : "red", g_aPlayerClassNames_NonLocalized[iClass] ) );

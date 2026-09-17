@@ -175,6 +175,7 @@ static int g_TauntCamRagdollAchievements[] =
 	0,		// TF_CLASS_ENGINEER,
 
 	0,		// TF_CLASS_CIVILIAN,
+	0,		// TF_CLASS_NONE,
 	0,		// TF_CLASS_COUNT_ALL,
 };
 
@@ -192,6 +193,7 @@ static int g_TauntCamAchievements[] =
 	0,		// TF_CLASS_SPY,
 	ACHIEVEMENT_TF_ENGINEER_FREEZECAM_TAUNT,	// TF_CLASS_ENGINEER,
 	0,		// TF_CLASS_CIVILIAN,
+	0,		// TF_CLASS_NONE,
 	0,		// TF_CLASS_COUNT_ALL,
 };
 
@@ -211,6 +213,7 @@ static int g_TauntCamAchievements2[] =
 	0,		// TF_CLASS_ENGINEER,
 
 	0,		// TF_CLASS_CIVILIAN,
+	0,		// TF_CLASS_NONE,
 	0,		// TF_CLASS_COUNT_ALL,
 };
 
@@ -11325,6 +11328,7 @@ static kill_eater_event_t g_eClassKillEvents[] =
 	kKillEaterEvent_PyroKill,					// TF_CLASS_PYRO
 	kKillEaterEvent_SpyKill,					// TF_CLASS_SPY
 	kKillEaterEvent_EngineerKill,				// TF_CLASS_ENGINEER
+	kKillEaterEvent_CivilianKill,			    // TF_CLASS_CIVILIAN
 };
 COMPILE_TIME_ASSERT( ARRAYSIZE( g_eClassKillEvents ) == (TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS) );
 
@@ -11340,6 +11344,7 @@ static kill_eater_event_t g_eRobotClassKillEvents[] =
 	kKillEaterEvent_RobotPyroKill,					// TF_CLASS_PYRO
 	kKillEaterEvent_RobotSpyKill,					// TF_CLASS_SPY
 	kKillEaterEvent_RobotEngineerKill,				// TF_CLASS_ENGINEER
+	kKillEaterEvent_RobotCivilianKill,				// TF_CLASS_CIVILIAN
 };
 COMPILE_TIME_ASSERT( ARRAYSIZE( g_eRobotClassKillEvents ) == (TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS) );
 
@@ -11704,7 +11709,7 @@ void CTFGameRules::PlayerKilled( CBasePlayer *pVictim, const CTakeDamageInfo &in
 
 				// Optional: also track "killed X players of this specific class".
 				int iVictimClassIndex = pTFPlayerVictim->GetPlayerClass()->GetClassIndex();
-				if ( iVictimClassIndex >= TF_FIRST_NORMAL_CLASS && iVictimClassIndex < TF_CLASS_COUNT )
+				if ( iVictimClassIndex >= TF_FIRST_NORMAL_CLASS && iVictimClassIndex <= TF_LAST_NORMAL_CLASS )
 				{
 					const kill_eater_event_t eClassKillType = g_eClassKillEvents[ iVictimClassIndex - TF_FIRST_NORMAL_CLASS ];
 					EconEntity_OnOwnerKillEaterEvent( pAttackerEconWeapon, pTFPlayerScorer, pTFPlayerVictim, eClassKillType );
@@ -11873,7 +11878,7 @@ void CTFGameRules::PlayerKilled( CBasePlayer *pVictim, const CTakeDamageInfo &in
 
 				// Optional: also track "killed X Robots of this specific class".
 				int iVictimClassIndex = pTFPlayerVictim->GetPlayerClass()->GetClassIndex();
-				if ( iVictimClassIndex >= TF_FIRST_NORMAL_CLASS && iVictimClassIndex < TF_CLASS_COUNT )
+				if ( iVictimClassIndex >= TF_FIRST_NORMAL_CLASS && iVictimClassIndex <= TF_LAST_NORMAL_CLASS )
 				{
 					const kill_eater_event_t eClassKillType = g_eRobotClassKillEvents[ iVictimClassIndex - TF_FIRST_NORMAL_CLASS ];
 					EconEntity_OnOwnerKillEaterEvent( pAttackerEconWeapon, pTFPlayerScorer, pTFPlayerVictim, eClassKillType );
@@ -18347,7 +18352,7 @@ void CTFGameRules::Status( void (*print) (const char *fmt, ...) )
 	print( "Stalemates: %d\n", CTF_GameStats.m_currentMap.m_Header.m_iStalemates );
 
 	print( "         Spawns Points Kills Deaths Assists\n" );
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
 	{
 		TF_Gamestats_ClassStats_t &Stats = CTF_GameStats.m_currentMap.m_aClassStats[ iClass ];
 

@@ -1098,7 +1098,7 @@ void CTFSpectatorGUI::RecalculatePlayerPanels( void )
 	// Calculate the number of players that must be shown. Spectators see all players (except in MvM), team members only see their team.
 	int iPanel = 0;
 
-	for ( int nClass = TF_FIRST_NORMAL_CLASS; nClass < TF_CLASS_COUNT; nClass++ )
+	for ( int nClass = TF_FIRST_NORMAL_CLASS; nClass <= TF_LAST_NORMAL_CLASS; nClass++ )
 	{
 		// we want to sort the images to match the class menu selections
 		int nCurrentClass = g_ClassDefinesRemap[nClass];

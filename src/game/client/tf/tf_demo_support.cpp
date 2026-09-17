@@ -155,7 +155,7 @@ void CTFDemoSupport::Update( float frametime )
 				{
 					// if the local player is on team spectator or is on a game team and has picked a player class
 					if ( ( pLocalPlayer->GetTeamNumber() == TEAM_SPECTATOR ) || 
-						 ( ( pLocalPlayer->GetTeamNumber() >= FIRST_GAME_TEAM ) && pLocalPlayer->GetPlayerClass() && ( pLocalPlayer->GetPlayerClass()->GetClassIndex() >= TF_FIRST_NORMAL_CLASS ) && ( pLocalPlayer->GetPlayerClass()->GetClassIndex() < TF_CLASS_COUNT ) ) )
+						 ( ( pLocalPlayer->GetTeamNumber() >= FIRST_GAME_TEAM ) && pLocalPlayer->GetPlayerClass() && ( pLocalPlayer->GetPlayerClass()->GetClassIndex() >= TF_FIRST_NORMAL_CLASS ) && ( pLocalPlayer->GetPlayerClass()->GetClassIndex() < TF_LAST_NORMAL_CLASS ) ) )
 					{
 						if ( !StartRecording() )
 						{

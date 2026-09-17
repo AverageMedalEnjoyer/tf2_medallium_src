@@ -900,7 +900,7 @@ void CTFStorePreviewItemPanel2::PreviewItem( int iClass, CEconItemView *pItem, c
 				wchar_t wszClassNames[ kClassNamesSize ] = L"";
 				int nClassAdded = 0;
 				bool bAllClasses = true;
-				for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; ++i )
+				for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; ++i )
 				{
 					if ( !pbvClassUsability->IsBitSet( i ) )
 					{

@@ -22,7 +22,7 @@
 #include "crafting_panel.h"
 #include "charinfo_armory_subpanel.h"
 
-#define NUM_CLASSES_IN_LOADOUT_PANEL		TF_LAST_NORMAL_CLASS
+#define NUM_CLASSES_IN_LOADOUT_PANEL		( TF_LAST_NORMAL_CLASS - 1 )
 
 class CImageButton : public vgui::Button
 {
@@ -133,7 +133,7 @@ public:
 private:
 	void		RequestInventoryRefresh();
 
-	CImageButton		*m_pClassButtons[NUM_CLASSES_IN_LOADOUT_PANEL+1];
+	CImageButton		*m_pClassButtons[NUM_CLASSES_IN_LOADOUT_PANEL];
 	CImageButton		*m_pSubButtons[CHSB_NUM_BUTTONS];
 	CExLabel			*m_pButtonLabels[CHSB_NUM_BUTTONS];
 	int					m_iOverSubButton;

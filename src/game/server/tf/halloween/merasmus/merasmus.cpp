@@ -492,7 +492,7 @@ int CMerasmus::OnTakeDamage_Alive( const CTakeDamageInfo &info )
 	if ( pAttacker )
 	{
 		int iClass = pAttacker->GetPlayerClass()->GetClassIndex();
-		if ( iClass > TF_CLASS_UNDEFINED && iClass < TF_CLASS_COUNT )
+		if ( iClass > TF_CLASS_UNDEFINED && iClass < TF_LAST_NORMAL_CLASS )
 		{
 			m_bossStats.m_arrClassDamage[ iClass ] += info.GetDamage();
 		}
@@ -1076,7 +1076,7 @@ void CMerasmus::SW_ReportMerasmusStats( void )
 	FOR_EACH_VEC( playerVector, index )
 	{
 		int iClass = playerVector[index]->GetPlayerClass()->GetClassIndex();
-		if ( iClass > TF_CLASS_UNDEFINED && iClass < TF_CLASS_COUNT )
+		if ( iClass > TF_CLASS_UNDEFINED && iClass < TF_LAST_NORMAL_CLASS )
 		{
 			nClassCounts[iClass]++;
 		}
@@ -1137,7 +1137,7 @@ void CMerasmus::SW_ReportMerasmusStats( void )
 //	FOR_EACH_VEC( playerVector, index )
 //	{
 //		int iClass = playerVector[index]->GetPlayerClass()->GetClassIndex();
-//		if ( iClass > TF_CLASS_UNDEFINED && iClass < TF_CLASS_COUNT )
+//		if ( iClass > TF_CLASS_UNDEFINED && iClass < TF_LAST_NORMAL_CLASS )
 //		{
 //			nClassCounts[iClass]++;
 //		}

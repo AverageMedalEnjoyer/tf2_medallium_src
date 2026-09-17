@@ -356,7 +356,7 @@ void CTestItemDialog::CloseAndUpdateItem( void )
 		GameItemDefinition_t *pItemDef = ItemSystem()->GetStaticDataForItemByDefIndex( iItemDef );
 		if ( pItemDef )
 		{
-			for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
+			for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
 			{
 				if ( m_iClassUsage == 1 || ( m_iClassUsage & (1 << iClass) ) )
 				{

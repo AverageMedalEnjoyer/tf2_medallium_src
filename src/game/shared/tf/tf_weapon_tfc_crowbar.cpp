@@ -95,7 +95,8 @@ void CTFCUmbrella::SecondaryAttack(void)
 		return;
 
 	float flBuffRange = fc_civilian_buff_range.GetFloat();
-	CALL_ATTRIB_HOOK_FLOAT( flBuffRange, mult_umbrella_buff_range );
+	CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pPlayer, flBuffRange, mult_umbrella_buff_range ); // pPlayer so we can have the attribute on perks
+	//CALL_ATTRIB_HOOK_FLOAT( flBuffRange, mult_umbrella_buff_range );
 
 	trace_t tr;
 	Vector vecStart, vecEnd, vecDir;
@@ -122,8 +123,9 @@ void CTFCUmbrella::SecondaryAttack(void)
 		{
 			SendWeaponAnim(ACT_VM_SECONDARYATTACK);
 
-			float flBuffDuration = 8.0f;
-		    CALL_ATTRIB_HOOK_FLOAT( flBuffDuration, mult_umbrella_buff_duration );
+			int flBuffDuration = 8.0;
+		    CALL_ATTRIB_HOOK_INT_ON_OTHER( pPlayer, flBuffDuration, mult_umbrella_buff_duration ); // pPlayer so we can have the attribute on perks
+			//CALL_ATTRIB_HOOK_INT( flBuffDuration, mult_umbrella_buff_duration );
 
 			pTarget->m_Shared.AddCond(/*FC_COND_CIVILIAN_ENERGY_BUFF*/(ETFCond) GetBuffType( GetUmbrellaType() ), flBuffDuration );
 			//SetEffectBarProgress(-15.0f);
@@ -166,10 +168,19 @@ void CTFCUmbrella::SecondaryAttack(void)
 
 float CTFCUmbrella::InternalGetEffectBarRechargeTime(void)
 {
-	if (CAttributeManager::AttribHookValue<float>(0, "item_meter_charge_rate", this) > 0)
-		return (CAttributeManager::AttribHookValue<float>(0, "item_meter_charge_rate", this));
+	CTFPlayer *pPlayer = GetTFPlayerOwner();
+	if ( !pPlayer )
+		return 15.0f;
 
-	return 15.0f;
+	float flMultRechargeRate = 1.0f;
+	CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pPlayer, flMultRechargeRate, item_meter_charge_rate ); // pPlayer so we can have the attribute on perks
+	CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pPlayer, flMultRechargeRate, mult_item_meter_charge_rate ); // pPlayer so we can have the attribute on perks
+
+	float flRechargeTime = 15.0f;
+
+	float flFinalRechargeTime = flRechargeTime * flMultRechargeRate;
+
+	return flFinalRechargeTime;
 }
 
 int CTFCUmbrella::GetBuffType( int iMode )

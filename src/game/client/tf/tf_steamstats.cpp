@@ -72,6 +72,12 @@ StatMap_t g_SteamStats_Spy[] = {
 	{ NULL,						0,							0,								},
 };
 
+StatMap_t g_SteamStats_Civilian[] = {
+	{ "iKillAssists",	        TFSTAT_KILLASSISTS,			PROPERTY_KILL_ASSISTS,	},
+	{ "iHealthPointsHealed",	TFSTAT_HEALING,				PROPERTY_HEALTH_POINTS_HEALED,	},
+	{ NULL,						0,							0,								},
+};
+
 StatMap_t* g_SteamStats_Class[] = {
 	NULL,					// Undefined
 	NULL,					// Scout
@@ -83,6 +89,7 @@ StatMap_t* g_SteamStats_Class[] = {
 	g_SteamStats_Pyro,		// Pyro
 	g_SteamStats_Spy,		// Spy
 	g_SteamStats_Engineer,	// Engineer
+	g_SteamStats_Civilian   // Civilian
 };
 
 // subset of map stats which we store in Steam
@@ -142,7 +149,7 @@ void CTFSteamStats::FireGameEvent( IGameEvent *event )
 		CTFStatPanel *pStatPanel = GET_HUDELEMENT( CTFStatPanel );
 		Assert( pStatPanel );
 
-		for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
+		for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
 		{
 			// Grab generic stats:
 			ClassStats_t &classStats = CTFStatPanel::GetClassStats( iClass );
@@ -265,7 +272,7 @@ void CTFSteamStats::UploadStats()
 		return;
 
 	// Stomp local steam context stats with those in the stat panel.
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
 	{
 		// Set generic stats:
 		ClassStats_t &classStats = CTFStatPanel::GetClassStats( iClass );
@@ -346,7 +353,7 @@ void CTFSteamStats::ReportLiveStats()
 	int statsTotals[ARRAYSIZE( g_SteamStats )];
 	Q_memset( &statsTotals, 0, sizeof( statsTotals ) );
 
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass <= TF_LAST_NORMAL_CLASS; iClass++ )
 	{
 		ClassStats_t &classStats = CTFStatPanel::GetClassStats( iClass );
 		for ( int iStat = 0; iStat < ARRAYSIZE( g_SteamStats ); iStat++ )

@@ -471,7 +471,7 @@ public:
 		{
 			// no tags visible, so hide everything
 			// class tags
-			for ( i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; i++ )
+			for ( i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; i++ )
 			{
 				pButton = FindControl<vgui::CheckButton>( VarArgs( "ClassCheckBox%d", i ), true );
 				if ( pButton )
@@ -505,7 +505,7 @@ public:
 			bool bIsMap = ( eFileType == k_EWorkshopFileTypeCommunity );
 
 			// class tags
-			for ( i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; i++ )
+			for ( i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; i++ )
 			{
 				pButton = FindControl<vgui::CheckButton>( VarArgs( "ClassCheckBox%d", i ), true );
 				if ( pButton )
@@ -559,7 +559,7 @@ public:
 		vgui::EditablePanel* pClassUsagePanel = dynamic_cast<vgui::EditablePanel*>( FindChildByName( "ClassUsagePanel" ) );
 		if ( pClassUsagePanel )
 		{
-			for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; i++ )
+			for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; i++ )
 			{
 				if ( IsChildButtonSelected( pClassUsagePanel, VarArgs("ClassCheckBox%d",i), false ) )
 				{
@@ -707,7 +707,7 @@ protected:
 		vgui::EditablePanel* pClassUsagePanel = dynamic_cast<vgui::EditablePanel*>( FindChildByName( "ClassUsagePanel" ) );
 		if ( pClassUsagePanel )
 		{
-			for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_CLASS_COUNT; i++ )
+			for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; i++ )
 			{
 				bool bHasTag = Q_strstr( m_FileDetails.publishedFileDetails.m_rgchTags, kClassTags[i] ) != 0;
 				SetChildButtonSelected( pClassUsagePanel, VarArgs("ClassCheckBox%d",i), bHasTag );

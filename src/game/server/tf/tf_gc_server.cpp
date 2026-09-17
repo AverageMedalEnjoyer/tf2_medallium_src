@@ -540,7 +540,7 @@ MM_PlayerConnectionState_t CMatchInfo::PlayerMatchData_t::GetConnectionState() c
 //-----------------------------------------------------------------------------
 void CMatchInfo::PlayerMatchData_t::UpdateClassesPlayed( int nClass )
 {
-	Assert( nClass >= TF_FIRST_NORMAL_CLASS && nClass < TF_CLASS_COUNT );
+	Assert( nClass >= TF_FIRST_NORMAL_CLASS && nClass <= TF_LAST_NORMAL_CLASS );
 
 	unClassesPlayed = unClassesPlayed | ( 1 << nClass );
 }
