@@ -1499,7 +1499,7 @@ void CQuestItemPanel::OnConfirmEquipLoaners( bool bConfirm )
 			if ( pItem )
 			{
 				// do it for first class that can equip
-				for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; ++iClass )
+				for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; ++iClass )
 				{
 					if ( pItem->GetStaticData()->CanBeUsedByClass( iClass ) )
 					{

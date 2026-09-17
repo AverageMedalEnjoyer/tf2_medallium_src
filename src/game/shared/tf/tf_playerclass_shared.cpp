@@ -169,7 +169,7 @@ const char *CTFPlayerClassShared::GetHandModelName( int iHandIndex = 0 ) const
 //-----------------------------------------------------------------------------
 bool CTFPlayerClassShared::Init( int iClass )
 {
-	Assert ( ( iClass >= TF_FIRST_NORMAL_CLASS ) && ( iClass <= TF_LAST_NORMAL_CLASS ) );
+	Assert ( ( iClass >= TF_FIRST_NORMAL_CLASS ) && ( iClass < TF_CLASS_COUNT ) );
 
 	Reset();
 	m_iClass = iClass;

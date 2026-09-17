@@ -35,6 +35,7 @@
 #include "tf_weapon_rocketpack.h"
 #include "tf_weapon_bonesaw.h"
 #include "tf_weapon_slap.h"
+#include "tf_weapon_tfc_crowbar.h"
 
 #include <vgui_controls/ImagePanel.h>
 
@@ -321,6 +322,10 @@ void CHudItemEffectMeter::CreateHudElementsForClass( C_TFPlayer* pPlayer, CUtlVe
 		DECLARE_ITEM_EFFECT_METER( C_TFWeaponBuilder, TF_WEAPON_BUILDER, true, "resource/UI/HudItemEffectMeter_Sapper.res" );
 		DECLARE_ITEM_EFFECT_METER( CTFRevolver, TF_WEAPON_REVOLVER, false, "resource/UI/HUDItemEffectMeter_Spy.res" );
 
+		break;
+
+	case TF_CLASS_CIVILIAN:
+		DECLARE_ITEM_EFFECT_METER( CTFCUmbrella, TF_WEAPON_TFC_UMBRELLA, true, "resource/UI/HudItemEffectMeter.res" );
 		break;
 
 	case TF_CLASS_ENGINEER:

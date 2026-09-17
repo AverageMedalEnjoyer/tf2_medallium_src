@@ -663,13 +663,18 @@ const char *CTFWeaponBase::GetViewModel( int iViewModel ) const
 	}
 
 	const CEconItemView *pItem = GetAttributeContainer()->GetItem();
-	if ( pPlayer && pItem->IsValid() && pItem->GetStaticData()->ShouldAttachToHands() )
+	if ( pPlayer && pItem->IsValid() && pItem->GetStaticData()->ShouldAttachToHands() == ATTACH_TF )
 	{
 		// Should always be valid, because players without classes shouldn't be carrying items
 		const char *pszHandModel = pPlayer->GetPlayerClass()->GetHandModelName( iHandModelIndex );
 		Assert( pszHandModel );
 
 		return pszHandModel;
+	}
+
+	if ( pPlayer && pItem->IsValid() && pItem->GetStaticData()->ShouldAttachToHands() == ATTACH_L4D )
+	{
+		return pItem->GetPlayerDisplayModel( pPlayer->GetPlayerClass()->GetClassIndex(), pPlayer->GetTeamNumber() );
 	}
 
 	return GetTFWpnData().szViewModel;
@@ -3093,7 +3098,7 @@ C_BaseAnimating *CTFWeaponBase::GetAppropriateWorldOrViewModel()
 	{
 		// For w_* models the viewmodel itself is just arms+hands. And attached to them is the actual weapon.
 		const CEconItemView *pItem = GetAttributeContainer()->GetItem();
-		if ( pItem->IsValid() && pItem->GetStaticData()->ShouldAttachToHands() )
+		if ( pItem->IsValid() && pItem->GetStaticData()->ShouldAttachToHands() == ATTACH_TF )
 		{
 			C_BaseAnimating *pVMAttach = GetViewmodelAttachment();
 			if ( pVMAttach != NULL )
@@ -6539,11 +6544,11 @@ void CTFWeaponBase::CheckReload( void )
 float CTFWeaponBase::GetEffectBarProgress( void )
 {
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
-	if ( pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) < pPlayer->GetMaxAmmo( GetEffectBarAmmo() )) )
+	if ( GetWeaponID() == TF_WEAPON_TFC_UMBRELLA || ( pPlayer && pPlayer->GetAmmoCount( GetEffectBarAmmo() ) < pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
 	{
-		float flTime = GetEffectBarRechargeTime();
+		float flTime = Max( GetEffectBarRechargeTime(), FLT_EPSILON );
 		float flProgress = (flTime - (m_flEffectBarRegenTime - gpGlobals->curtime)) / flTime;
-		return flProgress;
+		return clamp( flProgress, 0.f, 1.f );
 	}
 
 	return 1.f;
@@ -6557,7 +6562,7 @@ void CTFWeaponBase::StartEffectBarRegen( void )
 	// Only reset regen if its less then curr time or we were full
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
 	bool bWasFull = false;
-	if ( pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) + 1 == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
+	if ( GetWeaponID() != TF_WEAPON_TFC_UMBRELLA && pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) + 1 == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
 	{
 		bWasFull = true;
 	}
@@ -6578,7 +6583,7 @@ void CTFWeaponBase::CheckEffectBarRegen( void )
 	
 	// If we're full stop the timer.  Fixes a bug with "double" throws after respawning or touching a supply cab
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
-	if ( pPlayer->GetAmmoCount( GetEffectBarAmmo() ) == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) )
+	if ( GetWeaponID() != TF_WEAPON_TFC_UMBRELLA && pPlayer->GetAmmoCount( GetEffectBarAmmo() ) == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) )
 	{
 		m_flEffectBarRegenTime = 0;
 		return;
@@ -6596,6 +6601,10 @@ void CTFWeaponBase::CheckEffectBarRegen( void )
 //-----------------------------------------------------------------------------
 void CTFWeaponBase::EffectBarRegenFinished( void )
 {
+	// The umbrella recharges its boost without using ammunition.
+	if ( GetWeaponID() == TF_WEAPON_TFC_UMBRELLA )
+		return;
+
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
 	if ( pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) < pPlayer->GetMaxAmmo( GetEffectBarAmmo() )) )
 	{

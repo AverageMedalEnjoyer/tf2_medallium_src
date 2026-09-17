@@ -400,6 +400,8 @@ static CDllDemandLoader g_GameUI( "GameUI" );
 //-----------------------------------------------------------------------------
 void ClientModeTFNormal::Init()
 {
+	g_pVGuiLocalize->AddFile( "resource/tf_medallium_%language%.txt", "GAME", true );
+
 	m_pMenuEngyBuild = ( CHudMenuEngyBuild * )GET_HUDELEMENT( CHudMenuEngyBuild );
 	Assert( m_pMenuEngyBuild );
 

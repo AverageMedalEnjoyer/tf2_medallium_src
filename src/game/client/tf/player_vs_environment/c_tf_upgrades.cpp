@@ -893,7 +893,7 @@ void CHudUpgradePanel::CreateItemModelPanel( int iLoadoutSlot )
 		return;
 
 	int iClass = m_hPlayer->GetPlayerClass()->GetClassIndex();
-	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass >= TF_LAST_NORMAL_CLASS )
+	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass > TF_CLASS_COUNT )
 		return;
 
 	CItemModelPanel *pItemPanel = NULL;

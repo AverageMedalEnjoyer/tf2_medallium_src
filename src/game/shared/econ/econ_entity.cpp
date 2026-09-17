@@ -336,7 +336,7 @@ Activity CEconEntity::TranslateViewmodelHandActivity( Activity actBase )
 	if ( pItem && pItem->IsValid() )
 	{
 		GameItemDefinition_t *pStaticData = pItem->GetStaticData();
-		if ( pStaticData && pStaticData->ShouldAttachToHands() )
+		if ( pStaticData && pStaticData->ShouldAttachToHands() == ATTACH_TF )
 		{
 			return TranslateViewmodelHandActivityInternal(actBase);
 		}
@@ -396,7 +396,7 @@ void CEconEntity::UpdateModelToClass( void )
 	const char *pszModel = NULL;
 
 	// If we attach to hands, we need to use the hand models
-	if ( pItem->GetStaticData()->ShouldAttachToHands() )
+	if ( pItem->GetStaticData()->ShouldAttachToHands() == ATTACH_TF )
 	{
 		pszModel = pPlayer->GetPlayerClass()->GetHandModelName( 0 );
 	}
@@ -1164,7 +1164,14 @@ void CEconEntity::UpdateAttachmentModels( void )
 						iClass = pTFPlayer->GetPlayerClass()->GetClassIndex();
 					}
 #endif // defined( TF_DLL ) || defined( TF_CLIENT_DLL )
-					if ( pEnt->InitializeAsClientEntity( pItem->GetPlayerDisplayModel( iClass, pOwner->GetTeamNumber() ), RENDER_GROUP_VIEW_MODEL_OPAQUE ) == false )
+					const char *pszAttachmentModel = pItem->GetPlayerDisplayModel( iClass, pOwner->GetTeamNumber() );
+#if defined( TF_DLL ) || defined( TF_CLIENT_DLL )
+					if ( pTFPlayer && pItemDef->ShouldAttachToHands() == ATTACH_L4D )
+					{
+						pszAttachmentModel = pTFPlayer->GetPlayerClass()->GetHandModelName( 0 );
+					}
+#endif
+					if ( pEnt->InitializeAsClientEntity( pszAttachmentModel, RENDER_GROUP_VIEW_MODEL_OPAQUE ) == false )
 						return;
 
 					m_hViewmodelAttachment = pEnt;

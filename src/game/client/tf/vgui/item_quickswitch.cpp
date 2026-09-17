@@ -265,7 +265,7 @@ CItemQuickSwitchPanel::~CItemQuickSwitchPanel()
 //-----------------------------------------------------------------------------
 bool CItemQuickSwitchPanel::IsValid( void )
 { 
-	return ( m_iClass >= TF_FIRST_NORMAL_CLASS && m_iClass < TF_LAST_NORMAL_CLASS ) && 
+	return ( m_iClass >= TF_FIRST_NORMAL_CLASS && m_iClass < TF_CLASS_COUNT ) && 
 		   ( m_iSlot > LOADOUT_POSITION_INVALID && m_iSlot < CLASS_LOADOUT_POSITION_COUNT ); 
 }
 
@@ -338,7 +338,7 @@ bool CItemQuickSwitchPanel::CalculateClassAndSlot( void )
 
 	// Get the current class
 	m_iClass = pPlayer->GetPlayerClass()->GetClassIndex();
-	if ( m_iClass < TF_FIRST_NORMAL_CLASS || m_iClass >= TF_LAST_NORMAL_CLASS )
+	if ( m_iClass < TF_FIRST_NORMAL_CLASS || m_iClass > TF_CLASS_COUNT )
 		return false;
 
 	if ( m_pLoadoutPresetPanel )

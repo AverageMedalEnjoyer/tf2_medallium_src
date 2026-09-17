@@ -2122,6 +2122,9 @@ public:
 	void				GetPlayerAvoidBounds( Vector *pMins, Vector *pMaxs );
 
 	void				StartPingEffect( void ) { m_flTimePingEffect = gpGlobals->curtime + 2.0f; DispatchUpdateTransmitState(); }
+
+	void				UpdateCivBuffEffects( void );//updates the civilian's particle effect
+
 };
 
 

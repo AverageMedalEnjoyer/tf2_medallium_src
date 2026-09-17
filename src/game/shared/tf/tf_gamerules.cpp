@@ -6222,6 +6222,11 @@ bool CTFGameRules::ApplyOnDamageModifyRules( CTakeDamageInfo &info, CBaseEntity 
 				info.SetCritType( CTakeDamageInfo::CRIT_MINI );
 				eBonusEffect = kBonusEffect_MiniCrit;
 			}
+			else if ( pTFAttacker && pTFAttacker->m_Shared.InCond( FC_COND_CIVILIAN_ENERGY_BUFF ) )
+			{
+				info.SetCritType( CTakeDamageInfo::CRIT_MINI );
+				eBonusEffect = kBonusEffect_MiniCrit;
+			}
 			else if ( ( info.GetDamageType() & DMG_IGNITE ) && pVictim && pVictim->m_Shared.InCond( TF_COND_BURNING ) && info.GetDamageCustom() == TF_DMG_CUSTOM_BURNING_FLARE )
 			{
 				CTFFlareGun *pFlareGun = dynamic_cast< CTFFlareGun* >( pWeapon );
@@ -6550,6 +6555,12 @@ bool CTFGameRules::ApplyOnDamageModifyRules( CTakeDamageInfo &info, CBaseEntity 
 					// And we take 35% less damage...
 					flDamage *= 0.65f;
 				}
+			}
+			else if ( pVictim->m_Shared.InCond( FC_COND_DEFENSEBUFF_CIVILIAN ) )
+			{
+				// Old FC: 6.66% resistance to crits and mini-crits, 20% otherwise.
+				const bool bCriticalDamage = ( bitsDamage & DMG_CRITICAL ) || info.GetCritType() == CTakeDamageInfo::CRIT_MINI;
+				flDamage *= bCriticalDamage ? 0.9334f : 0.80f;
 			}
 		}
 	}
@@ -11693,7 +11704,7 @@ void CTFGameRules::PlayerKilled( CBasePlayer *pVictim, const CTakeDamageInfo &in
 
 				// Optional: also track "killed X players of this specific class".
 				int iVictimClassIndex = pTFPlayerVictim->GetPlayerClass()->GetClassIndex();
-				if ( iVictimClassIndex >= TF_FIRST_NORMAL_CLASS && iVictimClassIndex <= TF_LAST_NORMAL_CLASS )
+				if ( iVictimClassIndex >= TF_FIRST_NORMAL_CLASS && iVictimClassIndex < TF_CLASS_COUNT )
 				{
 					const kill_eater_event_t eClassKillType = g_eClassKillEvents[ iVictimClassIndex - TF_FIRST_NORMAL_CLASS ];
 					EconEntity_OnOwnerKillEaterEvent( pAttackerEconWeapon, pTFPlayerScorer, pTFPlayerVictim, eClassKillType );
@@ -11862,7 +11873,7 @@ void CTFGameRules::PlayerKilled( CBasePlayer *pVictim, const CTakeDamageInfo &in
 
 				// Optional: also track "killed X Robots of this specific class".
 				int iVictimClassIndex = pTFPlayerVictim->GetPlayerClass()->GetClassIndex();
-				if ( iVictimClassIndex >= TF_FIRST_NORMAL_CLASS && iVictimClassIndex <= TF_LAST_NORMAL_CLASS )
+				if ( iVictimClassIndex >= TF_FIRST_NORMAL_CLASS && iVictimClassIndex < TF_CLASS_COUNT )
 				{
 					const kill_eater_event_t eClassKillType = g_eRobotClassKillEvents[ iVictimClassIndex - TF_FIRST_NORMAL_CLASS ];
 					EconEntity_OnOwnerKillEaterEvent( pAttackerEconWeapon, pTFPlayerScorer, pTFPlayerVictim, eClassKillType );
@@ -18336,7 +18347,7 @@ void CTFGameRules::Status( void (*print) (const char *fmt, ...) )
 	print( "Stalemates: %d\n", CTF_GameStats.m_currentMap.m_Header.m_iStalemates );
 
 	print( "         Spawns Points Kills Deaths Assists\n" );
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
 	{
 		TF_Gamestats_ClassStats_t &Stats = CTF_GameStats.m_currentMap.m_aClassStats[ iClass ];
 

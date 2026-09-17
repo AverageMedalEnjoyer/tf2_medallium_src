@@ -839,7 +839,7 @@ void CTFGCClientSystem::SDK_AddServerInventoryInfo( KeyValues* pKV, CGCClientSha
 
 	// Extract our current loadout information and record it in the key values.
 	KeyValues *pLoadoutKV = new KeyValues("local_loadout");
-	for (int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++)
+	for (int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++)
 	{
 		char szClass[256];
 		V_snprintf(szClass, sizeof(szClass), "%i", iClass);

@@ -300,7 +300,7 @@ protected:
  			if ( pPlayer->GetTeamNumber() < FIRST_GAME_TEAM )
  				return true;
  
- 			if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass <= TF_LAST_NORMAL_CLASS  )
+ 			if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT )
  			{
  				UTIL_LogPrintf( "\"%s<%i><%s><%s>\" changed role to \"%s\"\n",  
  					pPlayer->GetPlayerName(),

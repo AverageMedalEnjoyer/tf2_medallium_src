@@ -492,7 +492,10 @@ static void InitPerClassStringArray( KeyValues *pPerClassData, const char *(&out
 	{
 		const char* pszBaseName = pPerClassData->GetString( "basename", NULL );
 
-		for ( int i = TF_FIRST_NORMAL_CLASS; i < TF_LAST_NORMAL_CLASS; i++ )
+		// Iterate over ALL playable classes (including the civilian, index TF_LAST_NORMAL_CLASS).
+		// Previously this loop stopped at TF_LAST_NORMAL_CLASS, which silently dropped the
+		// civilian's per-class model (e.g. model_player_per_class basename patterns).
+		for ( int i = TF_FIRST_NORMAL_CLASS; i < LOADOUT_COUNT; i++ )
 		{
 			if ( outputArray[i] && *outputArray[i] )
 			{
@@ -1465,6 +1468,7 @@ static PlayerClassInfo_t gs_PlayerClassData[] =
 	{ "Pyro",		"#TF_Class_Name_Pyro" },
 	{ "Spy",		"#TF_Class_Name_Spy" },
 	{ "Engineer",	"#TF_Class_Name_Engineer" },
+	{ "Civilian",	"#TF_Class_Name_Civilian" },
 	{ "Invalid",	"" }						// lots of code loops over these classes based on LOADOUT_COUNT, which is wrong, but this allows them to do it safely
 };
 

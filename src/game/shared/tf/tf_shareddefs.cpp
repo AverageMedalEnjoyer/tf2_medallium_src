@@ -225,7 +225,7 @@ int iRemapIndexToClass[TF_CLASS_MENU_BUTTONS] =
 		TF_CLASS_MEDIC,
 		TF_CLASS_SNIPER,
 		TF_CLASS_SPY,
-		0,
+		TF_CLASS_CIVILIAN,
 		0,
 		TF_CLASS_RANDOM
 };
@@ -425,6 +425,8 @@ static const char *g_aConditionNames[] =
 	"TF_COND_HALLOWEEN_HELL_HEAL",              // = 128
 	"TF_COND_POWERUPMODE_DOMINANT",             // = 129
 	"TF_COND_IMMUNE_TO_PUSHBACK",				// = 130
+	"FC_COND_DEFENSEBUFF_CIVILIAN",				// = 131
+	"FC_COND_CIVILIAN_ENERGY_BUFF",				// = 132
 
 	//
 	// ADD NEW ITEMS HERE TO AVOID BREAKING DEMOS
@@ -709,6 +711,9 @@ const char *g_aWeaponNames[] =
 	"TF_WEAPON_GRENADE_JAR_GAS",
 	"TF_WEPON_FLAME_BALL",
 
+	"TF_WEAPON_TFC_CROWBAR",
+	"TF_WEAPON_TFC_UMBRELLA",
+
 };
 COMPILE_TIME_ASSERT( ARRAYSIZE( g_aWeaponNames ) == TF_WEAPON_COUNT );
 
@@ -824,6 +829,9 @@ int g_aWeaponDamageTypes[] =
 	DMG_GENERIC, // TF_WEAPON_JAR_GAS
 	DMG_GENERIC, // TF_WEAPON_GRENADE_JAR_GAS
 	DMG_GENERIC | DMG_PREVENT_PHYSICS_FORCE, // TF_WEAPON_FLAME_BALL
+
+	DMG_CLUB,		// TF_WEAPON_TFC_CROWBAR
+	DMG_CLUB,		// TF_WEAPON_TFC_UMBRELLA
 
 };
 
@@ -1622,7 +1630,7 @@ const unsigned char *GetTFEncryptionKey( void )
 struct wpntranslation_class_weapons_t
 {
 	const char *pszWpnString;
-	const char *pszClassWpn[TF_LAST_NORMAL_CLASS];
+	const char *pszClassWpn[TF_CLASS_COUNT];
 };
 
 wpntranslation_class_weapons_t pszWpnEntTranslationList[] = 
@@ -1640,6 +1648,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"tf_weapon_shotgun_pyro",	// TF_CLASS_PYRO,
 			"",							// TF_CLASS_SPY,
 			"tf_weapon_shotgun_primary",// TF_CLASS_ENGINEER,		
+			"",							// TF_CLASS_CIVILIAN,
 		}
 	},
 
@@ -1656,6 +1665,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"",							// TF_CLASS_PYRO,
 			"",							// TF_CLASS_SPY,
 			"tf_weapon_pistol",			// TF_CLASS_ENGINEER,		
+			"",							// TF_CLASS_CIVILIAN,
 		}
 	},
 
@@ -1672,6 +1682,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"",							// TF_CLASS_PYRO,
 			"",							// TF_CLASS_SPY,
 			"",							// TF_CLASS_ENGINEER,		
+			"",							// TF_CLASS_CIVILIAN,
 		}
 	},
 	{
@@ -1687,6 +1698,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"",							// TF_CLASS_PYRO,
 			"",							// TF_CLASS_SPY,
 			"",							// TF_CLASS_ENGINEER,		
+			"",							// TF_CLASS_CIVILIAN,
 		}
 	},
 	{
@@ -1702,6 +1714,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"tf_weapon_fireaxe",		// TF_CLASS_PYRO,
 			"tf_weapon_knife",			// TF_CLASS_SPY,
 			"tf_weapon_wrench",			// TF_CLASS_ENGINEER,		
+			"",							// TF_CLASS_CIVILIAN,
 		}
 	},
 	{
@@ -1717,6 +1730,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"tf_weapon_throwable_secondary",			// TF_CLASS_PYRO,
 			"tf_weapon_throwable_secondary",			// TF_CLASS_SPY,
 			"tf_weapon_throwable_secondary",			// TF_CLASS_ENGINEER,		
+			"",											// TF_CLASS_CIVILIAN,
 		}
 	},
 	{
@@ -1730,8 +1744,9 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"",			// TF_CLASS_MEDIC,
 			"",			// TF_CLASS_HEAVYWEAPONS
 			"",			// TF_CLASS_PYRO,
-			""			// TF_CLASS_SPY,
+			"",			// TF_CLASS_SPY,
 			"",			// TF_CLASS_ENGINEER,		
+			"",			// TF_CLASS_CIVILIAN,
 		}
 	},
 	{
@@ -1747,6 +1762,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"",			// TF_CLASS_PYRO,
 			"tf_weapon_revolver",				// TF_CLASS_SPY,
 			"tf_weapon_revolver_secondary",		// TF_CLASS_ENGINEER,		
+			"tf_weapon_revolver",				// TF_CLASS_CIVILIAN,
 		}
 	},
 };
@@ -1760,6 +1776,13 @@ const char *TranslateWeaponEntForClass( const char *pszName, int iClass )
 {
 	if ( pszName )
 	{
+		// Guard against an out-of-bounds class index reading past the end of pszClassWpn[].
+		if ( iClass < 0 || iClass >= TF_CLASS_COUNT )
+		{
+			Warning( false, "TranslateWeaponEntForClass: iClass %d out of range", iClass );
+			return pszName;
+		}
+
 		for ( int i = 0; i < ARRAYSIZE(pszWpnEntTranslationList); i++ )
 		{
 			if ( !Q_stricmp( pszName, pszWpnEntTranslationList[i].pszWpnString ) )
@@ -1865,6 +1888,7 @@ const char *g_pszClassIcons[SCOREBOARD_CLASS_ICONS] =
 	"../hud/leaderboard_class_pyro",
 	"../hud/leaderboard_class_spy",
 	"../hud/leaderboard_class_engineer",
+	"../hud/leaderboard_class_civilian",
 	"../hud/leaderboard_class_scout_d",
 	"../hud/leaderboard_class_sniper_d",
 	"../hud/leaderboard_class_soldier_d",
@@ -1874,6 +1898,7 @@ const char *g_pszClassIcons[SCOREBOARD_CLASS_ICONS] =
 	"../hud/leaderboard_class_pyro_d",
 	"../hud/leaderboard_class_spy_d",
 	"../hud/leaderboard_class_engineer_d",
+	"../hud/leaderboard_class_civilian_d",
 };
 
 const char *g_pszClassIconsAlt[SCOREBOARD_CLASS_ICONS] =
@@ -1888,6 +1913,7 @@ const char *g_pszClassIconsAlt[SCOREBOARD_CLASS_ICONS] =
 	"class_icons/class_icon_orange_pyro",
 	"class_icons/class_icon_orange_spy",
 	"class_icons/class_icon_orange_engineer",
+	"class_icons/class_icon_orange_civilian",
 	"class_icons/class_icon_orange_scout_d",
 	"class_icons/class_icon_orange_sniper_d",
 	"class_icons/class_icon_orange_soldier_d",
@@ -1897,6 +1923,7 @@ const char *g_pszClassIconsAlt[SCOREBOARD_CLASS_ICONS] =
 	"class_icons/class_icon_orange_pyro_d",
 	"class_icons/class_icon_orange_spy_d",
 	"class_icons/class_icon_orange_engineer_d",
+	"class_icons/class_icon_orange_civilian_d",
 };
 
 const char *g_pszItemClassImagesRed[] =

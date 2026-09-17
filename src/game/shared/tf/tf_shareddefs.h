@@ -221,10 +221,10 @@ enum ETFClass
 	TF_CLASS_RANDOM
 };
 
-inline bool IsValidTFPlayerClass( int iClass ) { return iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_LAST_NORMAL_CLASS; }
+inline bool IsValidTFPlayerClass( int iClass ) { return iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT; }
 inline bool IsValidTFTeam( int iTeam ) { return iTeam == TF_TEAM_RED || iTeam == TF_TEAM_BLUE; }
 
-#define FOR_EACH_NORMAL_PLAYER_CLASS( _i ) for ( int _i = TF_FIRST_NORMAL_CLASS; _i < TF_LAST_NORMAL_CLASS; _i++ )
+#define FOR_EACH_NORMAL_PLAYER_CLASS( _i ) for ( int _i = TF_FIRST_NORMAL_CLASS; _i < TF_CLASS_COUNT; _i++ )
 
 extern const char *g_aPlayerClassNames[TF_CLASS_MENU_BUTTONS];				// localization keys
 extern const char *g_aPlayerClassNames_NonLocalized[TF_CLASS_MENU_BUTTONS];	// non-localized class names
@@ -515,6 +515,8 @@ enum ETFWeaponType
 	TF_WEAPON_GRENADE_JAR_GAS,
 	TF_WEAPON_FLAME_BALL,
 
+	TF_WEAPON_TFC_CROWBAR,
+	TF_WEAPON_TFC_UMBRELLA,
 
 	//
 	// ADD NEW WEAPONS HERE TO AVOID BREAKING DEMOS
@@ -636,7 +638,7 @@ extern const char *g_pszInvasionMaps[];
 bool IsPlayingInvasionMap( void );
 
 #define SCOREBOARD_DOMINATION_ICONS		17
-#define SCOREBOARD_CLASS_ICONS			19
+#define SCOREBOARD_CLASS_ICONS			( 1 + 2 * ( TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS + 1 ) )
 #define SCOREBOARD_PING_ICONS			6
 
 extern const char *g_pszClassIcons[];
@@ -822,6 +824,9 @@ enum ETFCond
 	TF_COND_HALLOWEEN_HELL_HEAL              = 128,
 	TF_COND_POWERUPMODE_DOMINANT			 = 129,
 	TF_COND_IMMUNE_TO_PUSHBACK				 = 130,
+	FC_COND_DEFENSEBUFF_CIVILIAN			 = 131,
+	FC_COND_CIVILIAN_ENERGY_BUFF			 = 132,
+	
 		//
 	// ADD NEW ITEMS HERE TO AVOID BREAKING DEMOS
 	//
