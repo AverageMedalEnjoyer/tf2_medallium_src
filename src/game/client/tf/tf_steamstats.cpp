@@ -72,6 +72,12 @@ StatMap_t g_SteamStats_Spy[] = {
 	{ NULL,						0,							0,								},
 };
 
+StatMap_t g_SteamStats_Civilian[] = {
+	{ "iKillAssists",	        TFSTAT_KILLASSISTS,			PROPERTY_KILL_ASSISTS,	},
+	{ "iHealthPointsHealed",	TFSTAT_HEALING,				PROPERTY_HEALTH_POINTS_HEALED,	},
+	{ NULL,						0,							0,								},
+};
+
 StatMap_t* g_SteamStats_Class[] = {
 	NULL,					// Undefined
 	NULL,					// Scout
@@ -83,6 +89,7 @@ StatMap_t* g_SteamStats_Class[] = {
 	g_SteamStats_Pyro,		// Pyro
 	g_SteamStats_Spy,		// Spy
 	g_SteamStats_Engineer,	// Engineer
+	g_SteamStats_Civilian   // Civilian
 };
 
 // subset of map stats which we store in Steam
