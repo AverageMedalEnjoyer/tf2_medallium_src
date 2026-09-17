@@ -226,6 +226,7 @@ int iRemapIndexToClass[TF_CLASS_MENU_BUTTONS] =
 		TF_CLASS_SNIPER,
 		TF_CLASS_SPY,
 		TF_CLASS_CIVILIAN,
+		TF_CLASS_NONE,
 		0,
 		TF_CLASS_RANDOM
 };
@@ -1630,7 +1631,7 @@ const unsigned char *GetTFEncryptionKey( void )
 struct wpntranslation_class_weapons_t
 {
 	const char *pszWpnString;
-	const char *pszClassWpn[TF_CLASS_COUNT];
+	const char *pszClassWpn[TF_LAST_NORMAL_CLASS];
 };
 
 wpntranslation_class_weapons_t pszWpnEntTranslationList[] = 
@@ -1777,7 +1778,7 @@ const char *TranslateWeaponEntForClass( const char *pszName, int iClass )
 	if ( pszName )
 	{
 		// Guard against an out-of-bounds class index reading past the end of pszClassWpn[].
-		if ( iClass < 0 || iClass >= TF_CLASS_COUNT )
+		if ( iClass < 0 || iClass >= TF_LAST_NORMAL_CLASS )
 		{
 			Warning( false, "TranslateWeaponEntForClass: iClass %d out of range", iClass );
 			return pszName;
