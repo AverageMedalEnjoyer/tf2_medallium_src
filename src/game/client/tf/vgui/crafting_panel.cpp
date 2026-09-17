@@ -563,7 +563,7 @@ void CCraftingPanel::UpdateRecipeItems( bool bClearInputItems )
 			{
 				vecItemsByClass[0].AddToTail( pSOCData );
 			}
-			for (int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_CLASS_COUNT; iClass++ )
+			for (int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
 			{
 				if ( pItemDef->CanBeUsedByClass(iClass) )
 				{

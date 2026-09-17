@@ -521,7 +521,7 @@ void C_CTFGameStats::SW_GameStats_WriteClientSessionSummary()
 	pKVData->SetInt( "TimesOpenedServerBrowser", sb_numtimesopened.GetInt() );
 
 	int iClassesPlayed = 0;
-	for ( int i=TF_FIRST_NORMAL_CLASS; i<TF_CLASS_COUNT; ++i )
+	for ( int i=TF_FIRST_NORMAL_CLASS; i<TF_LAST_NORMAL_CLASS; ++i )
 	{
 		if ( m_currentSession.m_ClassesPlayed.IsBitSet( i ) )
 		{

@@ -208,7 +208,7 @@ void CMvMWaveLossPanel::ShowPanel()
 		}
 
 		// Make sure we only use captain canteen once
-		bool bUsedCaptainCanteen = ( iClassUsed == TF_CLASS_COUNT - 1 );
+		bool bUsedCaptainCanteen = ( iClassUsed == TF_LAST_NORMAL_CLASS );
 		
 		m_pHintContainer->SetDialogVariable( "hint2", g_TFTips.GetRandomMvMTip( iClassUsed ) );
 
@@ -217,7 +217,7 @@ void CMvMWaveLossPanel::ShowPanel()
 			SetHintImage( m_pHintImage2, iClassUsed, bShowCaptainCanteen && !bUsedCaptainCanteen );
 		}
 
-		if ( !bUsedCaptainCanteen && iClassUsed != TF_CLASS_COUNT - 1 )
+		if ( !bUsedCaptainCanteen && iClassUsed != TF_LAST_NORMAL_CLASS )
 		{
 			// We didn't use captain canteen, hide him
 			if ( m_pCaptainCanteenBody )
@@ -268,7 +268,7 @@ void CMvMWaveLossPanel::SetHintImage( vgui::ImagePanel *panel, int iClassUsed, b
 	if ( !panel )
 		return;
 
-	if ( bAllowCaptainCanteen && iClassUsed == TF_CLASS_COUNT - 1 )
+	if ( bAllowCaptainCanteen && iClassUsed == TF_LAST_NORMAL_CLASS )
 	{
 		// Hide the normal tip image
 		panel->SetVisible( false );

@@ -936,7 +936,7 @@ void CVoteSetupDialog::RefreshIssueParameters()
 					}
 
 					int iClass = g_TF_PR->GetPlayerClass( playerIndex );
-					if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT )
+					if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass <= TF_LAST_NORMAL_CLASS )
 						pKeyValues->SetInt( "Class", m_iImageClass[ iClass ] );
 					else
 						pKeyValues->SetInt( "Class", -1 );

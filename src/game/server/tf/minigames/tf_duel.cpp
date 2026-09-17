@@ -108,7 +108,7 @@ static void UpdateDuelScore( CTFPlayer *pKiller, CTFPlayer *pVictim, eDuelScoreT
 		{
 			// if we have a class restriction...
 			bool bCountScore = true;
-			if ( duel.m_iPlayerClass >= TF_FIRST_NORMAL_CLASS && duel.m_iPlayerClass < TF_CLASS_COUNT )
+			if ( duel.m_iPlayerClass >= TF_FIRST_NORMAL_CLASS && duel.m_iPlayerClass < TF_LAST_NORMAL_CLASS )
 			{
 				bCountScore = ( pKiller->GetPlayerClass() != NULL && duel.m_iPlayerClass == pKiller->GetPlayerClass()->GetClassIndex() &&
 								pVictim->GetPlayerClass() != NULL && duel.m_iPlayerClass == pVictim->GetPlayerClass()->GetClassIndex() );
@@ -212,7 +212,7 @@ public:
 		duel.m_steamIDTarget = msg.Body().m_ulTargetSteamID;
 		duel.m_iPlayerClass = msg.Body().m_usAsPlayerClass;
 
-		if ( duel.m_iPlayerClass >= TF_FIRST_NORMAL_CLASS && duel.m_iPlayerClass < TF_CLASS_COUNT )
+		if ( duel.m_iPlayerClass >= TF_FIRST_NORMAL_CLASS && duel.m_iPlayerClass < TF_LAST_NORMAL_CLASS )
 		{
 			CTFPlayer *pPlayer_Initiator = ToTFPlayer( GetPlayerBySteamID( msg.Body().m_ulInitiatorSteamID ) );
 			CTFPlayer *pPlayer_Target = ToTFPlayer( GetPlayerBySteamID( msg.Body().m_ulTargetSteamID ) );

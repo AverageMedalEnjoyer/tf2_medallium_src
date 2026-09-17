@@ -407,7 +407,7 @@ void CreateBotName( int iTeam, int iClassIndex, CTFBot::DifficultyType skill, ch
 
 		// get the class name
 		wchar_t *pLocalizedName = NULL;
-		if ( iClassIndex >= TF_FIRST_NORMAL_CLASS && iClassIndex < TF_CLASS_COUNT )
+		if ( iClassIndex >= TF_FIRST_NORMAL_CLASS && iClassIndex < TF_LAST_NORMAL_CLASS )
 		{
 			pLocalizedName = g_pVGuiLocalize->Find( g_aPlayerClassNames[ iClassIndex ] );
 		}
@@ -1331,7 +1331,7 @@ ETFClass CTFBot::GetPresetClassToSpawn() const
 
     // First fallback: Prefer current class.
     ETFClass current = (ETFClass)GetPlayerClass()->GetClassIndex();
-    if ( current >= TF_FIRST_NORMAL_CLASS && current < TF_CLASS_COUNT )
+    if ( current >= TF_FIRST_NORMAL_CLASS && current < TF_LAST_NORMAL_CLASS )
         return current;
 
 	// ABSOLUTE FALLBACK: If all else fails, and every class we could play is unavailable, just choose a random class, so we don't get stuck in limbo.

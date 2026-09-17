@@ -1445,7 +1445,7 @@ void CTFClassMenu::UpdateNumClassLabels( int iTeam )
 		}
 	}
 
-	for( int i = TF_FIRST_NORMAL_CLASS ; i < TF_CLASS_COUNT; i++ )
+	for( int i = TF_FIRST_NORMAL_CLASS ; i <= TF_LAST_NORMAL_CLASS ; i++ )
 	{
 		if ( bSpectator == true )
 		{

@@ -1827,7 +1827,7 @@ public:
 
 		const char *pText = localSteamID == steamIDTarget ? "TF_Duel_Request" : "TF_Duel_Challenge";
 		const char *pSoundFilename = "ui/duel_challenge.wav";
-		if ( msg.Body().m_usAsPlayerClass >= TF_FIRST_NORMAL_CLASS && msg.Body().m_usAsPlayerClass < TF_CLASS_COUNT )
+		if ( msg.Body().m_usAsPlayerClass >= TF_FIRST_NORMAL_CLASS && msg.Body().m_usAsPlayerClass < TF_LAST_NORMAL_CLASS )
 		{
 			pText = localSteamID == steamIDTarget ? "TF_Duel_Request_Class" : "TF_Duel_Challenge_Class";
 			pSoundFilename = "ui/duel_challenge_with_restriction.wav";
@@ -1897,7 +1897,7 @@ public:
 		pKeyValues->SetWString( "initiator", wszPlayerName_Initiator );
 		pKeyValues->SetWString( "target", wszPlayerName_Target );
 
-		bool bIsClassDuel = msg.Body().m_usAsPlayerClass >= TF_FIRST_NORMAL_CLASS && msg.Body().m_usAsPlayerClass < TF_CLASS_COUNT;
+		bool bIsClassDuel = msg.Body().m_usAsPlayerClass >= TF_FIRST_NORMAL_CLASS && msg.Body().m_usAsPlayerClass < TF_LAST_NORMAL_CLASS;
 
 		// add notification
 		const char *pText = "TF_Duel_Accept";
@@ -2323,7 +2323,7 @@ void CSelectPlayerForDuelDialog::OnShowClassIconMouseover( KeyValues *data )
 	{
 		// Set the text to the correct string
 		int iClass = data->GetInt( "class", 0 );
-		if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_CLASS_COUNT )
+		if ( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_LAST_NORMAL_CLASS )
 		{
 			wchar_t wzLocalized[256];
 			const char *pszLocString = "#TF_SelectPlayer_Duel_PlayerClass";

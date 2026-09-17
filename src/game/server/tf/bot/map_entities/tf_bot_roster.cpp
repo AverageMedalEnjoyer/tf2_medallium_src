@@ -96,7 +96,7 @@ void CTFBotRoster::InputSetAllowEngineer( inputdata_t &inputdata )
 
 bool CTFBotRoster::IsClassAllowed( int iBotClass ) const
 {
-	return iBotClass > TF_CLASS_UNDEFINED && iBotClass < TF_CLASS_COUNT && m_bAllowedClasses[iBotClass];
+	return iBotClass > TF_CLASS_UNDEFINED && iBotClass < TF_LAST_NORMAL_CLASS && m_bAllowedClasses[iBotClass];
 }
 
 //------------------------------------------------------------------------------
