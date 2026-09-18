@@ -273,7 +273,7 @@ void CTFWeaponBaseMelee::SecondaryAttack()
 		{
 			SendWeaponAnim( ACT_VM_SECONDARYATTACK );
 
-			int flBuffDuration = 8;
+			int flBuffDuration = 10;
 			CALL_ATTRIB_HOOK_INT_ON_OTHER( pPlayer, flBuffDuration, mult_umbrella_buff_duration );
 
 			// Get our boost type
