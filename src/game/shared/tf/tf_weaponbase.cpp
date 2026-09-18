@@ -1907,7 +1907,7 @@ float CTFWeaponBase::ApplyFireDelay( float flDelay ) const
 	int iNoScope = 0;
 	CALL_ATTRIB_HOOK_INT( iNoScope, no_sniper_scope );
 
-	if ( pPlayer->m_Shared.InCond( TF_COND_SNIPERCHARGE_RAGE_BUFF ) && iNoScope )
+	if ( iNoScope && pPlayer && pPlayer->m_Shared.InCond( TF_COND_SNIPERCHARGE_RAGE_BUFF ) )
 	{
 		flDelayMult *= 0.40f; // 60% faster firing speed when rage buffed and no scope
 	}
