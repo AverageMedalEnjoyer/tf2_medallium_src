@@ -6543,8 +6543,11 @@ void CTFWeaponBase::CheckReload( void )
 //-----------------------------------------------------------------------------
 float CTFWeaponBase::GetEffectBarProgress( void )
 {
+	int iAltFireBoosts = 0;
+	CALL_ATTRIB_HOOK_INT( iAltFireBoosts, altfire_boosts_teammates );
+
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
-	if ( GetWeaponID() == TF_WEAPON_TFC_UMBRELLA || ( pPlayer && pPlayer->GetAmmoCount( GetEffectBarAmmo() ) < pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
+	if ( iAltFireBoosts || ( pPlayer && pPlayer->GetAmmoCount( GetEffectBarAmmo() ) < pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
 	{
 		float flTime = Max( GetEffectBarRechargeTime(), FLT_EPSILON );
 		float flProgress = (flTime - (m_flEffectBarRegenTime - gpGlobals->curtime)) / flTime;
@@ -6559,10 +6562,13 @@ float CTFWeaponBase::GetEffectBarProgress( void )
 //-----------------------------------------------------------------------------
 void CTFWeaponBase::StartEffectBarRegen( void )
 {
+    int iAltFireBoosts = 0;
+	CALL_ATTRIB_HOOK_INT( iAltFireBoosts, altfire_boosts_teammates );
+
 	// Only reset regen if its less then curr time or we were full
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
 	bool bWasFull = false;
-	if ( GetWeaponID() != TF_WEAPON_TFC_UMBRELLA && pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) + 1 == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
+	if ( !iAltFireBoosts && pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) + 1 == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
 	{
 		bWasFull = true;
 	}
@@ -6581,9 +6587,12 @@ void CTFWeaponBase::CheckEffectBarRegen( void )
 	if ( !m_flEffectBarRegenTime )
 		return;
 	
+	int iAltFireBoosts = 0;
+	CALL_ATTRIB_HOOK_INT( iAltFireBoosts, altfire_boosts_teammates );
+
 	// If we're full stop the timer.  Fixes a bug with "double" throws after respawning or touching a supply cab
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
-	if ( GetWeaponID() != TF_WEAPON_TFC_UMBRELLA && pPlayer->GetAmmoCount( GetEffectBarAmmo() ) == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) )
+	if ( !iAltFireBoosts && pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
 	{
 		m_flEffectBarRegenTime = 0;
 		return;
@@ -6601,8 +6610,11 @@ void CTFWeaponBase::CheckEffectBarRegen( void )
 //-----------------------------------------------------------------------------
 void CTFWeaponBase::EffectBarRegenFinished( void )
 {
+	int iAltFireBoosts = 0;
+	CALL_ATTRIB_HOOK_INT( iAltFireBoosts, altfire_boosts_teammates );
+
 	// The umbrella recharges its boost without using ammunition.
-	if ( GetWeaponID() == TF_WEAPON_TFC_UMBRELLA )
+	if ( iAltFireBoosts )
 		return;
 
 	CTFPlayer *pPlayer = GetTFPlayerOwner();

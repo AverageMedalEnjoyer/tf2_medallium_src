@@ -53,6 +53,7 @@ private:
 //	CTFCUmbrella( const CTFCUmbrella & ) {}
 //};
 
+/*
 class CTFCUmbrella : public CTFWeaponBaseMelee
 {
 public:
@@ -94,5 +95,6 @@ private:
 	CNetworkVar(float, m_flNextFireTime);
 	CNetworkVar(bool, m_bFiring);
 };
+*/
 
 #endif // TF_WEAPON_CROWBAR_H

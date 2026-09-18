@@ -50,6 +50,20 @@ PRECACHE_WEAPON_REGISTER( tf_weapon_bat );
 // -- TFBat
 
 
+// Umbrella --
+IMPLEMENT_NETWORKCLASS_ALIASED( TFUmbrella, DT_TFWeaponUmbrella )
+
+BEGIN_NETWORK_TABLE( CTFUmbrella, DT_TFWeaponUmbrella )
+END_NETWORK_TABLE()
+
+BEGIN_PREDICTION_DATA( CTFUmbrella )
+END_PREDICTION_DATA()
+
+LINK_ENTITY_TO_CLASS( tf_weapon_umbrella, CTFUmbrella );
+PRECACHE_WEAPON_REGISTER( tf_weapon_umbrella );
+// -- Umbrella
+
+
 // TFBat_Fish --
 IMPLEMENT_NETWORKCLASS_ALIASED( TFBat_Fish, DT_TFWeaponBat_Fish )
 
@@ -173,6 +187,20 @@ void CTFBat::PlayDeflectionSound( bool bPlayer )
 {
 	WeaponSound( MELEE_HIT_WORLD );
 }
+
+//=============================================================================
+//
+// Umbrella
+//
+CTFUmbrella::CTFUmbrella()
+{
+}
+
+void CTFUmbrella::Smack( void )
+{
+	BaseClass::Smack();
+}
+//=============================================================================
 
 //=============================================================================
 //

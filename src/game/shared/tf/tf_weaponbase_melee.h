@@ -44,7 +44,11 @@ public:
 	virtual void	ItemPostFrame();
 	virtual void	Spawn();
 	virtual void	PrimaryAttack();
-	virtual void	SecondaryAttack();
+    virtual void	SecondaryAttack();
+	virtual bool		HasChargeBar( void );
+	virtual float		InternalGetEffectBarRechargeTime( void );
+	virtual const char	*GetEffectLabelText( void );
+	virtual float		GetProgress( void );
 	virtual bool	Holster( CBaseCombatWeapon *pSwitchingTo );
 	virtual int		GetWeaponID( void ) const						{ return TF_WEAPON_NONE; }
 	virtual int		GetSwingRange( void );

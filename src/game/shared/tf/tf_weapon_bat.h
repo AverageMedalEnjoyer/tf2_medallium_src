@@ -23,6 +23,7 @@
 #define CTFStunBall C_TFStunBall
 #define CTFBat_Giftwrap C_TFBat_Giftwrap
 #define CTFBall_Ornament C_TFBall_Ornament
+#define CTFUmbrella C_TFUmbrella
 #endif
 
 
@@ -49,6 +50,26 @@ private:
 	CTFBat( const CTFBat & ) {}
 };
 
+//=============================================================================
+//
+// Umbrella class.
+//
+class CTFUmbrella : public CTFWeaponBaseMelee
+{
+public:
+	DECLARE_CLASS( CTFUmbrella, CTFWeaponBaseMelee );
+	DECLARE_NETWORKCLASS(); 
+	DECLARE_PREDICTABLE();
+
+	CTFUmbrella();
+
+	virtual int			GetWeaponID( void ) const			{ return TF_WEAPON_UMBRELLA; }
+	virtual void		Smack( void );
+
+private:
+
+	CTFUmbrella( const CTFUmbrella & ) {}
+};
 
 //=============================================================================
 //

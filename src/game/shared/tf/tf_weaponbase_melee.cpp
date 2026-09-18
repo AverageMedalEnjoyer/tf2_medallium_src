@@ -24,6 +24,7 @@
 #endif
 
 ConVar tf_weapon_criticals_melee( "tf_weapon_criticals_melee", "1", FCVAR_REPLICATED | FCVAR_NOTIFY, "Controls random crits for melee weapons. 0 - Melee weapons do not randomly crit. 1 - Melee weapons can randomly crit only if tf_weapon_criticals is also enabled. 2 - Melee weapons can always randomly crit regardless of the tf_weapon_criticals setting." );
+ConVar tf2m_civilian_buff_range( "tf2m_civilian_buff_range", "3000.0", FCVAR_NONE, "Sets the distance a melee with altfire_boosts_teammates can buff teammates." );
 
 //=============================================================================
 //
@@ -233,6 +234,79 @@ void CTFWeaponBaseMelee::PrimaryAttack()
 // -----------------------------------------------------------------------------
 void CTFWeaponBaseMelee::SecondaryAttack()
 {
+    int iAltFireBoosts = 0;
+	CALL_ATTRIB_HOOK_INT( iAltFireBoosts, altfire_boosts_teammates );
+
+	// Umbrella Boost
+	if ( iAltFireBoosts )
+	{
+		if ( m_flNextPrimaryAttack > gpGlobals->curtime || m_flNextSecondaryAttack > gpGlobals->curtime )
+			return;
+
+		CTFPlayer *pPlayer = GetTFPlayerOwner();
+		if ( !pPlayer || !pPlayer->CanAttack() || GetEffectBarProgress() < 1.0f )
+			return;
+
+		float flBuffRange = tf2m_civilian_buff_range.GetFloat();
+		CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pPlayer, flBuffRange, mult_umbrella_buff_range );
+
+		trace_t tr;
+		Vector vecStart, vecEnd, vecDir;
+		AngleVectors( pPlayer->EyeAngles(), &vecDir );
+
+		vecStart = pPlayer->EyePosition();
+		vecEnd   = vecStart + ( vecDir * flBuffRange );
+
+		CTraceFilterSimple filter( pPlayer, COLLISION_GROUP_NONE );
+		UTIL_TraceLine( vecStart, vecEnd, MASK_ALL, &filter, &tr );
+
+		if ( tr.DidHitWorld() || !tr.m_pEnt )
+			return;
+
+		CTFPlayer *pTarget = ToTFPlayer( tr.m_pEnt );
+		if ( !pTarget || !pTarget->IsAlive() )
+			return;
+
+		if ( pPlayer->InSameTeam( tr.m_pEnt ) ||
+			 ( pTarget && pTarget->m_Shared.InCond( TF_COND_DISGUISED ) &&
+			   pTarget->m_Shared.GetDisguiseTeam() == pPlayer->GetTeamNumber() ) )
+		{
+			SendWeaponAnim( ACT_VM_SECONDARYATTACK );
+
+			int flBuffDuration = 8;
+			CALL_ATTRIB_HOOK_INT_ON_OTHER( pPlayer, flBuffDuration, mult_umbrella_buff_duration );
+
+			// Get our boost type
+			int iMode = 0;
+			CALL_ATTRIB_HOOK_INT( iMode, set_buff_type );
+			ETFCond eBuff = TF2M_COND_CIVILIAN_ENERGY_BUFF;
+			switch ( iMode )
+			{
+			case 2:  eBuff = TF_COND_REGENONDAMAGEBUFF; break;
+			default: eBuff = TF2M_COND_CIVILIAN_ENERGY_BUFF; break;
+			}
+
+			pTarget->m_Shared.AddCond( eBuff, flBuffDuration );
+
+			SendWeaponAnim( ACT_MP_GESTURE_VC_FINGERPOINT_MELEE );
+			pPlayer->DoAnimationEvent( PLAYERANIMEVENT_CUSTOM_GESTURE, ACT_MP_GESTURE_VC_FINGERPOINT_MELEE );
+		}
+		else
+		{
+			return;		// invalid target, do not start the cooldown.
+		}
+
+		m_flNextPrimaryAttack   = gpGlobals->curtime + 1.0f;
+		m_flNextSecondaryAttack = gpGlobals->curtime + GetEffectBarRechargeTime();
+		StartEffectBarRegen();
+
+#ifdef GAME_DLL
+		if ( pPlayer->m_Shared.InCond( TF_COND_STEALTHED ) )
+			pPlayer->RemoveInvisibility();
+#endif
+		return;
+	}
+
 	if ( !CanAttack() )
 		return;
 
@@ -247,6 +321,50 @@ void CTFWeaponBaseMelee::SecondaryAttack()
 
 
 	m_flNextSecondaryAttack = gpGlobals->curtime + GetNextSecondaryAttackDelay(); // default: 0.5f
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+bool CTFWeaponBaseMelee::HasChargeBar( void )
+{
+	int iAltFireBoosts = 0;
+	CALL_ATTRIB_HOOK_INT( iAltFireBoosts, altfire_boosts_teammates );
+	return iAltFireBoosts > 0;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+float CTFWeaponBaseMelee::InternalGetEffectBarRechargeTime( void )
+{
+	// Umbrella Boost
+	CTFPlayer *pPlayer = GetTFPlayerOwner();
+	if ( !pPlayer )
+		return 15.0f;
+
+	float flMultRechargeRate = 1.0f;
+	CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pPlayer, flMultRechargeRate, item_meter_charge_rate );
+	CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pPlayer, flMultRechargeRate, mult_item_meter_charge_rate );
+
+	float flRechargeTime = 15.0f;
+	return flRechargeTime * flMultRechargeRate;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+const char *CTFWeaponBaseMelee::GetEffectLabelText( void )
+{
+	return "Boost";
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+float CTFWeaponBaseMelee::GetProgress( void )
+{
+	return GetEffectBarProgress();
 }
 
 //-----------------------------------------------------------------------------

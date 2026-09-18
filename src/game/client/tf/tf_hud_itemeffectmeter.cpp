@@ -325,7 +325,7 @@ void CHudItemEffectMeter::CreateHudElementsForClass( C_TFPlayer* pPlayer, CUtlVe
 		break;
 
 	case TF_CLASS_CIVILIAN:
-		DECLARE_ITEM_EFFECT_METER( CTFCUmbrella, TF_WEAPON_TFC_UMBRELLA, true, "resource/UI/HudItemEffectMeter.res" );
+		//DECLARE_ITEM_EFFECT_METER( CTFCUmbrella, TF_WEAPON_TFC_UMBRELLA, true, "resource/UI/HudItemEffectMeter.res" );
 		break;
 
 	case TF_CLASS_ENGINEER:
@@ -354,6 +354,8 @@ void CHudItemEffectMeter::CreateHudElementsForClass( C_TFPlayer* pPlayer, CUtlVe
 
 	// Kill Streak
 	DECLARE_ITEM_EFFECT_METER( CTFWeaponBase, TF_WEAPON_NONE, false, "resource/UI/HudItemEffectMeter_KillStreak.res" );
+
+    DECLARE_ITEM_EFFECT_METER( CTFWeaponBaseMelee, TF_WEAPON_NONE, true, "resource/UI/HudItemEffectMeter.res" );
 
 	DECLARE_ITEM_EFFECT_METER( CTFSpellBook, TF_WEAPON_SPELLBOOK, true, "resource/UI/HudItemEffectMeter_KartCharge.res" );
 	/*hNewMeter = new CHudItemEffectMeter_HalloweenSouls( pszElementName, pPlayer );
@@ -768,6 +770,46 @@ template <>
 bool CHudItemEffectMeter_Weapon<CTFWeaponBase>::IsKillstreakMeter( void )
 {
 	return true;
+}
+
+//-----------------------------------------------------------------------------
+template <>
+CTFWeaponBaseMelee *CHudItemEffectMeter_Weapon<CTFWeaponBaseMelee>::GetWeapon( void )
+{
+	if ( m_bEnabled && m_pPlayer && !m_hWeapon )
+	{
+		for ( int i = 0; i < MAX_WEAPONS; i++ )
+		{
+			CBaseCombatWeapon *pWeapon = m_pPlayer->GetWeapon( i );
+			if ( !pWeapon )
+				continue;
+
+			CTFWeaponBaseMelee *pMelee = dynamic_cast<CTFWeaponBaseMelee *>( pWeapon );
+			if ( pMelee && pMelee->HasChargeBar() )
+			{
+				m_hWeapon = pMelee;
+				break;
+			}
+		}
+
+		if ( !m_hWeapon )
+		{
+			m_bEnabled = false;
+		}
+	}
+
+	return m_hWeapon;
+}
+
+//-----------------------------------------------------------------------------
+template <>
+bool CHudItemEffectMeter_Weapon<CTFWeaponBaseMelee>::IsEnabled( void )
+{
+	if ( !m_pPlayer )
+		return false;
+
+	CTFWeaponBaseMelee *pWeapon = GetWeapon();
+	return ( pWeapon && pWeapon->HasChargeBar() );
 }
 
 //-----------------------------------------------------------------------------
