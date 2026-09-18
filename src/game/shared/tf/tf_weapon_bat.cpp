@@ -64,6 +64,20 @@ PRECACHE_WEAPON_REGISTER( tf_weapon_umbrella );
 // -- Umbrella
 
 
+// Crowbar --
+IMPLEMENT_NETWORKCLASS_ALIASED( TFCrowbar, DT_TFWeaponCrowbar)
+
+BEGIN_NETWORK_TABLE( CTFCrowbar, DT_TFWeaponCrowbar )
+END_NETWORK_TABLE()
+
+BEGIN_PREDICTION_DATA( CTFCrowbar )
+END_PREDICTION_DATA()
+
+LINK_ENTITY_TO_CLASS( tf_weapon_crowbar, CTFCrowbar );
+PRECACHE_WEAPON_REGISTER( tf_weapon_crowbar );
+// -- Crowbar
+
+
 // TFBat_Fish --
 IMPLEMENT_NETWORKCLASS_ALIASED( TFBat_Fish, DT_TFWeaponBat_Fish )
 
@@ -197,6 +211,18 @@ CTFUmbrella::CTFUmbrella()
 }
 
 void CTFUmbrella::Smack( void )
+{
+	BaseClass::Smack();
+}
+//=============================================================================
+//
+// CTFCrowbar
+//
+CTFCrowbar::CTFCrowbar()
+{
+}
+
+void CTFCrowbar::Smack(void)
 {
 	BaseClass::Smack();
 }

@@ -24,6 +24,7 @@
 #define CTFBat_Giftwrap C_TFBat_Giftwrap
 #define CTFBall_Ornament C_TFBall_Ornament
 #define CTFUmbrella C_TFUmbrella
+#define CTFCrowbar C_TFCrowbar
 #endif
 
 
@@ -69,6 +70,27 @@ public:
 private:
 
 	CTFUmbrella( const CTFUmbrella & ) {}
+};
+
+//=============================================================================
+//
+// Crowbar class.
+//
+class CTFCrowbar : public CTFWeaponBaseMelee
+{
+public:
+	DECLARE_CLASS(CTFCrowbar, CTFWeaponBaseMelee);
+	DECLARE_NETWORKCLASS();
+	DECLARE_PREDICTABLE();
+
+	CTFCrowbar();
+
+	virtual int			GetWeaponID(void) const { return TF_WEAPON_CROWBAR; }
+	virtual void		Smack(void);
+
+private:
+
+	CTFCrowbar(const CTFCrowbar&) {}
 };
 
 //=============================================================================

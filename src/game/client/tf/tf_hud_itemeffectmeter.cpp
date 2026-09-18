@@ -35,7 +35,6 @@
 #include "tf_weapon_rocketpack.h"
 #include "tf_weapon_bonesaw.h"
 #include "tf_weapon_slap.h"
-#include "tf_weapon_tfc_crowbar.h"
 
 #include <vgui_controls/ImagePanel.h>
 
