@@ -88,7 +88,7 @@ ConVar tf_medigun_lagcomp(  "tf_medigun_lagcomp", "1", FCVAR_DEVELOPMENTONLY );
 
 ConVar weapon_vaccinator_resist_duration( "weapon_vaccinator_resist_duration", "3", FCVAR_CHEAT | FCVAR_REPLICATED | FCVAR_DEVELOPMENTONLY, "Amount of time it takes the a full charge of the vaccinator to be released." );
 
-ConVar fc_civilian_buff_boost( "fc_civilian_buff_boost", "1.35", FCVAR_NOTIFY | FCVAR_REPLICATED, "Sets the multiplier Civilian can boost uber gain and healing on the medigun with his umbrella." );
+ConVar tf2m_civilian_buff_boost( "tf2m_civilian_buff_boost", "1.35", FCVAR_NOTIFY | FCVAR_REPLICATED, "Sets the multiplier Civilian can boost uber gain and healing on the medigun with his umbrella." );
 
 static const char *s_pszMedigunHealTargetThink = "MedigunHealTargetThink";
 
@@ -519,9 +519,9 @@ float CWeaponMedigun::GetHealRate( void )
 	}
 
 	CTFPlayer *pOwner = ToTFPlayer( GetOwnerEntity() );
-	if ( pOwner && pOwner->m_Shared.InCond( FC_COND_CIVILIAN_ENERGY_BUFF ) )
+	if ( pOwner && pOwner->m_Shared.InCond( TF2M_COND_CIVILIAN_ENERGY_BUFF ) )
 	{
-		flHealRate *= fc_civilian_buff_boost.GetFloat();
+		flHealRate *= tf2m_civilian_buff_boost.GetFloat();
 	}
 
 	if ( TFGameRules() && TFGameRules()->IsPowerupMode() )
@@ -1275,9 +1275,9 @@ bool CWeaponMedigun::FindAndHealTargets( void )
 
 			if ( pTFPlayer && weapon_medigun_charge_rate.GetFloat() )
 			{
-				if ( pOwner->m_Shared.InCond( FC_COND_CIVILIAN_ENERGY_BUFF ) )
+				if ( pOwner->m_Shared.InCond( TF2M_COND_CIVILIAN_ENERGY_BUFF ) )
 				{
-					flChargeAmount *= fc_civilian_buff_boost.GetFloat();
+					flChargeAmount *= tf2m_civilian_buff_boost.GetFloat();
 				}
 #ifdef GAME_DLL
 				int iBoostMax = floor( pTFPlayer->m_Shared.GetMaxBuffedHealth() * 0.95);

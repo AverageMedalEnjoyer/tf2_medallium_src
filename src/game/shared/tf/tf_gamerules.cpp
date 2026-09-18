@@ -6225,7 +6225,7 @@ bool CTFGameRules::ApplyOnDamageModifyRules( CTakeDamageInfo &info, CBaseEntity 
 				info.SetCritType( CTakeDamageInfo::CRIT_MINI );
 				eBonusEffect = kBonusEffect_MiniCrit;
 			}
-			else if ( pTFAttacker && pTFAttacker->m_Shared.InCond( FC_COND_CIVILIAN_ENERGY_BUFF ) )
+			else if ( pTFAttacker && pTFAttacker->m_Shared.InCond( TF2M_COND_CIVILIAN_ENERGY_BUFF ) )
 			{
 				info.SetCritType( CTakeDamageInfo::CRIT_MINI );
 				eBonusEffect = kBonusEffect_MiniCrit;
@@ -6559,7 +6559,7 @@ bool CTFGameRules::ApplyOnDamageModifyRules( CTakeDamageInfo &info, CBaseEntity 
 					flDamage *= 0.65f;
 				}
 			}
-			else if ( pVictim->m_Shared.InCond( FC_COND_DEFENSEBUFF_CIVILIAN ) )
+			else if ( pVictim->m_Shared.InCond( TF2M_COND_DEFENSEBUFF_CIVILIAN ) )
 			{
 				// Old FC: 6.66% resistance to crits and mini-crits, 20% otherwise.
 				const bool bCriticalDamage = ( bitsDamage & DMG_CRITICAL ) || info.GetCritType() == CTakeDamageInfo::CRIT_MINI;

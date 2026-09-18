@@ -1356,7 +1356,7 @@ bool CTFPlayerShared::IsBuffed(void)
 	if (InCond(TF_COND_OFFENSEBUFF) ||
 		InCond(TF_COND_DEFENSEBUFF) ||
 		InCond(TF_COND_REGENONDAMAGEBUFF) ||
-		InCond(FC_COND_DEFENSEBUFF_CIVILIAN))
+		InCond(TF2M_COND_DEFENSEBUFF_CIVILIAN))
 		return true;
 
 	return false;
@@ -1871,7 +1871,7 @@ void CTFPlayerShared::OnConditionAdded( ETFCond eCond )
 		OnAddPlague();
 		break;
 
-	case FC_COND_DEFENSEBUFF_CIVILIAN:
+	case TF2M_COND_DEFENSEBUFF_CIVILIAN:
 		OnAddCivBuff();
 		break;
 
@@ -2203,7 +2203,7 @@ void CTFPlayerShared::OnConditionRemoved( ETFCond eCond )
 		OnRemovePlague();
 		break;
 
-	case FC_COND_DEFENSEBUFF_CIVILIAN:
+	case TF2M_COND_DEFENSEBUFF_CIVILIAN:
 		OnRemoveCivBuff();
 		break;
 
@@ -3830,7 +3830,7 @@ void CTFPlayerShared::OnAddCivBuff(void)
 {
 #ifdef CLIENT_DLL
 	// Start the buff effect
-	if (InCond(FC_COND_DEFENSEBUFF_CIVILIAN))
+	if (InCond(TF2M_COND_DEFENSEBUFF_CIVILIAN))
 	{
 
 		if (IsStealthed())
@@ -8191,7 +8191,7 @@ bool CTFPlayerShared::IsMiniCritBoosted( void ) const
 	if ( InCond( TF_COND_OFFENSEBUFF ) ||
 		InCond( TF_COND_ENERGY_BUFF ) ||
 		InCond( TF_COND_MINICRITBOOSTED_ON_KILL ) ||
-		InCond( FC_COND_CIVILIAN_ENERGY_BUFF ) )
+		InCond( TF2M_COND_CIVILIAN_ENERGY_BUFF ) )
 		return true;
 
 	return false;
@@ -14543,7 +14543,7 @@ void CTFPlayerShared::PulseCivilianRadiusHeal(void)
 
 					if (pPlayer != pOuter)
 					{
-						pPlayer->m_Shared.AddCond(FC_COND_DEFENSEBUFF_CIVILIAN, 1.2f);
+						pPlayer->m_Shared.AddCond(TF2M_COND_DEFENSEBUFF_CIVILIAN, 1.2f);
 						pPlayer->m_Shared.m_bCivilianBuffActive = true;
 					}
 

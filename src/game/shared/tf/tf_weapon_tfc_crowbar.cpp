@@ -30,7 +30,7 @@ CREATE_SIMPLE_WEAPON_TABLE(TFCCrowbar, tf_weapon_tfc_crowbar)
 // Umbrella Weapon tables.
 //
 
-ConVar fc_civilian_buff_range("fc_civilian_buff_range", "3000.0", FCVAR_NONE, "Sets the distance Civilian can buff people using the umbrella.");
+ConVar tf2m_civilian_buff_range("tf2m_civilian_buff_range", "3000.0", FCVAR_NONE, "Sets the distance Civilian can buff people using the umbrella.");
 
 IMPLEMENT_NETWORKCLASS_ALIASED(TFCUmbrella, DT_TFC_Umbrella)
 
@@ -94,7 +94,7 @@ void CTFCUmbrella::SecondaryAttack(void)
 	if ((!pPlayer || !pPlayer->CanAttack()) || GetEffectBarProgress() < 1.0f )
 		return;
 
-	float flBuffRange = fc_civilian_buff_range.GetFloat();
+	float flBuffRange = tf2m_civilian_buff_range.GetFloat();
 	CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pPlayer, flBuffRange, mult_umbrella_buff_range ); // pPlayer so we can have the attribute on perks
 	//CALL_ATTRIB_HOOK_FLOAT( flBuffRange, mult_umbrella_buff_range );
 
@@ -127,13 +127,13 @@ void CTFCUmbrella::SecondaryAttack(void)
 		    CALL_ATTRIB_HOOK_INT_ON_OTHER( pPlayer, flBuffDuration, mult_umbrella_buff_duration ); // pPlayer so we can have the attribute on perks
 			//CALL_ATTRIB_HOOK_INT( flBuffDuration, mult_umbrella_buff_duration );
 
-			pTarget->m_Shared.AddCond(/*FC_COND_CIVILIAN_ENERGY_BUFF*/(ETFCond) GetBuffType( GetUmbrellaType() ), flBuffDuration );
+			pTarget->m_Shared.AddCond(/*TF2M_COND_CIVILIAN_ENERGY_BUFF*/(ETFCond) GetBuffType( GetUmbrellaType() ), flBuffDuration );
 			//SetEffectBarProgress(-15.0f);
 		}
 		//else if (pNPC)
 		//{
 		//	SendWeaponAnim(ACT_VM_SECONDARYATTACK);
-		//	pNPC->AddCond(/*FC_COND_CIVILIAN_ENERGY_BUFF*/GetBuffType( GetUmbrellaType() ), 8.0f);
+		//	pNPC->AddCond(/*TF2M_COND_CIVILIAN_ENERGY_BUFF*/GetBuffType( GetUmbrellaType() ), 8.0f);
 		//	//SetEffectBarProgress(-15.0f);
 		//}
 
@@ -190,13 +190,13 @@ int CTFCUmbrella::GetBuffType( int iMode )
 	{
 
 	case 1:
-		return (int)FC_COND_CIVILIAN_ENERGY_BUFF;
+		return (int)TF2M_COND_CIVILIAN_ENERGY_BUFF;
 
 	case 2:
 		return (int)TF_COND_REGENONDAMAGEBUFF;
 
 	default:
-		return (int)FC_COND_CIVILIAN_ENERGY_BUFF;
+		return (int)TF2M_COND_CIVILIAN_ENERGY_BUFF;
 	}
 
 }
