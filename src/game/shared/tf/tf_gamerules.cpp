@@ -21978,6 +21978,11 @@ bool CTFGameRules::CanUpgradeWithAttrib( CTFPlayer *pPlayer, int iWeaponSlot, at
 	bool bShield = ( pShield ) ? true : false;
 	bool bRocketPack = ( iWeaponID == TF_WEAPON_ROCKETPACK );
 
+    int iHasPrimaryAmmoOverride = 0;
+    int iHasSecondaryAmmoOverride = 0;
+	CALL_ATTRIB_HOOK_INT_ON_OTHER( pWeapon, iHasPrimaryAmmoOverride, maxammo_primary_override );
+	CALL_ATTRIB_HOOK_INT_ON_OTHER( pWeapon, iHasSecondaryAmmoOverride, maxammo_primary_override );
+
 	if ( iWeaponID == TF_WEAPON_PARACHUTE )
 		return false;
 

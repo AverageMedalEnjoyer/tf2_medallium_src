@@ -15,6 +15,7 @@
 // Client specific.
 #ifdef CLIENT_DLL
 #define CTFPistol C_TFPistol
+#define CTFPistol_Primary C_TFPistol_Primary
 #define CTFPistol_Scout C_TFPistol_Scout
 #define CTFPistol_ScoutPrimary C_TFPistol_ScoutPrimary
 #define CTFPistol_ScoutSecondary C_TFPistol_ScoutSecondary
@@ -52,6 +53,17 @@ public:
 
 private:
 	CTFPistol( const CTFPistol & ) {}
+};
+
+// Civ Pistol
+class CTFPistol_Primary : public CTFPistol
+{
+public:
+	DECLARE_CLASS( CTFPistol_Primary, CTFPistol );
+	DECLARE_NETWORKCLASS(); 
+	DECLARE_PREDICTABLE();
+
+	virtual int		GetWeaponID( void ) const			{ return TF_WEAPON_PISTOL_PRIMARY; }
 };
 
 // Scout specific version

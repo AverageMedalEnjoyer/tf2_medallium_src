@@ -4536,6 +4536,7 @@ bool CTFBot::IsHitScanWeapon( CTFWeaponBase *weapon ) const
 		case TF_WEAPON_SNIPERRIFLE_DECAP:
 		case TF_WEAPON_PEP_BRAWLER_BLASTER:
 		case TF_WEAPON_SNIPERRIFLE_CLASSIC:
+		case TF_WEAPON_PISTOL_PRIMARY:
 			return true;
 		};
 	}
@@ -4569,6 +4570,7 @@ bool CTFBot::IsContinuousFireWeapon( CTFWeaponBase *weapon ) const
 		case TF_WEAPON_FLAREGUN:
 		case TF_WEAPON_JAR:
 		case TF_WEAPON_COMPOUND_BOW:
+		case TF_WEAPON_PISTOL_PRIMARY:
 			return false;
 		};
 	}
