@@ -275,7 +275,7 @@ void CTFKnife::PrimaryAttack( void )
 			iNewHealth	   = MIN( pPlayer->GetHealth() + iBackstabVictimHealth, iBaseMaxHealth ),
 			iDeltaHealth   = iNewHealth - pPlayer->GetHealth();
 
-		if ( TFGameRules() && TFGameRules()->IsPowerupMode() && ( nBackStabVictimRuneType == RUNE_REFLECT ) )
+		if ( TFGameRules() && TFGameRules()->IsPowerupMode() && ( nBackStabVictimRuneType == RUNE_REFLECT || m_hBackstabVictim->m_Shared.InCond( TF2M_COND_BOOST_REFLECT ) ) )
 		{
 			iDeltaHealth = 0;
 		}

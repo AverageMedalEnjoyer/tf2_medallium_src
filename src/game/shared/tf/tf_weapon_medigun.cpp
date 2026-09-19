@@ -519,7 +519,7 @@ float CWeaponMedigun::GetHealRate( void )
 	}
 
 	CTFPlayer *pOwner = ToTFPlayer( GetOwnerEntity() );
-	if ( pOwner && pOwner->m_Shared.InCond( TF2M_COND_CIVILIAN_ENERGY_BUFF ) )
+	if ( pOwner && pOwner->m_Shared.InCond( TF2M_COND_BOOST_MINICRITS ) )
 	{
 		flHealRate *= tf2m_civilian_buff_boost.GetFloat();
 	}
@@ -1275,7 +1275,7 @@ bool CWeaponMedigun::FindAndHealTargets( void )
 
 			if ( pTFPlayer && weapon_medigun_charge_rate.GetFloat() )
 			{
-				if ( pOwner->m_Shared.InCond( TF2M_COND_CIVILIAN_ENERGY_BUFF ) )
+				if ( pOwner->m_Shared.InCond( TF2M_COND_BOOST_MINICRITS ) )
 				{
 					flChargeAmount *= tf2m_civilian_buff_boost.GetFloat();
 				}

@@ -1459,16 +1459,32 @@ void CObjectTeleporter::InputDisable( inputdata_t &inputdata )
 
 void CObjectTeleporter::SpawnBread( const CTFPlayer* pTeleportingPlayer )
 {
-	if( !pTeleportingPlayer )
+	if ( !pTeleportingPlayer )
 		return;
 
-	const char* pszModelName = g_pszBreadModels[ RandomInt( 0, TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS - 1 ) ];
-	CPhysicsProp *pProp = NULL;
+	CPhysicsProp *pProp = nullptr;
+	int nRange = TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS;
+	const char *pszModelName = nullptr;
+
+	// Try to find a model for the player's class, but if we don't have one, pick a random one from the list.
+	// Sp we don't crash the fucking game.
+	int nStartIndex = RandomInt( 0, nRange - 1 );
+	for ( int i = 0; i < nRange; ++i )
+	{
+		int nIndex = ( nStartIndex + i ) % nRange;
+		if ( g_pszBreadModels[nIndex] && *g_pszBreadModels[nIndex] )
+		{
+			pszModelName = g_pszBreadModels[nIndex];
+			break;
+		}
+	}
+
+	if ( !pszModelName )
+		return;
 
 	MDLHandle_t h = mdlcache->FindMDL( pszModelName );
 	if ( h != MDLHANDLE_INVALID )
 	{
-		// Must have vphysics to place as a physics prop
 		studiohdr_t *pStudioHdr = mdlcache->GetStudioHdr( h );
 		if ( pStudioHdr && mdlcache->GetVCollide( h ) )
 		{	
@@ -1477,45 +1493,17 @@ void CObjectTeleporter::SpawnBread( const CTFPlayer* pTeleportingPlayer )
 			if ( pProp )
 			{
 				Vector vecSpawn = GetAbsOrigin();
-				vecSpawn.z += TELEPORTER_MAXS.z + 50;
+				vecSpawn.z += 50.0f; 
 				QAngle qSpawnAngles = GetAbsAngles();
-				pProp->SetCollisionGroup( COLLISION_GROUP_DEBRIS );
-				// so it can be pushed by airblast
-				pProp->AddFlag( FL_GRENADE );
-				// so that it will always be interactable with the player
-				char buf[512];
-				// Pass in standard key values
-				Q_snprintf( buf, sizeof(buf), "%.10f %.10f %.10f", vecSpawn.x, vecSpawn.y, vecSpawn.z );
-				pProp->KeyValue( "origin", buf );
-				Q_snprintf( buf, sizeof(buf), "%.10f %.10f %.10f", qSpawnAngles.x, qSpawnAngles.y, qSpawnAngles.z );
-				pProp->KeyValue( "angles", buf );
-				pProp->KeyValue( "model", pszModelName );
-				pProp->KeyValue( "fademindist", "-1" );
-				pProp->KeyValue( "fademaxdist", "0" );
-				pProp->KeyValue( "fadescale", "1" );
-				pProp->KeyValue( "inertiaScale", "1.0" );
-				pProp->KeyValue( "physdamagescale", "0.1" );
-				pProp->Precache();
-				DispatchSpawn( pProp );
-				pProp->m_takedamage = DAMAGE_YES;	// Take damage, otherwise this can block trains
-				pProp->SetHealth( 5000 );
-				pProp->Activate();
-				IPhysicsObject *pPhysicsObj = pProp->VPhysicsGetObject();
-				if ( pPhysicsObj )
-				{
-					AngularImpulse angImpulse( RandomFloat( -100, 100 ), RandomFloat( -100, 100 ), RandomFloat( -100, 100 ) );
-					Vector vForward;
-					AngleVectors( qSpawnAngles, &vForward );
-					Vector vecVel = ( vForward * 100 ) + Vector( 0, 0, 200 ) + RandomVector( -50, 50 );
-					pPhysicsObj->SetVelocityInstantaneous( &vecVel, &angImpulse );
-				}
 
-				// Die in 10 seconds
-				pProp->ThinkSet( &CBaseEntity::SUB_Remove, gpGlobals->curtime + 10, "DieContext" );
+				pProp->SetModel( pszModelName );
+				pProp->SetAbsOrigin( vecSpawn );
+				pProp->SetAbsAngles( qSpawnAngles );
+				pProp->Spawn();
 			}
 		}
 
-		mdlcache->Release( h ); // counterbalance addref from within FindMDL
+		mdlcache->Release( h );
 	}
 }
 

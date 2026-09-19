@@ -42,6 +42,7 @@ public:
 	virtual void	Precache();
 	virtual void	ItemPreFrame();
 	virtual void	ItemPostFrame();
+	virtual void	ItemBusyFrame();
 	virtual void	Spawn();
 	virtual void	PrimaryAttack();
     virtual void	SecondaryAttack();
@@ -97,9 +98,20 @@ protected:
 	bool	m_bConnected;
 	bool	m_bMiniCrit;
 
+    CNetworkVar( bool,  m_bBoostMeterDraining );
+	CNetworkVar( float, m_flLastBoostDuration );
+
+    CHandle< CTFPlayer > m_hLastBoostTarget;
+
 #ifdef GAME_DLL
 	CUtlVector< CHandle< CTFPlayer > > m_potentialVictimVector;
 #endif
+
+public:
+
+    virtual float	GetEffectBarProgress( void ) OVERRIDE;
+	bool			IsBoostMeterDraining( void ) const { return m_bBoostMeterDraining; }
+    virtual void	ItemHolsterFrame( void );
 
 private:
 	bool DoSwingTraceInternal( trace_t &trace, bool bCleave, CUtlVector< trace_t >* pTargetTraceVector );

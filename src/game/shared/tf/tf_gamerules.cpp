@@ -6225,7 +6225,7 @@ bool CTFGameRules::ApplyOnDamageModifyRules( CTakeDamageInfo &info, CBaseEntity 
 				info.SetCritType( CTakeDamageInfo::CRIT_MINI );
 				eBonusEffect = kBonusEffect_MiniCrit;
 			}
-			else if ( pTFAttacker && pTFAttacker->m_Shared.InCond( TF2M_COND_CIVILIAN_ENERGY_BUFF ) )
+			else if ( pTFAttacker && pTFAttacker->m_Shared.InCond( TF2M_COND_BOOST_MINICRITS ) )
 			{
 				info.SetCritType( CTakeDamageInfo::CRIT_MINI );
 				eBonusEffect = kBonusEffect_MiniCrit;

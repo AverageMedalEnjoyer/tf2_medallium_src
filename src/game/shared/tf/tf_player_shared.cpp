@@ -8191,7 +8191,7 @@ bool CTFPlayerShared::IsMiniCritBoosted( void ) const
 	if ( InCond( TF_COND_OFFENSEBUFF ) ||
 		InCond( TF_COND_ENERGY_BUFF ) ||
 		InCond( TF_COND_MINICRITBOOSTED_ON_KILL ) ||
-		InCond( TF2M_COND_CIVILIAN_ENERGY_BUFF ) )
+		InCond( TF2M_COND_BOOST_MINICRITS ) )
 		return true;
 
 	return false;

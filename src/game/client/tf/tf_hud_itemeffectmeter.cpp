@@ -777,14 +777,19 @@ CTFWeaponBaseMelee *CHudItemEffectMeter_Weapon<CTFWeaponBaseMelee>::GetWeapon( v
 {
 	if ( m_bEnabled && m_pPlayer && !m_hWeapon )
 	{
-		for ( int i = 0; i < MAX_WEAPONS; i++ )
+		for ( int i = 0; i < MAX_WEAPONS; ++i )
 		{
-			CBaseCombatWeapon *pWeapon = m_pPlayer->GetWeapon( i );
-			if ( !pWeapon )
+			CBaseCombatWeapon *pWpn = m_pPlayer->GetWeapon( i );
+			if ( !pWpn )
 				continue;
 
-			CTFWeaponBaseMelee *pMelee = dynamic_cast<CTFWeaponBaseMelee *>( pWeapon );
-			if ( pMelee && pMelee->HasChargeBar() )
+			CTFWeaponBaseMelee *pMelee = dynamic_cast<CTFWeaponBaseMelee *>( pWpn );
+			if ( !pMelee )
+				continue;
+
+			int iBoost = 0;
+			CALL_ATTRIB_HOOK_INT_ON_OTHER( pMelee, iBoost, altfire_boosts_teammates );
+			if ( iBoost > 0 )
 			{
 				m_hWeapon = pMelee;
 				break;
@@ -792,11 +797,8 @@ CTFWeaponBaseMelee *CHudItemEffectMeter_Weapon<CTFWeaponBaseMelee>::GetWeapon( v
 		}
 
 		if ( !m_hWeapon )
-		{
 			m_bEnabled = false;
-		}
 	}
-
 	return m_hWeapon;
 }
 
@@ -804,11 +806,15 @@ CTFWeaponBaseMelee *CHudItemEffectMeter_Weapon<CTFWeaponBaseMelee>::GetWeapon( v
 template <>
 bool CHudItemEffectMeter_Weapon<CTFWeaponBaseMelee>::IsEnabled( void )
 {
-	if ( !m_pPlayer )
-		return false;
+	return GetWeapon() != NULL;
+}
 
+//-----------------------------------------------------------------------------
+template <>
+bool CHudItemEffectMeter_Weapon<CTFWeaponBaseMelee>::ShouldFlash( void )
+{
 	CTFWeaponBaseMelee *pWeapon = GetWeapon();
-	return ( pWeapon && pWeapon->HasChargeBar() );
+	return ( pWeapon && pWeapon->IsBoostMeterDraining() );
 }
 
 //-----------------------------------------------------------------------------
