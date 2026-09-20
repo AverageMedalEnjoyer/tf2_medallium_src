@@ -9256,7 +9256,7 @@ int CTFPlayer::OnTakeDamage( const CTakeDamageInfo &inputInfo )
 
 	// If player has Reflect Powerup, reflect damage to attacker. 
 	// We do this here, after damage modify rules to ensure distance falloff calculations have already been made before we pass that damage back to the attacker
-	if ( pTFAttacker && m_Shared.GetCarryingRuneType() == RUNE_REFLECT && pTFAttacker != this && !pTFAttacker->m_Shared.IsInvulnerable() && pTFAttacker->IsAlive() )
+	if ( pTFAttacker && ( m_Shared.GetCarryingRuneType() == RUNE_REFLECT || m_Shared.InCond( TF2M_COND_BOOST_REFLECT ) ) && pTFAttacker != this && !pTFAttacker->m_Shared.IsInvulnerable() && pTFAttacker->IsAlive() )
 	{
 		CTakeDamageInfo dmg = info;
 		CTFProjectile_SentryRocket *sentryRocket = dynamic_cast<CTFProjectile_SentryRocket *>( info.GetInflictor() );
@@ -10682,7 +10682,7 @@ int CTFPlayer::OnTakeDamage_Alive( const CTakeDamageInfo &info )
 	}
 
 	// Don't recieve reflected damage if you are carrying Reflect (prevents a loop in a game with two Reflect players)
-	if ( ( info.GetDamageType() & TF_DMG_CUSTOM_RUNE_REFLECT ) && m_Shared.GetCarryingRuneType() == RUNE_REFLECT )
+	if ( ( info.GetDamageType() & TF_DMG_CUSTOM_RUNE_REFLECT ) && ( m_Shared.GetCarryingRuneType() == RUNE_REFLECT || m_Shared.InCond( TF2M_COND_BOOST_REFLECT ) ) )
 	{
 		return 0;
 	}

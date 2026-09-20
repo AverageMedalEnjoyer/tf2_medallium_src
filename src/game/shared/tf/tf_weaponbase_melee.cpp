@@ -23,8 +23,11 @@
 #include "haptics/ihaptics.h"
 #endif
 
+#include "in_buttons.h"
+
 ConVar tf_weapon_criticals_melee( "tf_weapon_criticals_melee", "1", FCVAR_REPLICATED | FCVAR_NOTIFY, "Controls random crits for melee weapons. 0 - Melee weapons do not randomly crit. 1 - Melee weapons can randomly crit only if tf_weapon_criticals is also enabled. 2 - Melee weapons can always randomly crit regardless of the tf_weapon_criticals setting." );
-ConVar tf2m_civilian_buff_range( "tf2m_civilian_buff_range", "3000.0", FCVAR_NONE, "Sets the distance a melee with altfire_boosts_teammates can buff teammates." );
+ConVar tf2m_teammate_boost_range( "tf2m_teammate_boost_range", "3000.0", FCVAR_REPLICATED, "Sets the distance a melee with altfire_boosts_teammates can buff teammates." );
+ConVar tf2m_teammate_boost_buttonpressrequired( "tf2m_teammate_boost_buttonpressrequired", "0", FCVAR_REPLICATED, "If set to 1, boosts can only be given when you manually press right click, whereas if this is turned off, you can hold down right click until your crosshair hovers over a teammate, where it will then give the boost automatically." );
 
 //=============================================================================
 //
@@ -33,9 +36,20 @@ ConVar tf2m_civilian_buff_range( "tf2m_civilian_buff_range", "3000.0", FCVAR_NON
 IMPLEMENT_NETWORKCLASS_ALIASED( TFWeaponBaseMelee, DT_TFWeaponBaseMelee )
 
 BEGIN_NETWORK_TABLE( CTFWeaponBaseMelee, DT_TFWeaponBaseMelee )
+#ifdef CLIENT_DLL
+	RecvPropBool( RECVINFO( m_bBoostMeterDraining ) ),
+	RecvPropFloat( RECVINFO( m_flLastBoostDuration ) ),
+#else
+	SendPropBool( SENDINFO( m_bBoostMeterDraining ) ),
+	SendPropFloat( SENDINFO( m_flLastBoostDuration ) ),
+#endif
 END_NETWORK_TABLE()
 
 BEGIN_PREDICTION_DATA( CTFWeaponBaseMelee )
+#ifdef CLIENT_DLL
+	DEFINE_PRED_FIELD( m_bBoostMeterDraining, FIELD_BOOLEAN, FTYPEDESC_INSENDTABLE ),
+	DEFINE_PRED_FIELD( m_flLastBoostDuration, FIELD_FLOAT,   FTYPEDESC_INSENDTABLE ),
+#endif
 END_PREDICTION_DATA()
 
 LINK_ENTITY_TO_CLASS( tf_weaponbase_melee, CTFWeaponBaseMelee );
@@ -79,6 +93,11 @@ void CTFWeaponBaseMelee::WeaponReset( void )
 	m_flSmackTime = -1.0f;
 	m_bConnected = false;
 	m_bMiniCrit = false;
+
+	m_bBoostMeterDraining = false;
+	m_flLastBoostDuration = 0.0f;
+
+    m_hLastBoostTarget = NULL;
 }
 
 // -----------------------------------------------------------------------------
@@ -111,6 +130,10 @@ void CTFWeaponBaseMelee::Precache()
 			CBaseEntity::PrecacheScriptSound( szMeleeSoundStr );
 		}
 	}
+
+	PrecacheScriptSound("TeammateBoost.MiniCrits");
+	PrecacheScriptSound("TeammateBoost.Reflect");
+
 	CBaseEntity::PrecacheScriptSound("MVM_Weapon_Default.HitFlesh");
 }
 
@@ -237,80 +260,103 @@ void CTFWeaponBaseMelee::SecondaryAttack()
     int iAltFireBoosts = 0;
 	CALL_ATTRIB_HOOK_INT( iAltFireBoosts, altfire_boosts_teammates );
 
+    int iAltFireBoost_ButtonPressRequired = 0;
+	CALL_ATTRIB_HOOK_INT( iAltFireBoost_ButtonPressRequired, altfire_boosts_teammates_buttonpress_required );
+
 	// Umbrella Boost
-	if ( iAltFireBoosts )
+	if ( iAltFireBoosts > 0 )
 	{
-		if ( m_flNextPrimaryAttack > gpGlobals->curtime || m_flNextSecondaryAttack > gpGlobals->curtime )
-			return;
-
 		CTFPlayer *pPlayer = GetTFPlayerOwner();
-		if ( !pPlayer || !pPlayer->CanAttack() || GetEffectBarProgress() < 1.0f )
-			return;
 
-		float flBuffRange = tf2m_civilian_buff_range.GetFloat();
+		const bool bButtonPressRequired = ( iAltFireBoost_ButtonPressRequired || tf2m_teammate_boost_buttonpressrequired.GetBool() && !pPlayer->m_afButtonPressed & IN_ATTACK2 );
+
+		float flBuffRange = tf2m_teammate_boost_range.GetFloat();
 		CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pPlayer, flBuffRange, mult_umbrella_buff_range );
 
 		trace_t tr;
-		Vector vecStart, vecEnd, vecDir;
+		Vector vecStart = pPlayer->EyePosition();
+		Vector vecDir;
 		AngleVectors( pPlayer->EyeAngles(), &vecDir );
+		Vector vecEnd = vecStart + ( vecDir * flBuffRange );
 
-		vecStart = pPlayer->EyePosition();
-		vecEnd   = vecStart + ( vecDir * flBuffRange );
+		const Vector vecHullMins( -12, -12, -12 );
+		const Vector vecHullMaxs(  12,  12,  12 );
 
-		CTraceFilterSimple filter( pPlayer, COLLISION_GROUP_NONE );
-		UTIL_TraceLine( vecStart, vecEnd, MASK_ALL, &filter, &tr );
+		CTraceFilterSimple filter( pPlayer, COLLISION_GROUP_PLAYER );
+		UTIL_TraceHull( vecStart, vecEnd, vecHullMins, vecHullMaxs, MASK_SOLID|CONTENTS_HITBOX, &filter, &tr );
 
-		if ( tr.DidHitWorld() || !tr.m_pEnt )
-			return;
-
+		// Check if we hit a valid target
+		// A valid target is a player that is alive and not the world.
 		CTFPlayer *pTarget = ToTFPlayer( tr.m_pEnt );
-		if ( !pTarget || !pTarget->IsAlive() )
-			return;
+		const bool bValidTarget = ( tr.m_pEnt && !tr.DidHitWorld() ) && ( pTarget && pTarget->IsAlive() );
 
-		if ( pPlayer->InSameTeam( tr.m_pEnt ) ||
-			 ( pTarget && pTarget->m_Shared.InCond( TF_COND_DISGUISED ) &&
-			   pTarget->m_Shared.GetDisguiseTeam() == pPlayer->GetTeamNumber() ) )
+		// Check if we can boost our target
+		// Boost is possible when the boost meter is not draining, the player can attack, the effect bar is full, and the next primary or secondary attack time has passed.
+		const bool bBoostPossible = !m_bBoostMeterDraining && 
+			( pPlayer && pPlayer->CanAttack() && GetEffectBarProgress() >= 1.0f ) && 
+			( m_flNextPrimaryAttack < gpGlobals->curtime || m_flNextSecondaryAttack < gpGlobals->curtime );
+
+
+		if ( bValidTarget )
 		{
-			SendWeaponAnim( ACT_VM_SECONDARYATTACK );
+			// Check if the target is a valid teammate
+			// A valid teammate is either on the same team as the player or is disguised as a member of the player's team.
+		    const bool bValidTeammate =
+			    pPlayer->InSameTeam( pTarget ) ||
+			    ( pTarget->m_Shared.InCond( TF_COND_DISGUISED ) &&
+			      pTarget->m_Shared.GetDisguiseTeam() == pPlayer->GetTeamNumber() );
 
-			int flBuffDuration = 10;
-			CALL_ATTRIB_HOOK_INT_ON_OTHER( pPlayer, flBuffDuration, mult_umbrella_buff_duration );
-
-			// Get our boost type
-			int iMode = 0;
-			CALL_ATTRIB_HOOK_INT( iMode, set_buff_type );
-			ETFCond eBuff = TF2M_COND_CIVILIAN_ENERGY_BUFF;
-			switch ( iMode )
+			if ( bValidTeammate && bBoostPossible && !bButtonPressRequired )
 			{
-			case 2:  eBuff = TF_COND_REGENONDAMAGEBUFF; break;
-			default: eBuff = TF2M_COND_CIVILIAN_ENERGY_BUFF; break;
+				SendWeaponAnim( ACT_VM_SECONDARYATTACK );
+
+				// Get our buff duration
+				int flBuffDuration = 10;
+				CALL_ATTRIB_HOOK_INT_ON_OTHER( pPlayer, flBuffDuration, mult_umbrella_buff_duration );
+
+				// Get our boost type
+				int iMode = 0;
+				CALL_ATTRIB_HOOK_INT( iMode, altfire_boosts_teammates );
+				ETFCond eBuff = TF2M_COND_BOOST_MINICRITS;
+				switch (iMode)
+				{
+				case 2:  eBuff = TF2M_COND_BOOST_REFLECT; break;
+				default: eBuff = TF2M_COND_BOOST_MINICRITS; break;
+				}
+
+            #if !defined( CLIENT_DLL )
+				pTarget->m_Shared.AddCond( eBuff, flBuffDuration );
+
+				// Play our boost sound
+				const char* pszBoostSound = "TeammateBoost.MiniCrits";
+				if ( iMode == 2 )
+					pszBoostSound = "TeammateBoost.Reflect";
+				pPlayer->EmitSound( pszBoostSound );
+            #endif
+
+				SendWeaponAnim( ACT_MP_GESTURE_VC_FINGERPOINT_MELEE );
+				pPlayer->DoAnimationEvent( PLAYERANIMEVENT_CUSTOM_GESTURE, ACT_MP_GESTURE_VC_FINGERPOINT_MELEE );
+				m_bBoostMeterDraining = true;
+				m_flLastBoostDuration = (float)flBuffDuration;
+				m_flEffectBarRegenTime = gpGlobals->curtime + m_flLastBoostDuration;
+
+				m_hLastBoostTarget = pTarget;
+
+				m_flNextPrimaryAttack = gpGlobals->curtime + 1.0f;
+				m_flNextSecondaryAttack = gpGlobals->curtime + GetEffectBarRechargeTime();
+
+            #ifdef GAME_DLL
+				if (pPlayer->m_Shared.InCond(TF_COND_STEALTHED))
+					pPlayer->RemoveInvisibility();
+            #endif
+				return;
 			}
-
-			pTarget->m_Shared.AddCond( eBuff, flBuffDuration );
-
-			SendWeaponAnim( ACT_MP_GESTURE_VC_FINGERPOINT_MELEE );
-			pPlayer->DoAnimationEvent( PLAYERANIMEVENT_CUSTOM_GESTURE, ACT_MP_GESTURE_VC_FINGERPOINT_MELEE );
 		}
-		else
-		{
-			return;		// invalid target, do not start the cooldown.
-		}
-
-		m_flNextPrimaryAttack   = gpGlobals->curtime + 1.0f;
-		m_flNextSecondaryAttack = gpGlobals->curtime + GetEffectBarRechargeTime();
-		StartEffectBarRegen();
-
-#ifdef GAME_DLL
-		if ( pPlayer->m_Shared.InCond( TF_COND_STEALTHED ) )
-			pPlayer->RemoveInvisibility();
-#endif
-		return;
 	}
 
 	if ( !CanAttack() )
 		return;
 
-	// Get the current player.
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
 	if ( !pPlayer )
 		return;
@@ -318,7 +364,6 @@ void CTFWeaponBaseMelee::SecondaryAttack()
 	pPlayer->DoClassSpecialSkill();
 
 	m_bInAttack2 = true;
-
 
 	m_flNextSecondaryAttack = gpGlobals->curtime + GetNextSecondaryAttackDelay(); // default: 0.5f
 }
@@ -365,6 +410,27 @@ const char *CTFWeaponBaseMelee::GetEffectLabelText( void )
 float CTFWeaponBaseMelee::GetProgress( void )
 {
 	return GetEffectBarProgress();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+float CTFWeaponBaseMelee::GetEffectBarProgress( void )
+{
+	if ( m_bBoostMeterDraining )
+	{
+		if ( m_flLastBoostDuration <= 0.0f )
+			return 0.0f;
+
+		float flRemaining = m_flEffectBarRegenTime - gpGlobals->curtime;
+
+		if ( flRemaining <= 0.0f )
+			return 0.0f;
+
+		return clamp( flRemaining / m_flLastBoostDuration, 0.0f, 1.0f );
+	}
+
+	return BaseClass::GetEffectBarProgress();
 }
 
 //-----------------------------------------------------------------------------
@@ -503,9 +569,65 @@ void CTFWeaponBaseMelee::ItemPostFrame()
 		}
 	}
 
+    if ( m_bBoostMeterDraining )
+	{
+		CTFPlayer *pBoosted = m_hLastBoostTarget.Get();
+		if ( !pBoosted || !pBoosted->IsAlive() || m_flEffectBarRegenTime <= gpGlobals->curtime )
+		{
+			m_bBoostMeterDraining = false;
+			m_hLastBoostTarget = NULL;
+
+			m_flEffectBarRegenTime = 0.0f;
+			StartEffectBarRegen();
+		}
+	}
+
 	BaseClass::ItemPostFrame();
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  :  - 
+//-----------------------------------------------------------------------------
+void CTFWeaponBaseMelee::ItemHolsterFrame( void )
+{
+    if ( m_bBoostMeterDraining )
+	{
+		CTFPlayer *pBoosted = m_hLastBoostTarget.Get();
+		if ( !pBoosted || !pBoosted->IsAlive() || m_flEffectBarRegenTime <= gpGlobals->curtime )
+		{
+			m_bBoostMeterDraining = false;
+			m_hLastBoostTarget = NULL;
+
+			m_flEffectBarRegenTime = 0.0f;
+			StartEffectBarRegen();
+		}
+	}
+
+	BaseClass::ItemHolsterFrame();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  :  - 
+//-----------------------------------------------------------------------------
+void CTFWeaponBaseMelee::ItemBusyFrame( void )
+{
+    if ( m_bBoostMeterDraining )
+	{
+		CTFPlayer *pBoosted = m_hLastBoostTarget.Get();
+		if ( !pBoosted || !pBoosted->IsAlive() || m_flEffectBarRegenTime <= gpGlobals->curtime )
+		{
+			m_bBoostMeterDraining = false;
+			m_hLastBoostTarget = NULL;
+
+			m_flEffectBarRegenTime = 0.0f;
+			StartEffectBarRegen();
+		}
+	}
+
+	BaseClass::ItemBusyFrame();
+}
 
 bool CTFWeaponBaseMelee::DoSwingTraceInternal( trace_t &trace, bool bCleave, CUtlVector< trace_t >* pTargetTraceVector )
 {

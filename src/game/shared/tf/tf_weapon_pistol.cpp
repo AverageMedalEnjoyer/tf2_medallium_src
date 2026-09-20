@@ -42,6 +42,19 @@ END_DATADESC()
 
 //============================
 
+IMPLEMENT_NETWORKCLASS_ALIASED( TFPistol_Primary, DT_WeaponPistol_Primary)
+
+BEGIN_NETWORK_TABLE( CTFPistol_Primary, DT_WeaponPistol_Primary)
+END_NETWORK_TABLE()
+
+BEGIN_PREDICTION_DATA( CTFPistol_Primary)
+END_PREDICTION_DATA()
+
+LINK_ENTITY_TO_CLASS( tf_weapon_pistol_primary, CTFPistol_Primary );
+PRECACHE_WEAPON_REGISTER( tf_weapon_pistol_primary );
+
+//============================
+
 IMPLEMENT_NETWORKCLASS_ALIASED( TFPistol_Scout, DT_WeaponPistol_Scout )
 
 BEGIN_NETWORK_TABLE( CTFPistol_Scout, DT_WeaponPistol_Scout )

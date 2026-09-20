@@ -8191,7 +8191,7 @@ bool CTFPlayerShared::IsMiniCritBoosted( void ) const
 	if ( InCond( TF_COND_OFFENSEBUFF ) ||
 		InCond( TF_COND_ENERGY_BUFF ) ||
 		InCond( TF_COND_MINICRITBOOSTED_ON_KILL ) ||
-		InCond( TF2M_COND_CIVILIAN_ENERGY_BUFF ) )
+		InCond( TF2M_COND_BOOST_MINICRITS ) )
 		return true;
 
 	return false;
@@ -13088,18 +13088,26 @@ int	CTFPlayer::GetMaxAmmo( int iAmmoIndex, int iClassIndex /*= -1*/ )
 	if ( iAmmoIndex == TF_AMMO_PRIMARY )
 	{
 		CALL_ATTRIB_HOOK_INT( iMax, mult_maxammo_primary );
+		CALL_ATTRIB_HOOK_INT( iMax, maxammo_primary_override );
+		CALL_ATTRIB_HOOK_INT( iMax, mult_maxammo_primary_postoverride );
 	}
 	else if ( iAmmoIndex == TF_AMMO_SECONDARY )
 	{
 		CALL_ATTRIB_HOOK_INT( iMax, mult_maxammo_secondary );
+		CALL_ATTRIB_HOOK_INT( iMax, maxammo_secondary_override );
+		CALL_ATTRIB_HOOK_INT( iMax, mult_maxammo_secondary_postoverride );
 	}
 	else if ( iAmmoIndex == TF_AMMO_METAL )
 	{
 		CALL_ATTRIB_HOOK_INT( iMax, mult_maxammo_metal );
+		CALL_ATTRIB_HOOK_INT( iMax, maxammo_metal_override );
+		CALL_ATTRIB_HOOK_INT( iMax, mult_maxammo_metal_postoverride );
 	}
 	else if ( iAmmoIndex == TF_AMMO_GRENADES1 )
 	{
 		CALL_ATTRIB_HOOK_INT( iMax, mult_maxammo_grenades1 );
+		CALL_ATTRIB_HOOK_INT( iMax, maxammo_grenades1_override );
+		CALL_ATTRIB_HOOK_INT( iMax, mult_maxammo_grenades1_postoverride );
 	}
 	else if ( iAmmoIndex == TF_AMMO_GRENADES3 )
 	{

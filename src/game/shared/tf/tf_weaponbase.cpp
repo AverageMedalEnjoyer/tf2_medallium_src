@@ -6547,7 +6547,7 @@ float CTFWeaponBase::GetEffectBarProgress( void )
 	CALL_ATTRIB_HOOK_INT( iAltFireBoosts, altfire_boosts_teammates );
 
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
-	if ( iAltFireBoosts || ( pPlayer && pPlayer->GetAmmoCount( GetEffectBarAmmo() ) < pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
+	if ( iAltFireBoosts > 0 || ( pPlayer && pPlayer->GetAmmoCount( GetEffectBarAmmo() ) < pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
 	{
 		float flTime = Max( GetEffectBarRechargeTime(), FLT_EPSILON );
 		float flProgress = (flTime - (m_flEffectBarRegenTime - gpGlobals->curtime)) / flTime;
@@ -6568,7 +6568,7 @@ void CTFWeaponBase::StartEffectBarRegen( void )
 	// Only reset regen if its less then curr time or we were full
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
 	bool bWasFull = false;
-	if ( !iAltFireBoosts && pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) + 1 == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
+	if ( !( iAltFireBoosts > 0 ) && pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) + 1 == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
 	{
 		bWasFull = true;
 	}
@@ -6592,7 +6592,7 @@ void CTFWeaponBase::CheckEffectBarRegen( void )
 
 	// If we're full stop the timer.  Fixes a bug with "double" throws after respawning or touching a supply cab
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
-	if ( !iAltFireBoosts && pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
+	if ( !( iAltFireBoosts > 0 ) && pPlayer && (pPlayer->GetAmmoCount( GetEffectBarAmmo() ) == pPlayer->GetMaxAmmo( GetEffectBarAmmo() ) ) )
 	{
 		m_flEffectBarRegenTime = 0;
 		return;
@@ -6614,7 +6614,7 @@ void CTFWeaponBase::EffectBarRegenFinished( void )
 	CALL_ATTRIB_HOOK_INT( iAltFireBoosts, altfire_boosts_teammates );
 
 	// The umbrella recharges its boost without using ammunition.
-	if ( iAltFireBoosts )
+	if ( iAltFireBoosts > 0 )
 		return;
 
 	CTFPlayer *pPlayer = GetTFPlayerOwner();

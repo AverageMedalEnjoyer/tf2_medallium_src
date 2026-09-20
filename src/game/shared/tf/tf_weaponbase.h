@@ -659,8 +659,10 @@ protected:
 	void			EffectBarRegenFinished( void );
 	void			CheckEffectBarRegen( void );
 
-private:
 	CNetworkVar(	float, m_flEffectBarRegenTime );	// The time Regen is scheduled to complete
+
+//private:
+//	CNetworkVar(	float, m_flEffectBarRegenTime );	// The time Regen is scheduled to complete
 
 protected:
 #ifdef CLIENT_DLL

@@ -6225,7 +6225,7 @@ bool CTFGameRules::ApplyOnDamageModifyRules( CTakeDamageInfo &info, CBaseEntity 
 				info.SetCritType( CTakeDamageInfo::CRIT_MINI );
 				eBonusEffect = kBonusEffect_MiniCrit;
 			}
-			else if ( pTFAttacker && pTFAttacker->m_Shared.InCond( TF2M_COND_CIVILIAN_ENERGY_BUFF ) )
+			else if ( pTFAttacker && pTFAttacker->m_Shared.InCond( TF2M_COND_BOOST_MINICRITS ) )
 			{
 				info.SetCritType( CTakeDamageInfo::CRIT_MINI );
 				eBonusEffect = kBonusEffect_MiniCrit;
@@ -21977,6 +21977,11 @@ bool CTFGameRules::CanUpgradeWithAttrib( CTFPlayer *pPlayer, int iWeaponSlot, at
 	CTFWearableDemoShield *pShield = ( pPlayer->IsPlayerClass( TF_CLASS_DEMOMAN ) ) ? dynamic_cast< CTFWearableDemoShield* >( pEntity ) : NULL;
 	bool bShield = ( pShield ) ? true : false;
 	bool bRocketPack = ( iWeaponID == TF_WEAPON_ROCKETPACK );
+
+    int iHasPrimaryAmmoOverride = 0;
+    int iHasSecondaryAmmoOverride = 0;
+	CALL_ATTRIB_HOOK_INT_ON_OTHER( pWeapon, iHasPrimaryAmmoOverride, maxammo_primary_override );
+	CALL_ATTRIB_HOOK_INT_ON_OTHER( pWeapon, iHasSecondaryAmmoOverride, maxammo_primary_override );
 
 	if ( iWeaponID == TF_WEAPON_PARACHUTE )
 		return false;
