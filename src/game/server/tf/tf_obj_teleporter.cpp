@@ -1467,7 +1467,7 @@ void CObjectTeleporter::SpawnBread( const CTFPlayer* pTeleportingPlayer )
 	const char *pszModelName = nullptr;
 
 	// Try to find a model for the player's class, but if we don't have one, pick a random one from the list.
-	// Sp we don't crash the fucking game.
+	// So we don't crash the fucking game.
 	int nStartIndex = RandomInt( 0, nRange - 1 );
 	for ( int i = 0; i < nRange; ++i )
 	{
@@ -1499,6 +1499,7 @@ void CObjectTeleporter::SpawnBread( const CTFPlayer* pTeleportingPlayer )
 				pProp->SetModel( pszModelName );
 				pProp->SetAbsOrigin( vecSpawn );
 				pProp->SetAbsAngles( qSpawnAngles );
+                pProp->SetCollisionGroup( COLLISION_GROUP_DEBRIS );
 				pProp->Spawn();
 			}
 		}

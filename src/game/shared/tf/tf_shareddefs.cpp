@@ -1718,7 +1718,7 @@ wpntranslation_class_weapons_t pszWpnEntTranslationList[] =
 			"tf_weapon_fireaxe",		// TF_CLASS_PYRO,
 			"tf_weapon_knife",			// TF_CLASS_SPY,
 			"tf_weapon_wrench",			// TF_CLASS_ENGINEER,		
-			"",							// TF_CLASS_CIVILIAN,
+			"tf_weapon_umbrella",							// TF_CLASS_CIVILIAN,
 		}
 	},
 	{
