@@ -112,8 +112,8 @@ void CTestItemRoot::SetupComboBoxes( void )
 	KeyValues *pKeyValues;
 	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass <= TF_LAST_NORMAL_CLASS; iClass++ )
 	{
-		if ( iClass == TF_CLASS_CIVILIAN )
-			continue;
+		//if ( iClass == TF_CLASS_CIVILIAN )
+		//	continue;
 		pKeyValues = new KeyValues( "data" );
 		pKeyValues->SetInt( "class", iClass );
 		m_pBotSelectionComboBox->AddItem( g_aPlayerClassNames[iClass], pKeyValues );

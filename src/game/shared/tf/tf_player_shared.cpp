@@ -14500,14 +14500,21 @@ void CTFPlayerShared::PulseMedicRadiusHeal( void )
 //-----------------------------------------------------------------------------
 void CTFPlayerShared::PulseCivilianRadiusHeal(void)
 {
-	if (!m_pOuter || !m_pOuter->IsAlive() || m_pOuter->m_Shared.InCond(TF_COND_HALLOWEEN_GHOST_MODE) || !m_pOuter->IsPlayerClass(TF_CLASS_CIVILIAN))
+	CTFPlayer* pOuter = m_pOuter;
+
+	int iAttributeAura = 0;
+	CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pOuter, iAttributeAura, player_has_healing_aura )
+
+	bool bInvalidpOuter = ( !pOuter || !pOuter->IsAlive() || pOuter->m_Shared.InCond( TF_COND_HALLOWEEN_GHOST_MODE ) );
+
+	bool CanHaveHealingAura = ( ( m_pOuter->IsPlayerClass( TF_CLASS_CIVILIAN ) || iAttributeAura ) && !bInvalidpOuter ) ;
+
+	if ( !CanHaveHealingAura )
 		return;
 
 #ifdef GAME_DLL
-	if (gpGlobals->curtime >= m_flPhaseTimeCiv) {
-
-		CTFPlayer* pOuter = m_pOuter;
-
+	if (gpGlobals->curtime >= m_flPhaseTimeCiv)
+	{
         float flHealingAuraRadius = TF_BUFF_RADIUS; // 450
 		CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pOuter, flHealingAuraRadius, mult_healaura_radius );
 
@@ -14534,13 +14541,10 @@ void CTFPlayerShared::PulseCivilianRadiusHeal(void)
 				int iHealthRegenCivAOE = 0;
 				int iHealthRestoredCiv = 0;
 
-				// More time since combat equals faster healing. Healing increases up to 300%.
-				int iAoEHealthBaseCiv = 5;
-
 				if (pPlayer && (pPlayer->InSameTeam(pOuter) || (pPlayer && ((pPlayer->m_Shared.InCond(TF_COND_DISGUISED)) && (pPlayer->m_Shared.GetDisguiseTeam() == pOuter->GetTeamNumber())))) && pPlayer->IsAlive())
 				{
-
-					pPlayer->m_Shared.m_bCivilianBuffActive = false;
+                    if ( pPlayer == pOuter )
+						continue;
 
 					float flDist = vecDir.Length();
 
@@ -14548,12 +14552,6 @@ void CTFPlayerShared::PulseCivilianRadiusHeal(void)
 					// Max (closest) is 15 health per second, min (furthest) is 1 health per second.
 	                float flHealAmount = RemapValClamped( flDist, 0.0f, flHealingAuraRadius, flMaxAuraHeal, flMinAuraHeal );
                   	iHealthRegenCivAOE = (int)ceil(flHealAmount);
-
-					if (pPlayer != pOuter)
-					{
-						pPlayer->m_Shared.AddCond(TF2M_COND_DEFENSEBUFF_CIVILIAN, 1.2f);
-						pPlayer->m_Shared.m_bCivilianBuffActive = true;
-					}
 
 					// Don't heal players with weapon_blocks_healing
 					CTFWeaponBase* pTFWeapon = pPlayer->GetActiveTFWeapon();
@@ -14567,21 +14565,30 @@ void CTFPlayerShared::PulseCivilianRadiusHeal(void)
 
 					float flAttribModScale = 1.0;
 					CALL_ATTRIB_HOOK_FLOAT_ON_OTHER(pPlayer, flAttribModScale, mult_health_fromhealers);
-
 					iHealthRegenCivAOE *= flAttribModScale;
 
-					iHealthRestoredCiv = pPlayer->TakeHealth(iHealthRegenCivAOE, DMG_GENERIC);
-					if (iHealthRestoredCiv > 0)
+					pPlayer->m_Shared.AddCond( TF2M_COND_DEFENSEBUFF_CIVILIAN, 1.2f );
+					pPlayer->m_Shared.m_bCivilianBuffActive = true;
+
+					if ( gpGlobals->curtime - pPlayer->m_Shared.m_flCivBuffTimer > 0.9f )
 					{
-						CTF_GameStats.Event_PlayerHealedOther(pOuter, iHealthRestoredCiv);
-						IGameEvent* event = gameeventmanager->CreateEvent("player_healed");
-						if (event)
+						iHealthRestoredCiv = pPlayer->TakeHealth( iHealthRegenCivAOE, DMG_GENERIC );
+						if ( iHealthRestoredCiv > 0 )
 						{
-							event->SetInt("patient", pPlayer->GetUserID());
-							event->SetInt("healer", pOuter->GetUserID());
-							event->SetInt("amount", iHealthRestoredCiv);
-							gameeventmanager->FireEvent(event);
+							CTF_GameStats.Event_PlayerHealedOther( pOuter, iHealthRestoredCiv );
+
+							IGameEvent* event = gameeventmanager->CreateEvent( "player_healed" );
+							if ( event )
+							{
+								event->SetInt( "patient", pPlayer->GetUserID() );
+								event->SetInt( "healer", pOuter->GetUserID() );
+								event->SetInt( "amount", iHealthRestoredCiv );
+								gameeventmanager->FireEvent( event );
+							}
 						}
+
+						// Mark that this player just received an aura heal
+						pPlayer->m_Shared.m_flCivBuffTimer = gpGlobals->curtime;
 					}
 				}
 			}
