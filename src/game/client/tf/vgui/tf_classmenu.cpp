@@ -880,7 +880,13 @@ void CTFClassMenu::OnKeyCodePressed( KeyCode code )
 {
 	m_KeyRepeat.KeyDown( code );
 
-	if ( code > KEY_0 && code <= KEY_9 )
+	if ( code == KEY_0 || code == KEY_PAD_0 )
+	{
+		// 0 selects the civilian (button index 10 in the class order)
+		SelectClass( TF_CLASS_CIVILIAN );
+		Go();
+	}
+	else if ( code > KEY_0 && code <= KEY_9 )
 	{
 		const int iButton = code - KEY_0;
 		const int iClass = iRemapIndexToClass[ iButton ];
@@ -901,9 +907,7 @@ void CTFClassMenu::OnKeyCodePressed( KeyCode code )
 	else if ( ( m_iClassMenuKey != BUTTON_CODE_INVALID && m_iClassMenuKey == code ) ||
 		code == KEY_XBUTTON_BACK || 
 		code == KEY_XBUTTON_B ||
-		code == STEAMCONTROLLER_B ||
-		code == KEY_0 || 
-		code == KEY_PAD_0 )
+		code == STEAMCONTROLLER_B )
 	{
 		C_TFPlayer *pLocalPlayer = C_TFPlayer::GetLocalTFPlayer();
 
