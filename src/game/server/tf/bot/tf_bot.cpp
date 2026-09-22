@@ -71,6 +71,9 @@ ConVar tf_bot_spawn_use_preset_roster( "tf_bot_spawn_use_preset_roster", "1", FC
 // Bot Chat Commands
 ConVar tf_bot_chat_allow( "tf_bot_chat_allow", "1", FCVAR_REPLICATED | FCVAR_NOTIFY, "When set to 1, bots will send things in chat depending on the context." );
 ConVar tf_bot_chat_allow_mvmrobots("tf_bot_chat_allow_mvmrobots", "0", FCVAR_REPLICATED | FCVAR_NOTIFY, "When set to 1, robots in MVM will use chat.");
+ConVar tf_bot_chat_chance( "tf_bot_chat_chance", "0.30", FCVAR_REPLICATED, "The percent of chance that a bot will send a chat message (0.30 = 30%). Cannot go below 0.05 (5%) and cannot go above 1.0 (100%.)" );
+ConVar tf_bot_chat_chance_bybotcount( "tf_bot_chat_chance_bybotcount", "1", FCVAR_REPLICATED, "When set to 1, the chance a bot can send a chat message scales down the more bots there are in a map (does not count MVM robots)." );
+ConVar tf_bot_chat_chance_bybotcount_percentage("tf_bot_chat_chance_bybotcount_percentage", "0.01", FCVAR_REPLICATED, "The amount each bot scales the chance of sending a chat message down (0.01 = 1%).");
 
 extern ConVar tf_bot_sniper_spot_max_count;
 extern ConVar tf_bot_fire_weapon_min_time;
@@ -6076,10 +6079,51 @@ void CTFBot::DeliverQueuedChatMessage( void )
 }
 
 //-----------------------------------------------------------------------------
+float CTFBot::GetChatMessageChance( void ) const
+{
+	float flChance = tf_bot_chat_chance.GetFloat();
+
+	if ( tf_bot_chat_chance_bybotcount.GetBool() )
+	{
+		int nBots = 0;
+
+		for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+		{
+			CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+			if ( !pPlayer || !pPlayer->IsConnected() )
+				continue;
+
+			CTFBot *pBot = ToTFBot( pPlayer );
+			if ( !pBot )
+				continue;
+
+			// Exclude MvM robots
+			if ( pBot->GetTeamNumber() == TF_TEAM_PVE_INVADERS )
+				continue;
+
+			++nBots;
+		}
+
+        if ( nBots > 1 )
+        {
+	        flChance -= (nBots - 1) * tf_bot_chat_chance_bybotcount_percentage.GetFloat();
+        }
+	}
+
+	// Never go below 5% or above 100%
+	if ( flChance < 0.05f )
+		flChance = 0.05f;
+	else if ( flChance > 1.0f )
+		flChance = 1.0f;
+
+	return flChance;
+}
+
+//-----------------------------------------------------------------------------
 const char *CTFBot::GetRandomDeathMessage( CBaseEntity *pKiller )
 {
-	// 30% chance we will even send our message, so chat isn't spammed by many bots dying at once
-    if ( RandomFloat( 0.0f, 1.0f ) > 0.30f )
+	// Chance we will even send our message
+    if ( RandomFloat( 0.0f, 1.0f ) > GetChatMessageChance() )
         return "";
 
 	static CUtlVector< CUtlString > deathMessages;
@@ -6125,8 +6169,8 @@ const char *CTFBot::GetRandomDeathMessage( CBaseEntity *pKiller )
 //-----------------------------------------------------------------------------
 const char *CTFBot::GetRandomCritDeathMessage( CBaseEntity *pKiller )
 {
-	// 30% chance we will even send our message, so chat isn't spammed by many bots dying at once
-    if ( RandomFloat( 0.0f, 1.0f ) > 0.30f )
+	// Chance we will even send our message
+    if ( RandomFloat( 0.0f, 1.0f ) > GetChatMessageChance() )
         return "";
 
 	static CUtlVector< CUtlString > deathMessages;
@@ -6186,8 +6230,8 @@ const char *CTFBot::GetRandomCritDeathMessage( CBaseEntity *pKiller )
 //-----------------------------------------------------------------------------
 const char *CTFBot::GetRandomKillMessage( CBaseEntity *pVictim )
 {
-	// 30% chance we will even send our message, so chat isn't spammed by many bots killings things at once
-    if ( RandomFloat( 0.0f, 1.0f ) > 0.30f )
+	// Chance we will even send our message
+    if ( RandomFloat( 0.0f, 1.0f ) > GetChatMessageChance() )
         return "";
 
 	static CUtlVector< CUtlString > killMessages;

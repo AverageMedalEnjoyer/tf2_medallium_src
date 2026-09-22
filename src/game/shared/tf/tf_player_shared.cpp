@@ -1328,6 +1328,10 @@ CBaseEntity *CTFPlayerShared::GetConditionAssistFromAttacker( void )
 		TF_COND_DEFENSEBUFF,
 		TF_COND_REGENONDAMAGEBUFF,
 		TF_COND_NOHEALINGDAMAGEBUFF,	// Lowest priority
+
+		// Teammate Boosts
+        TF2M_COND_BOOST_MINICRITS,
+		TF2M_COND_BOOST_REFLECT,
 	};
 
 	CBaseEntity *pProvider = NULL;

@@ -345,6 +345,7 @@ public:
     void Say( const char *pszMessage );
     void SayTeam( const char *pszMessage );
 
+    float       GetChatMessageChance( void ) const;
     const char *GetRandomDeathMessage( CBaseEntity *pKiller );
     const char *GetRandomCritDeathMessage( CBaseEntity *pKiller );
     const char *GetRandomKillMessage( CBaseEntity *pVictim );

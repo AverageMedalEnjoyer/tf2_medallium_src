@@ -273,21 +273,27 @@ void CTFWeaponBaseMelee::SecondaryAttack()
 		float flBuffRange = tf2m_teammate_boost_range.GetFloat();
 		CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pPlayer, flBuffRange, mult_umbrella_buff_range );
 
+#if !defined( CLIENT_DLL )
+		lagcompensation->StartLagCompensation( pPlayer, pPlayer->GetCurrentCommand() );
+#endif
+
 		trace_t tr;
 		Vector vecStart = pPlayer->EyePosition();
 		Vector vecDir;
 		AngleVectors( pPlayer->EyeAngles(), &vecDir );
 		Vector vecEnd = vecStart + ( vecDir * flBuffRange );
 
-		const Vector vecHullMins( -12, -12, -12 );
-		const Vector vecHullMaxs(  12,  12,  12 );
-
+		// Pure raycast against hitboxes only (no hull/AABB volume)
 		CTraceFilterSimple filter( pPlayer, COLLISION_GROUP_PLAYER );
-		UTIL_TraceHull( vecStart, vecEnd, vecHullMins, vecHullMaxs, MASK_SOLID|CONTENTS_HITBOX, &filter, &tr );
+		UTIL_TraceLine( vecStart, vecEnd, MASK_SOLID | CONTENTS_HITBOX, &filter, &tr );
+
+#if !defined( CLIENT_DLL )
+		lagcompensation->FinishLagCompensation( pPlayer );
+#endif
 
 		// Check if we hit a valid target
 		// A valid target is a player that is alive and not the world.
-		CTFPlayer *pTarget = ToTFPlayer( tr.m_pEnt );
+        CTFPlayer *pTarget = ToTFPlayer( tr.m_pEnt );
 		const bool bValidTarget = ( tr.m_pEnt && !tr.DidHitWorld() ) && ( pTarget && pTarget->IsAlive() );
 
 		// Check if we can boost our target
@@ -295,7 +301,6 @@ void CTFWeaponBaseMelee::SecondaryAttack()
 		const bool bBoostPossible = !m_bBoostMeterDraining && 
 			( pPlayer && pPlayer->CanAttack() && GetEffectBarProgress() >= 1.0f ) && 
 			( m_flNextPrimaryAttack < gpGlobals->curtime || m_flNextSecondaryAttack < gpGlobals->curtime );
-
 
 		if ( bValidTarget )
 		{
@@ -309,6 +314,8 @@ void CTFWeaponBaseMelee::SecondaryAttack()
 			if ( bValidTeammate && bBoostPossible && !bButtonPressRequired )
 			{
 				SendWeaponAnim( ACT_VM_SECONDARYATTACK );
+
+				m_hLastBoostTarget = pTarget;
 
 				// Get our buff duration
 				int flBuffDuration = 10;
@@ -325,7 +332,7 @@ void CTFWeaponBaseMelee::SecondaryAttack()
 				}
 
             #if !defined( CLIENT_DLL )
-				pTarget->m_Shared.AddCond( eBuff, flBuffDuration );
+                m_hLastBoostTarget->m_Shared.AddCond( eBuff, flBuffDuration, pPlayer );
 
 				// Play our boost sound
 				const char* pszBoostSound = "TeammateBoost.MiniCrits";
@@ -339,8 +346,6 @@ void CTFWeaponBaseMelee::SecondaryAttack()
 				m_bBoostMeterDraining = true;
 				m_flLastBoostDuration = (float)flBuffDuration;
 				m_flEffectBarRegenTime = gpGlobals->curtime + m_flLastBoostDuration;
-
-				m_hLastBoostTarget = pTarget;
 
 				m_flNextPrimaryAttack = gpGlobals->curtime + 1.0f;
 				m_flNextSecondaryAttack = gpGlobals->curtime + GetEffectBarRechargeTime();
