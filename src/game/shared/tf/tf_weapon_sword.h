@@ -127,7 +127,6 @@ public:
 	virtual ~CTFKatana() {}
 
 	virtual bool	Deploy( void );
-	virtual float	GetMeleeDamage( CBaseEntity *pTarget, int* piDamageType, int* piCustomDamage );
 	virtual void	OnDecapitation( CTFPlayer *pDeadPlayer );
 
 	virtual int		GetActivityWeaponRole() const OVERRIDE;

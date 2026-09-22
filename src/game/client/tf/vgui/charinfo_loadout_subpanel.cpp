@@ -631,7 +631,7 @@ void CCharInfoLoadoutSubPanel::RequestInventoryRefresh()
 //-----------------------------------------------------------------------------
 void CCharInfoLoadoutSubPanel::SetClassIndex( int iClassIndex, bool bOpenClassLoadout )
 {
-	Assert(iClassIndex >= TF_CLASS_UNDEFINED && iClassIndex < NUM_CLASSES_IN_LOADOUT_PANEL);
+	Assert(iClassIndex >= TF_CLASS_UNDEFINED && iClassIndex <= NUM_CLASSES_IN_LOADOUT_PANEL);
 	m_iCurrentClassIndex = iClassIndex;
 	m_iShowingPanel = CHAP_LOADOUT;
 	UpdateModelPanels( bOpenClassLoadout );
@@ -928,7 +928,7 @@ void CCharInfoLoadoutSubPanel::UpdateLabelFromClass( int nClass )
 	}
 
 	int iPos = 0;
-	for ( int i = TF_FIRST_NORMAL_CLASS; i < NUM_CLASSES_IN_LOADOUT_PANEL; i++ )
+	for ( int i = TF_FIRST_NORMAL_CLASS; i <= NUM_CLASSES_IN_LOADOUT_PANEL; i++ )
 	{
 		if ( iRemapIndexToClass[i] == nClass )
 		{
@@ -1079,7 +1079,7 @@ void CCharInfoLoadoutSubPanel::RecalculateTargetClassLayoutAtPos( int x, int y )
 {
 	// Ignore mouse movement outside the buttons
 	bool bWithin = false;
-	for ( int i = TF_FIRST_NORMAL_CLASS; i < NUM_CLASSES_IN_LOADOUT_PANEL; i++ )
+	for ( int i = TF_FIRST_NORMAL_CLASS; i <= NUM_CLASSES_IN_LOADOUT_PANEL; i++ )
 	{
 		if ( m_pClassButtons[i]->IsWithin(x,y) )
 		{
@@ -1132,7 +1132,7 @@ void CCharInfoLoadoutSubPanel::RecalculateTargetClassLayoutAtPos( int x, int y )
 void CCharInfoLoadoutSubPanel::RecalculateTargetClassLayout( void )
 {
 	// Now Layout the class images. 
-	for ( int i = TF_FIRST_NORMAL_CLASS; i < NUM_CLASSES_IN_LOADOUT_PANEL; i++ )
+	for ( int i = TF_FIRST_NORMAL_CLASS; i <= NUM_CLASSES_IN_LOADOUT_PANEL; i++ )
 	{
 		int iIndex = GetRemappedMenuIndexForClass(i);
 

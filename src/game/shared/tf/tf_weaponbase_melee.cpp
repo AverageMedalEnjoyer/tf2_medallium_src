@@ -1266,6 +1266,25 @@ float CTFWeaponBaseMelee::GetMeleeDamage( CBaseEntity *pTarget, int* piDamageTyp
 		}
 	}
 
+	// Weapons of honor: hitting a player who is also wielding an Honorbound
+	// weapon results in a massive damage boost (effectively a one-hit kill).
+	if ( IsHonorBound() )
+	{
+		CTFPlayer *pTFPlayerTarget = ToTFPlayer( pTarget );
+		if ( pTFPlayerTarget )
+		{
+			// If our victim is wielding the weapon we're looking for, bump the damage way up.
+			if ( pTFPlayerTarget->GetActiveTFWeapon() && pTFPlayerTarget->GetActiveTFWeapon()->IsHonorBound() )
+			{
+				flDamage = MAX( flDamage, pTFPlayerTarget->GetHealth() * 3 );
+				if ( piDamageType )
+				{
+					*piDamageType |= DMG_DONT_COUNT_DAMAGE_TOWARDS_CRIT_RATE;
+				}
+			}
+		}
+	}
+
 	return flDamage;
 }
 

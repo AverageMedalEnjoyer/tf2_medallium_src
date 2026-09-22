@@ -545,35 +545,6 @@ bool CTFKatana::Deploy( void )
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
-float CTFKatana::GetMeleeDamage( CBaseEntity *pTarget, int* piDamageType, int* piCustomDamage )
-{
-	// Start with our base damage. We use this to generate our custom damage flags,
-	// if any. We may trash the damage amount.
-	float fDamage = BaseClass::GetMeleeDamage( pTarget, piDamageType, piCustomDamage );
-
-	// The katana is a weapon of honor!!!! (Hitting someone wielding a katana with
-	// your katana results in a massive damage boost, a one-hit kill.)
-	if ( IsHonorBound() )
-	{
-		CTFPlayer *pTFPlayerTarget = ToTFPlayer( pTarget );
-		if ( pTFPlayerTarget )
-		{
-			// If our victim is wielding the weapon we're looking for, bump the damage way up.
-			if ( pTFPlayerTarget->GetActiveTFWeapon() && pTFPlayerTarget->GetActiveTFWeapon()->IsHonorBound() )
-			{
-				fDamage = MAX( fDamage, pTFPlayerTarget->GetHealth() * 3 );
-				*piDamageType |= DMG_DONT_COUNT_DAMAGE_TOWARDS_CRIT_RATE;
-			}
-		}
-	}
-
-	return fDamage;
-}
-
-
-//-----------------------------------------------------------------------------
-// Purpose:
-//-----------------------------------------------------------------------------
 int CTFKatana::GetActivityWeaponRole() const
 {
 	CTFPlayer *pPlayer = GetTFPlayerOwner();

@@ -490,6 +490,7 @@ CTFClassMenu::CTFClassMenu( IViewPort *pViewPort )
 	m_pClassButtons[TF_CLASS_SNIPER] = new CExImageButton( this, "sniper", "", this );
 	m_pClassButtons[TF_CLASS_ENGINEER] = new CExImageButton( this, "engineer", "", this );
 	m_pClassButtons[TF_CLASS_SPY] = new CExImageButton( this, "spy", "", this );
+	m_pClassButtons[TF_CLASS_CIVILIAN] = new CExImageButton( this, "civilian", "", this );
 	m_pClassButtons[TF_CLASS_RANDOM] = new CExImageButton( this, "random", "", this );
 #endif
 

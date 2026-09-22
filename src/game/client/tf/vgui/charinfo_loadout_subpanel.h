@@ -133,7 +133,7 @@ public:
 private:
 	void		RequestInventoryRefresh();
 
-	CImageButton		*m_pClassButtons[NUM_CLASSES_IN_LOADOUT_PANEL];
+	CImageButton		*m_pClassButtons[NUM_CLASSES_IN_LOADOUT_PANEL+1];
 	CImageButton		*m_pSubButtons[CHSB_NUM_BUTTONS];
 	CExLabel			*m_pButtonLabels[CHSB_NUM_BUTTONS];
 	int					m_iOverSubButton;
