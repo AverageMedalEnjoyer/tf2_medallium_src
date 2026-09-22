@@ -4183,9 +4183,11 @@ void CTFGCServerSystem::WebapiEquipmentThinkRequest( CSteamID steamID, WebapiEqu
 			state.m_pKVCurrentRequest = nullptr;
 		}
 
-		// Don't allow spamming this api -- wait 20 seconds before we ask gc for items again
+		// Previously, changing loadouts had a 20s cooldown
+		// which is horrible, so now it's significantly
+		// shorter. - Saint
 		state.RequestSucceeded();
-		state.Backoff();
+		state.m_rtNextRequest = CRTime::RTime32TimeCur() + 2;
 		state.m_eState = kWebapiEquipmentState_WaitingForClientRequest;
 		break;
 
