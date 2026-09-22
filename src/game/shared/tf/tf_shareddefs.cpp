@@ -49,6 +49,7 @@ const char *g_aPlayerClassNames[TF_CLASS_MENU_BUTTONS] =
 	"#TF_Class_Name_Engineer",
 	"#TF_Class_Name_Civilian",
 	"",
+	"",
 	"#TF_Random"
 };
 
@@ -65,6 +66,7 @@ const char *g_aPlayerClassNames_NonLocalized[TF_CLASS_MENU_BUTTONS] =
 	"Spy",
 	"Engineer",
 	"Civilian",
+	"",
 	"",
 	"Random"
 };
@@ -83,6 +85,7 @@ const char *g_aRawPlayerClassNamesShort[TF_CLASS_MENU_BUTTONS] =
 	"engineer",
 	"civilian",
 	"",
+	"",
 	"random"
 };
 
@@ -99,6 +102,7 @@ const char *g_aRawPlayerClassNames[TF_CLASS_MENU_BUTTONS] =
 	"spy",
 	"engineer",
 	"civilian",
+	"",
 	"",
 	"random"
 };
