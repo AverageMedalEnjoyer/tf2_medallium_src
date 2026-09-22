@@ -4363,14 +4363,16 @@ void CTFGCServerSystem::SDK_ApplyLocalLoadout(CGCClientSharedObjectCache* pCache
 		pTFInventory->UnequipLocal(pItem->GetID());
 		pItem->Unequip();
 	}
+	
+	// Mark ModItems as unequipped.
 	int nModItemCount = TFInventoryManager()->GetModItemCount();
 	for (int iModItem = 0; iModItem < nModItemCount; ++iModItem)
-		{
-			CEconItemView * pModItem = TFInventoryManager()->GetModItem(iModItem);
-			if (!pModItem)
-				continue;
-			pTFInventory->UnequipLocal(pModItem->GetItemID());
-		}
+	{
+		CEconItemView * pModItem = TFInventoryManager()->GetModItem(iModItem);
+		if (!pModItem)
+			continue;
+		pTFInventory->UnequipLocal(pModItem->GetItemID());
+	}
 
 	// Extract loadout information from the keyvalues and apply it to each item.
 	KeyValues* pLoadoutKV = pKVRequest->FindKey("local_loadout");
