@@ -466,7 +466,7 @@ void CObjectTeleporter::Precache()
 	PrecacheGibsForModel( iModelIndex );
 
 	// Bread models
-	int nRange = TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS;
+	int nRange = TF_CLASS_CIVILIAN - TF_FIRST_NORMAL_CLASS; // == ARRAYSIZE( g_pszBreadModels ): one per original class, none for the civilian
 	for( int i = 0; i < nRange; ++i )
 	{
 		if ( g_pszBreadModels[i] && *g_pszBreadModels[i] )
@@ -1463,7 +1463,7 @@ void CObjectTeleporter::SpawnBread( const CTFPlayer* pTeleportingPlayer )
 		return;
 
 	CPhysicsProp *pProp = nullptr;
-	int nRange = TF_LAST_NORMAL_CLASS - TF_FIRST_NORMAL_CLASS;
+	int nRange = TF_CLASS_CIVILIAN - TF_FIRST_NORMAL_CLASS; // == ARRAYSIZE( g_pszBreadModels ): one per original class, none for the civilian
 	const char *pszModelName = nullptr;
 
 	// Try to find a model for the player's class, but if we don't have one, pick a random one from the list.

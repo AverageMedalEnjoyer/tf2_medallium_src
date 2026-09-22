@@ -48,8 +48,8 @@ const char *g_aPlayerClassNames[TF_CLASS_MENU_BUTTONS] =
 	"#TF_Class_Name_Spy",
 	"#TF_Class_Name_Engineer",
 	"#TF_Class_Name_Civilian",
-	"",
-	"",
+	"",	// TF_CLASS_NONE
+	"",	// TF_CLASS_COUNT_ALL
 	"#TF_Random"
 };
 
@@ -66,8 +66,8 @@ const char *g_aPlayerClassNames_NonLocalized[TF_CLASS_MENU_BUTTONS] =
 	"Spy",
 	"Engineer",
 	"Civilian",
-	"",
-	"",
+	"",	// TF_CLASS_NONE
+	"",	// TF_CLASS_COUNT_ALL
 	"Random"
 };
 
@@ -84,8 +84,8 @@ const char *g_aRawPlayerClassNamesShort[TF_CLASS_MENU_BUTTONS] =
 	"spy",
 	"engineer",
 	"civilian",
-	"",
-	"",
+	"",	// TF_CLASS_NONE
+	"",	// TF_CLASS_COUNT_ALL
 	"random"
 };
 
@@ -102,8 +102,8 @@ const char *g_aRawPlayerClassNames[TF_CLASS_MENU_BUTTONS] =
 	"spy",
 	"engineer",
 	"civilian",
-	"",
-	"",
+	"",	// TF_CLASS_NONE
+	"",	// TF_CLASS_COUNT_ALL
 	"random"
 };
 
@@ -198,7 +198,9 @@ const char *g_pszBreadModels[] =
 	"models/weapons/c_models/c_bread/c_bread_russianblack.mdl",	// Heavy?
 };
 
-int GetClassIndexFromString( const char *pClassName, int nLastClassIndex/*=TF_LAST_NORMAL_CLASS*/ )
+COMPILE_TIME_ASSERT( ARRAYSIZE( g_pszBreadModels ) == ( TF_CLASS_CIVILIAN - TF_FIRST_NORMAL_CLASS ) ); // one per original class; keep in sync with CObjectTeleporter
+
+int GetClassIndexFromString( const char *pClassName, int nLastClassIndex/*=TF_LAST_NORMAL_CLASS-1*/ )
 {
 	for ( int i = TF_FIRST_NORMAL_CLASS; i <= nLastClassIndex; ++i )
 	{

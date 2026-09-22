@@ -196,6 +196,10 @@ enum
 #define TF_CLASS_COUNT			( TF_CLASS_COUNT_ALL )
 
 #define TF_FIRST_NORMAL_CLASS	( TF_CLASS_UNDEFINED + 1 )
+// TF_LAST_NORMAL_CLASS is an EXCLUSIVE end marker: it is TF_CLASS_NONE, which is not a real class.
+// Real classes are [ TF_FIRST_NORMAL_CLASS, TF_LAST_NORMAL_CLASS ), so the last real class (the civilian)
+// is TF_LAST_NORMAL_CLASS - 1. Loop with '<', never '<='; use ( TF_LAST_NORMAL_CLASS - 1 ) for inclusive
+// APIs such as RandomInt(). Code merged in from the stock SDK may still assume the old inclusive meaning.
 #define TF_LAST_NORMAL_CLASS	( TF_CLASS_NONE )
 
 #define	TF_CLASS_MENU_BUTTONS	( TF_CLASS_RANDOM + 1 )
@@ -222,7 +226,7 @@ enum ETFClass
 	TF_CLASS_RANDOM
 };
 
-inline bool IsValidTFPlayerClass( int iClass ) { return iClass >= TF_FIRST_NORMAL_CLASS && iClass <= TF_LAST_NORMAL_CLASS; }
+inline bool IsValidTFPlayerClass( int iClass ) { return iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_LAST_NORMAL_CLASS; }
 inline bool IsValidTFTeam( int iTeam ) { return iTeam == TF_TEAM_RED || iTeam == TF_TEAM_BLUE; }
 
 #define FOR_EACH_NORMAL_PLAYER_CLASS( _i ) for ( int _i = TF_FIRST_NORMAL_CLASS; _i < TF_LAST_NORMAL_CLASS; _i++ )
@@ -241,7 +245,7 @@ extern const char g_szBotBossSentryBusterModel[ MAX_PATH ];
 extern const char g_szRomePromoItems_Hat[TF_LAST_NORMAL_CLASS][ MAX_PATH ];
 extern const char g_szRomePromoItems_Misc[TF_LAST_NORMAL_CLASS][ MAX_PATH ];
 
-int GetClassIndexFromString( const char *pClassName, int nLastClassIndex = TF_LAST_NORMAL_CLASS );
+int GetClassIndexFromString( const char *pClassName, int nLastClassIndex = ( TF_LAST_NORMAL_CLASS - 1 ) ); // nLastClassIndex is INCLUSIVE
 
 // menu buttons are not in the same order as the defines
 extern int iRemapIndexToClass[TF_CLASS_MENU_BUTTONS];

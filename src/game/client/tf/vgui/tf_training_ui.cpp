@@ -64,7 +64,7 @@ bool Training_TrainingProgressFileExists()
 
 static int Training_GetClassProgress( int iClass )	// Returns a percent, in the range [0,100]
 {
-	Assert( iClass >= TF_FIRST_NORMAL_CLASS && iClass <= TF_LAST_NORMAL_CLASS );
+	Assert( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_LAST_NORMAL_CLASS );
 
 	const int nDefaultResult = iClass == TF_CLASS_SOLDIER ? 0 : -1;
 

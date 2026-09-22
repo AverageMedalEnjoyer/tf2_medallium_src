@@ -682,7 +682,7 @@ int CTFStatPanel::CalcCRC( int iSteamID )
 	// make a CRC of stat data
 	CRC32_ProcessBuffer( &crc, &iSteamID, sizeof( iSteamID ) );
 
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass <= TF_LAST_NORMAL_CLASS; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
 	{
 		// add each class' data to the CRC
 		ClassStats_t &classStats = GetClassStats( iClass );
@@ -757,7 +757,7 @@ void CTFStatPanel::ShowStatPanel( int iClass, int iTeam, int iCurStatValue, TFSt
 	pLabel->GetText( szOriginalSummary, sizeof( szOriginalSummary ) );
 	const wchar_t *pszPlayerClass = L"undefined";
 
-	if ( ( iClass >= TF_FIRST_NORMAL_CLASS ) && ( iClass <= TF_LAST_NORMAL_CLASS ) )
+	if ( ( iClass >= TF_FIRST_NORMAL_CLASS ) && ( iClass < TF_LAST_NORMAL_CLASS ) )
 	{
 		pszPlayerClass = g_pVGuiLocalize->Find( g_aPlayerClassNames[ iClass ] );
 	}
@@ -940,7 +940,7 @@ ClassStats_t &CTFStatPanel::GetClassStats( int iClass )
 {
 	Assert( statPanel );
 	Assert( iClass >= TF_FIRST_NORMAL_CLASS );
-	Assert( iClass <= TF_LAST_NORMAL_CLASS );
+	Assert( iClass < TF_LAST_NORMAL_CLASS );
 	int i;
 	for( i = 0; i < statPanel->m_aClassStats.Count(); i++ )
 	{
@@ -1053,8 +1053,8 @@ void CTFStatPanel::MsgFunc_PlayerStatsUpdate( bf_read &msg )
 	bool bAlive = msg.ReadByte();
 	int iSendBits = msg.ReadLong();
 
-	Assert( iClass >= TF_FIRST_NORMAL_CLASS && iClass <= TF_LAST_NORMAL_CLASS );
-	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass > TF_LAST_NORMAL_CLASS )
+	Assert( iClass >= TF_FIRST_NORMAL_CLASS && iClass < TF_LAST_NORMAL_CLASS );
+	if ( iClass < TF_FIRST_NORMAL_CLASS || iClass >= TF_LAST_NORMAL_CLASS )
 		return;
 
 	// the bitfield indicates which stats are contained in the message.  Set the stats appropriately.

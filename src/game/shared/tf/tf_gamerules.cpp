@@ -11709,7 +11709,7 @@ void CTFGameRules::PlayerKilled( CBasePlayer *pVictim, const CTakeDamageInfo &in
 
 				// Optional: also track "killed X players of this specific class".
 				int iVictimClassIndex = pTFPlayerVictim->GetPlayerClass()->GetClassIndex();
-				if ( iVictimClassIndex >= TF_FIRST_NORMAL_CLASS && iVictimClassIndex <= TF_LAST_NORMAL_CLASS )
+				if ( iVictimClassIndex >= TF_FIRST_NORMAL_CLASS && iVictimClassIndex < TF_LAST_NORMAL_CLASS )
 				{
 					const kill_eater_event_t eClassKillType = g_eClassKillEvents[ iVictimClassIndex - TF_FIRST_NORMAL_CLASS ];
 					EconEntity_OnOwnerKillEaterEvent( pAttackerEconWeapon, pTFPlayerScorer, pTFPlayerVictim, eClassKillType );
@@ -11878,7 +11878,7 @@ void CTFGameRules::PlayerKilled( CBasePlayer *pVictim, const CTakeDamageInfo &in
 
 				// Optional: also track "killed X Robots of this specific class".
 				int iVictimClassIndex = pTFPlayerVictim->GetPlayerClass()->GetClassIndex();
-				if ( iVictimClassIndex >= TF_FIRST_NORMAL_CLASS && iVictimClassIndex <= TF_LAST_NORMAL_CLASS )
+				if ( iVictimClassIndex >= TF_FIRST_NORMAL_CLASS && iVictimClassIndex < TF_LAST_NORMAL_CLASS )
 				{
 					const kill_eater_event_t eClassKillType = g_eRobotClassKillEvents[ iVictimClassIndex - TF_FIRST_NORMAL_CLASS ];
 					EconEntity_OnOwnerKillEaterEvent( pAttackerEconWeapon, pTFPlayerScorer, pTFPlayerVictim, eClassKillType );

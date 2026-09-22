@@ -1311,7 +1311,7 @@ void CTFPlayerInventory::ValidateInventoryPositions( void )
 		}
 
 		// Make sure it isn't equipped by any invalid classes.
-		for ( int j = TF_FIRST_NORMAL_CLASS; j <= TF_LAST_NORMAL_CLASS; j++ )
+		for ( int j = TF_FIRST_NORMAL_CLASS; j < TF_LAST_NORMAL_CLASS; j++ )
 		{
 			if ( !pEconItemView->GetStaticData()->CanBeUsedByClass( j ) &&
 				 pEconItemView->IsEquippedForClass( j ) )

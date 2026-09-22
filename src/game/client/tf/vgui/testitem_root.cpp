@@ -110,7 +110,7 @@ void CTestItemRoot::SetupComboBoxes( void )
 {
 	// Setup our Bot Selection combo box
 	KeyValues *pKeyValues;
-	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass <= TF_LAST_NORMAL_CLASS; iClass++ )
+	for ( int iClass = TF_FIRST_NORMAL_CLASS; iClass < TF_LAST_NORMAL_CLASS; iClass++ )
 	{
 		//if ( iClass == TF_CLASS_CIVILIAN )
 		//	continue;
