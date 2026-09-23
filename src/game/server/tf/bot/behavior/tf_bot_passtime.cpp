@@ -190,7 +190,10 @@ CTFPlayer *CTFBotGetPasstimeJack::GetValidPassTarget( CTFBot *me ) const
 			continue;
 
 		// Never pass to these classes, unless they asked for it.
-		if ( !bIsAsker && ( pPlayer->GetPlayerClass()->GetClassIndex() == TF_CLASS_MEDIC || pPlayer->GetPlayerClass()->GetClassIndex() == TF_CLASS_SNIPER || pPlayer->GetPlayerClass()->GetClassIndex() == TF_CLASS_CIVILIAN ) )
+		if ( !bIsAsker && ( pPlayer->GetPlayerClass()->GetClassIndex() == TF_CLASS_MEDIC || 
+			pPlayer->GetPlayerClass()->GetClassIndex() == TF_CLASS_SNIPER ||
+			pPlayer->GetPlayerClass()->GetClassIndex() == TF_CLASS_SPY ||
+			pPlayer->GetPlayerClass()->GetClassIndex() == TF_CLASS_CIVILIAN ) )
 			continue;
 
 		// Always pass to teammates who are faster then us, unless they asked for it.
