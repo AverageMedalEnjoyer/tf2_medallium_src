@@ -28,7 +28,10 @@ private:
 	PathFollower m_path;
 	CHandle< CBaseEntity > m_healthKit;
 	bool m_isGoalDispenser;
-};
 
+	CHandle< CTFPlayer > m_hSupportTarget;
+	bool m_bSeekingMedic;
+	CountdownTimer m_medicHealTimer;
+};
 
 #endif // TF_BOT_GET_HEALTH_H

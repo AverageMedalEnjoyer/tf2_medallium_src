@@ -135,7 +135,7 @@ CTFPlayer *CTFBotCivilianBoost::SelectBoostTarget( CTFBot *me )
 		TF_CLASS_DEMOMAN,
 		TF_CLASS_PYRO,
 		TF_CLASS_HEAVYWEAPONS,
-		TF_CLASS_MEDIC
+		//TF_CLASS_MEDIC // Medic probably shouldn't be priority
 	};
 
 	for ( int i = 0; i < candidates.Count(); ++i )

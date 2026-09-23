@@ -439,9 +439,9 @@ public:
 
 	int		GetArenaNumChanges( void ) { return m_nArenaNumChanges; }
 
-	CBaseEntity *GetHealerByIndex( int index );
-	bool HealerIsDispenser( int index );
-	int		GetNumHealers( void ) { return m_nNumHealers; }
+    CBaseEntity *GetHealerByIndex( int index ) const;
+    bool HealerIsDispenser( int index ) const;
+    int		GetNumHealers( void ) const { return m_nNumHealers; }
 
 	void	Burn( CTFPlayer *pPlayer, CTFWeaponBase *pWeapon, float flBurningTime = -1.0f );
 	void	SelfBurn( float flBurningTime );		// Boss Burn

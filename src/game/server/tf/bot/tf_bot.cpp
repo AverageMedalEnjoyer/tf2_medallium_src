@@ -1709,12 +1709,26 @@ bool CTFBot::IsOnObjective() const
 //-----------------------------------------------------------------------------------------------------
 bool CTFBot::HasOffensiveBuff( void ) const
 {
-	return m_Shared.InCond( TF_COND_INVULNERABLE ) ||
-		   m_Shared.InCond( TF_COND_INVULNERABLE_WEARINGOFF ) ||
-		   m_Shared.InCond( TF_COND_CRITBOOSTED ) ||
-		   m_Shared.InCond( TF_COND_CRITBOOSTED_USER_BUFF ) ||
-		   m_Shared.InCond( TF2M_COND_BOOST_MINICRITS ) ||
-		   m_Shared.InCond( TF2M_COND_BOOST_REFLECT );
+	if ( m_Shared.InCond( TF_COND_INVULNERABLE ) ||
+		 m_Shared.InCond( TF_COND_INVULNERABLE_WEARINGOFF ) ||
+		 m_Shared.InCond( TF_COND_CRITBOOSTED ) ||
+		 m_Shared.InCond( TF_COND_CRITBOOSTED_USER_BUFF ) ||
+		 m_Shared.InCond( TF2M_COND_BOOST_MINICRITS ) ||
+		 m_Shared.InCond( TF2M_COND_BOOST_REFLECT ) )
+	{
+		return true;
+	}
+
+	if ( m_Shared.InCond( TF2M_COND_DEFENSEBUFF_CIVILIAN ) )
+		return true;
+
+	for ( int i = 0; i < m_Shared.GetNumHealers(); ++i )
+	{
+		if ( !m_Shared.HealerIsDispenser( i ) )
+			return true;
+	}
+
+	return false;
 }
 
 //-----------------------------------------------------------------------------------------------------

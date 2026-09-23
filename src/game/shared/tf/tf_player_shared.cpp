@@ -9480,7 +9480,7 @@ int	CTFPlayerShared::FindHealerIndex( CBaseEntity *pHealer )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-CBaseEntity *CTFPlayerShared::GetHealerByIndex( int index )
+CBaseEntity *CTFPlayerShared::GetHealerByIndex( int index ) const
 {
 	int iNumHealers = m_aHealers.Count();
 
@@ -9493,7 +9493,7 @@ CBaseEntity *CTFPlayerShared::GetHealerByIndex( int index )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool CTFPlayerShared::HealerIsDispenser( int index )
+bool CTFPlayerShared::HealerIsDispenser( int index ) const
 {
 	int iNumHealers = m_aHealers.Count();
 
