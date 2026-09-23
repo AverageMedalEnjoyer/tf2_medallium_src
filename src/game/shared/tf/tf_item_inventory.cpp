@@ -995,7 +995,7 @@ void CTFPlayerInventory::LoadLocalLoadout()
 	KeyValues *pActivePresetKV = pLoadoutKV->FindKey("active_preset");
 	if (pActivePresetKV) 
 	{
-		for (int iClass = 1; iClass < TF_CLASS_COUNT_ALL; ++iClass)
+		for (int iClass = 1; iClass < TF_LAST_NORMAL_CLASS; ++iClass)
 		{
 			const char* pszClassName = g_aPlayerClassNames_NonLocalized[iClass];
 			int activePreset = pActivePresetKV->GetInt(pszClassName);
@@ -1056,7 +1056,7 @@ void CTFPlayerInventory::SaveLocalLoadout( bool bReset, bool bDefaultToGC )
 	KeyValues *pLoadoutKV = new KeyValues("local_loadout");
 
 	KeyValues *pActivePresetKV = new KeyValues("active_preset");
-	for (int iClass = 1; iClass < TF_CLASS_COUNT_ALL; ++iClass)
+	for (int iClass = 1; iClass < TF_LAST_NORMAL_CLASS; ++iClass)
 	{
 		const char* pszClassName = g_aPlayerClassNames_NonLocalized[iClass];
 		pActivePresetKV->SetInt(pszClassName, m_ActivePreset[iClass]);
@@ -1071,7 +1071,7 @@ void CTFPlayerInventory::SaveLocalLoadout( bool bReset, bool bDefaultToGC )
 		KeyValues *pPresetKV = new KeyValues(szPreset);
 		pLoadoutKV->AddSubKey(pPresetKV);
 
-		for (int iClass = 1; iClass < TF_CLASS_COUNT_ALL; ++iClass)
+		for (int iClass = 1; iClass < TF_LAST_NORMAL_CLASS; ++iClass)
 		{
 			const char* pszClassName = g_aPlayerClassNames_NonLocalized[iClass];
 
@@ -1311,7 +1311,7 @@ void CTFPlayerInventory::ValidateInventoryPositions( void )
 		}
 
 		// Make sure it isn't equipped by any invalid classes.
-		for ( int j = TF_FIRST_NORMAL_CLASS; j < TF_LAST_NORMAL_CLASS; j++ )
+		for ( int j = TF_FIRST_NORMAL_CLASS; j <= TF_LAST_NORMAL_CLASS; j++ )
 		{
 			if ( !pEconItemView->GetStaticData()->CanBeUsedByClass( j ) &&
 				 pEconItemView->IsEquippedForClass( j ) )
