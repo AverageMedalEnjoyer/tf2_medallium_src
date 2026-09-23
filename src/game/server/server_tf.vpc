@@ -677,6 +677,12 @@ $Project "Server (TF)"
 						$File	"tf\bot\behavior\demoman\tf_bot_stickybomb_sentrygun.cpp"
 						$File	"tf\bot\behavior\demoman\tf_bot_stickybomb_sentrygun.h"
 					}
+
+					$Folder	"Civilian"
+					{
+						$File	"tf\bot\behavior\civilian\tf_bot_civilian_boost.cpp"
+						$File	"tf\bot\behavior\civilian\tf_bot_civilian_boost.h"
+					}
 					
 					$Folder	"NavEntities"
 					{

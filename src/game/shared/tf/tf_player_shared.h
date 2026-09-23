@@ -28,6 +28,7 @@ class C_TFPlayer;
 class CTFPlayer;
 #endif
 
+#define TF_BUFF_RADIUS			450.0f
 
 //=============================================================================
 //

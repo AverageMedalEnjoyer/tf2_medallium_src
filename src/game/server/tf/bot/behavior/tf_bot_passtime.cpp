@@ -189,8 +189,8 @@ CTFPlayer *CTFBotGetPasstimeJack::GetValidPassTarget( CTFBot *me ) const
 		if ( pPlayer->m_Shared.IsStealthed() || pPlayer->m_Shared.InCond( TF_COND_DISGUISED ) )
 			continue;
 
-		// Never pass to a Medic, unless they asked for it.
-		if ( !bIsAsker && pPlayer->GetPlayerClass()->GetClassIndex() == TF_CLASS_MEDIC )
+		// Never pass to these classes, unless they asked for it.
+		if ( !bIsAsker && ( pPlayer->GetPlayerClass()->GetClassIndex() == TF_CLASS_MEDIC || pPlayer->GetPlayerClass()->GetClassIndex() == TF_CLASS_SNIPER || pPlayer->GetPlayerClass()->GetClassIndex() == TF_CLASS_CIVILIAN ) )
 			continue;
 
 		// Always pass to teammates who are faster then us, unless they asked for it.

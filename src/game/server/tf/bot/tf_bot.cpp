@@ -1014,6 +1014,7 @@ bool CTFBot::GetWeightDesiredClassToSpawn( CUtlVector< ETFClass > &vecClassToSpa
 		{ TF_CLASS_MEDIC,			4, 4, 1, { 1, 1, 2, 2 } },
 		{ TF_CLASS_SNIPER,			5, 0, 0, { 0, 1, 1, 1 } },
 		{ TF_CLASS_SPY,				5, 0, 0, { 0, 1, 2, 2 } },
+		{ TF_CLASS_CIVILIAN,		0, 0, 0, { 1, 1, 2, 2 } },
 
 		{ TF_CLASS_UNDEFINED,		0, -1 },
 	};
@@ -1029,6 +1030,7 @@ bool CTFBot::GetWeightDesiredClassToSpawn( CUtlVector< ETFClass > &vecClassToSpa
 		{ TF_CLASS_SNIPER,			5, 0, 0, { 0, 1, 1, 1 } },
 		{ TF_CLASS_SPY,				5, 0, 0, { 0, 1, 2, 2 } },
 		{ TF_CLASS_ENGINEER,		5, 0, 0, { 1, 1, 1, 1 } },
+		{ TF_CLASS_CIVILIAN,		0, 0, 0, { 1, 1, 2, 2 } },
 
 		{ TF_CLASS_UNDEFINED,		0, -1 },
 	};
@@ -1044,6 +1046,7 @@ bool CTFBot::GetWeightDesiredClassToSpawn( CUtlVector< ETFClass > &vecClassToSpa
 		{ TF_CLASS_SNIPER,			0, -1 },
 		{ TF_CLASS_SPY,				0, -1 },
 		{ TF_CLASS_ENGINEER,		0, -1 },
+		{ TF_CLASS_CIVILIAN,		0, 0, 0, { 1, 1, 2, 2 } },
 
 		{ TF_CLASS_UNDEFINED,		0, -1 },
 	};
@@ -1202,6 +1205,7 @@ ETFClass CTFBot::GetPresetClassToSpawn() const
 		TF_CLASS_MEDIC,
 		TF_CLASS_ENGINEER,
 		TF_CLASS_SOLDIER,
+        TF_CLASS_CIVILIAN,
 		TF_CLASS_HEAVYWEAPONS,
 		TF_CLASS_DEMOMAN,
 		TF_CLASS_SCOUT,
@@ -1211,6 +1215,7 @@ ETFClass CTFBot::GetPresetClassToSpawn() const
 		TF_CLASS_DEMOMAN,
 		TF_CLASS_SNIPER,
 		TF_CLASS_MEDIC,
+		TF_CLASS_CIVILIAN,
 		TF_CLASS_SPY,
 	};
 
@@ -1219,6 +1224,7 @@ ETFClass CTFBot::GetPresetClassToSpawn() const
 		TF_CLASS_MEDIC,
 		TF_CLASS_ENGINEER,
 		TF_CLASS_SOLDIER,
+		TF_CLASS_CIVILIAN,
 		TF_CLASS_DEMOMAN,
 		TF_CLASS_SCOUT,
 		TF_CLASS_HEAVYWEAPONS,
@@ -1227,6 +1233,7 @@ ETFClass CTFBot::GetPresetClassToSpawn() const
 		TF_CLASS_ENGINEER,
 		TF_CLASS_SOLDIER,
 		TF_CLASS_MEDIC,
+		TF_CLASS_CIVILIAN,
 		TF_CLASS_PYRO,
 		TF_CLASS_SPY,
 	};
@@ -1236,6 +1243,7 @@ ETFClass CTFBot::GetPresetClassToSpawn() const
 		TF_CLASS_MEDIC,
 		TF_CLASS_SCOUT,
 		TF_CLASS_SOLDIER,
+		TF_CLASS_CIVILIAN,
 		TF_CLASS_DEMOMAN,
 		TF_CLASS_SCOUT,
 		TF_CLASS_SOLDIER,
@@ -1243,15 +1251,16 @@ ETFClass CTFBot::GetPresetClassToSpawn() const
 		TF_CLASS_HEAVYWEAPONS,
 		TF_CLASS_PYRO,
 		TF_CLASS_MEDIC,
+		TF_CLASS_CIVILIAN,
 		TF_CLASS_ENGINEER,
 		TF_CLASS_SNIPER,
 		TF_CLASS_SPY,
 	};
 
 	// make sure we have completed list of rolls per team
-	COMPILE_TIME_ASSERT( ARRAYSIZE( offenseRoster ) == 12 );
-	COMPILE_TIME_ASSERT( ARRAYSIZE( defenseRoster ) == 12 );
-	COMPILE_TIME_ASSERT( ARRAYSIZE( compRoster ) == 12 );
+	COMPILE_TIME_ASSERT( ARRAYSIZE( offenseRoster ) == 14 );
+	COMPILE_TIME_ASSERT( ARRAYSIZE( defenseRoster ) == 14 );
+	COMPILE_TIME_ASSERT( ARRAYSIZE( compRoster ) == 14 );
 
 	// assume offense
 	ETFClass *desiredRoster = offenseRoster;
@@ -1304,7 +1313,7 @@ ETFClass CTFBot::GetPresetClassToSpawn() const
 
 	int classCount[TF_LAST_NORMAL_CLASS];
 	V_memset( classCount, 0, sizeof( classCount ) );
-	for ( int i=0; i<12; ++i )
+	for ( int i=0; i<14; ++i )
 	{
 		ETFClass iClass = desiredRoster[i];
 
@@ -1620,6 +1629,17 @@ void CTFBot::PhysicsSimulate( void )
 		UpdateDoubleJump(); // Only used by Scouts
         UpdateStickybombLauncher();
 		UpdateCombatMovement();
+
+		// We have an offensive buff or a nearby teammate does
+		// Become aggresive
+        if ( HasOffensiveBuff() || HasNearbyBuffedTeammate() )
+	    {
+	    	SetAttribute( CTFBot::AGGRESSIVE );
+    	}
+    	else
+	    {
+		    ClearAttribute( CTFBot::AGGRESSIVE );
+	    }
 	}
 
 	if ( m_spawnArea == NULL )
@@ -1686,6 +1706,47 @@ bool CTFBot::IsOnObjective() const
 	return false;
 }
 
+//-----------------------------------------------------------------------------------------------------
+bool CTFBot::HasOffensiveBuff( void ) const
+{
+	return m_Shared.InCond( TF_COND_INVULNERABLE ) ||
+		   m_Shared.InCond( TF_COND_INVULNERABLE_WEARINGOFF ) ||
+		   m_Shared.InCond( TF_COND_CRITBOOSTED ) ||
+		   m_Shared.InCond( TF_COND_CRITBOOSTED_USER_BUFF ) ||
+		   m_Shared.InCond( TF2M_COND_BOOST_MINICRITS ) ||
+		   m_Shared.InCond( TF2M_COND_BOOST_REFLECT );
+}
+
+//-----------------------------------------------------------------------------------------------------
+bool CTFBot::HasNearbyBuffedTeammate( float flRange ) const
+{
+	CUtlVector< CTFPlayer * > teammates;
+	CollectPlayers( &teammates, GetTeamNumber(), COLLECT_ONLY_LIVING_PLAYERS );
+
+	const float flRangeSqr = flRange * flRange;
+
+	for ( int i = 0; i < teammates.Count(); ++i )
+	{
+		CTFPlayer *pTeammate = teammates[i];
+		if ( pTeammate == this )
+			continue;
+
+		if ( ( pTeammate->GetAbsOrigin() - GetAbsOrigin() ).LengthSqr() > flRangeSqr )
+			continue;
+
+		if ( pTeammate->m_Shared.InCond( TF_COND_INVULNERABLE ) ||
+			 pTeammate->m_Shared.InCond( TF_COND_INVULNERABLE_WEARINGOFF ) ||
+			 pTeammate->m_Shared.InCond( TF_COND_CRITBOOSTED ) ||
+			 pTeammate->m_Shared.InCond( TF_COND_CRITBOOSTED_USER_BUFF ) ||
+			 pTeammate->m_Shared.InCond( TF2M_COND_BOOST_MINICRITS ) ||
+			 pTeammate->m_Shared.InCond( TF2M_COND_BOOST_REFLECT ) )
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
 
 //-----------------------------------------------------------------------------------------------------
 bool CTFBot::IsAdvantageousEngagement( const CKnownEntity *threat ) const
@@ -1694,18 +1755,33 @@ bool CTFBot::IsAdvantageousEngagement( const CKnownEntity *threat ) const
 	if ( GetTeamNumber() == TF_TEAM_PVE_INVADERS )
 		return true;
 
-	// We are invulnerable or crit boosted, so we should engage no matter what.
-	if ( m_Shared.InCond( TF_COND_INVULNERABLE ) ||
-		 m_Shared.InCond( TF_COND_INVULNERABLE_WEARINGOFF ) ||
-		 m_Shared.InCond( TF_COND_CRITBOOSTED ) ||
-		 m_Shared.InCond( TF_COND_CRITBOOSTED_USER_BUFF ) )
-	{
+	// We have some kind of offensive buff (uber, civilian boost), we should push up.
+    if ( HasOffensiveBuff() )
 		return true;
-	}
+
+	// If a nearby teammate is buffed, we should probably push with them.
+	if ( HasNearbyBuffedTeammate() )
+		return true;
 
 	// If we're on an objective, we should fight to defend it.
     if ( IsOnObjective() )
 		return true;
+	
+	// Our threat is ubercharged. RETREAT.
+    if ( threat )
+	{
+		CBaseEntity *pEnt = threat->GetEntity();
+		CTFPlayer *pEnemy = ToTFPlayer( pEnt );
+		if ( pEnemy && pEnemy->IsAlive() )
+		{
+			if ( pEnemy->m_Shared.IsInvulnerable() ||
+				 pEnemy->m_Shared.InCond( TF_COND_INVULNERABLE ) ||
+				 pEnemy->m_Shared.InCond( TF_COND_INVULNERABLE_WEARINGOFF ) )
+			{
+				return false;
+			}
+		}
+	}
 
 	CBaseEntity *ent = threat->GetEntity();
 	if ( !ent )

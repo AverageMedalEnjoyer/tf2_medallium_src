@@ -305,6 +305,8 @@ public:
 	void ScriptSetActionPoint( HSCRIPT hPoint ) { SetActionPoint( ScriptToEntClass< CTFBotActionPoint >( hPoint ) ); }
 	HSCRIPT ScriptGetActionPoint( void ) const { return ToHScript( GetActionPoint() ); }
 
+	bool HasOffensiveBuff( void ) const;
+    bool HasNearbyBuffedTeammate( float flRange = 900.0f ) const;
 	bool IsOnObjective() const;
     bool IsAdvantageousEngagement( const CKnownEntity *threat ) const;
 

@@ -57,6 +57,7 @@
 
 #include "bot/behavior/tf_bot_mvm_defenders.h"
 #include "bot/behavior/tf_bot_passtime.h"
+#include "bot/behavior/civilian/tf_bot_civilian_boost.h"
 
 extern ConVar tf_bot_health_ok_ratio;
 extern ConVar tf_bot_health_critical_ratio;
@@ -191,6 +192,11 @@ Action< CTFBot > *CTFBotScenarioMonitor::DesiredScenarioAndClassAction( CTFBot *
 			    return new CTFBotSpyLeaveSpawnRoom;
 	    	}
 
+	        if ( me->IsPlayerClass( TF_CLASS_CIVILIAN ) )
+			{
+				return new CTFBotCivilianBoost;
+			}
+
 	    	if ( me->IsPlayerClass( TF_CLASS_MEDIC ) )
 		    {
 			    // if I'm being healed by another medic, I should do something else other than healing
@@ -233,8 +239,13 @@ Action< CTFBot > *CTFBotScenarioMonitor::DesiredScenarioAndClassAction( CTFBot *
 		{
 		    if ( me->IsPlayerClass( TF_CLASS_SPY ) )
 		    {
-			    return new CTFBotSpyLeaveSpawnRoom;
+			    return new CTFBotSpyInfiltrate;
 	    	}
+
+	        if ( me->IsPlayerClass( TF_CLASS_CIVILIAN ) )
+			{
+				return new CTFBotCivilianBoost;
+			}
 
 	    	if ( me->IsPlayerClass( TF_CLASS_MEDIC ) )
 		    {
@@ -278,6 +289,12 @@ Action< CTFBot > *CTFBotScenarioMonitor::DesiredScenarioAndClassAction( CTFBot *
 	if ( me->IsPlayerClass( TF_CLASS_SPY ) )
 	{
 		return new CTFBotSpyInfiltrate;
+	}
+
+
+	if ( me->IsPlayerClass( TF_CLASS_CIVILIAN ) )
+	{
+		return new CTFBotCivilianBoost;
 	}
 
 	if ( !TheTFBots().IsMeleeOnly() )

@@ -235,8 +235,6 @@ extern ConVar mp_developer;
 
 #define MAX_DAMAGE_EVENTS		128
 
-#define TF_BUFF_RADIUS			450.0f
-
 const char *g_pszBDayGibs[22] = 
 {
 	"models/effects/bday_gib01.mdl",
