@@ -256,8 +256,11 @@ bool CQuestObjectiveDefinition::BPostDataLoaded( CUtlVector<CUtlString> *pVecErr
 	SCHEMA_INIT_SUBSTEP( CTypedProtoBufScriptObjectDefinition::BPostDataLoaded( pVecErrors ) );
 
 	const CQuestObjectiveConditionsDefinition* pDef = GetItemSchema()->GetQuestObjectiveConditionByDefIndex( m_msgData.conditions_defindex() );
-	Assert( pDef != NULL );
-	SCHEMA_INIT_CHECK( pDef != NULL, "No conditions for quest objective %s!", GetName() );
+	//Assert( pDef != NULL );
+	//SCHEMA_INIT_CHECK( pDef != NULL, "No conditions for quest objective %s!", GetName() );
+	// Disable achievements quest objective console spam 
+	if ( pDef == NULL )
+		return true;
 	m_pKVConditions = pDef->GetKeyValues()->MakeCopy();
 	ReplaceTemplateVariables( m_msgData, m_pKVConditions );
 
