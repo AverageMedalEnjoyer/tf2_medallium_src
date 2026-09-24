@@ -909,6 +909,17 @@ void CTFBot::PressFireButton( float duration )
 		return;
 	}
 
+	// Heavy Bot: Hey, we're out of ammo, dumbass. Unrev. We can't shoot anymore.
+    if ( IsPlayerClass( TF_CLASS_HEAVYWEAPONS ) )
+	{
+		CTFWeaponBase *pWeapon = m_Shared.GetActiveTFWeapon();
+		if ( pWeapon && pWeapon->GetWeaponID() == TF_WEAPON_MINIGUN && GetAmmoCount( TF_AMMO_PRIMARY ) <= 0 )
+		{
+			ReleaseFireButton();
+			return;
+		}
+	}
+
 	BaseClass::PressFireButton( duration );
 }
 
@@ -3695,13 +3706,24 @@ bool CTFBot::IsAmmoLow( void ) const
 			}
 		}
 
-		float ratio = (float)GetAmmoCount( TF_AMMO_PRIMARY ) / (float)( const_cast< CTFBot * >( this )->GetMaxAmmo( TF_AMMO_PRIMARY ) );
+		const int nPrimaryMax   = const_cast< CTFBot * >( this )->GetMaxAmmo( TF_AMMO_PRIMARY );
+		const int nSecondaryMax = const_cast< CTFBot * >( this )->GetMaxAmmo( TF_AMMO_SECONDARY );
 
-		if ( ratio < 0.2f )
-		{
+		float flPrimaryRatio   = nPrimaryMax   > 0 ? (float)GetAmmoCount( TF_AMMO_PRIMARY )   / (float)nPrimaryMax   : 1.0f;
+		float flSecondaryRatio = nSecondaryMax > 0 ? (float)GetAmmoCount( TF_AMMO_SECONDARY ) / (float)nSecondaryMax : 1.0f;
+
+		// Heavy Bot: We are big man, we want to make sure we only go for ammo if we've really shot all our ammo.
+        // Our minigun fires two hundred dollar, custom-tooled cartridges at ten thousand rounds per minute.
+		if ( IsPlayerClass( TF_CLASS_HEAVYWEAPONS ) )
+			return ( flPrimaryRatio < 0.10f );
+
+		// We aren't Heavy. We care about our primary ammo just a bit more.
+		if ( flPrimaryRatio < 0.30f )
 			return true;
-		}
-		//if ( !myWeapon->HasPrimaryAmmo() && myWeapon->GetWeaponID() != TF_WEAPON_BUILDER && myWeapon->GetWeaponID() != TF_WEAPON_MEDIGUN )
+
+		// We don't care about our secondary ammo that much.
+		if ( flSecondaryRatio < 0.20f )
+			return true;
 	}
 
 	return false;

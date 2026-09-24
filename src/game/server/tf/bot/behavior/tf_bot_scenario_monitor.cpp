@@ -247,39 +247,20 @@ Action< CTFBot > *CTFBotScenarioMonitor::DesiredScenarioAndClassAction( CTFBot *
 				return new CTFBotCivilianBoost;
 			}
 
+		    if ( me->IsPlayerClass( TF_CLASS_SNIPER ) )
+	    	{
+		    	return new CTFBotSniperLurk;
+		    }
+
 	    	if ( me->IsPlayerClass( TF_CLASS_MEDIC ) )
 		    {
-			    // if I'm being healed by another medic, I should do something else other than healing
-			    bool bIsBeingHealedByAMedic = false;
-			    int nNumHealers = me->m_Shared.GetNumHealers();
-			    for ( int i=0; i<nNumHealers; ++i )
-			    {
-				    CBaseEntity *pHealer = me->m_Shared.GetHealerByIndex(i);
-				    if ( pHealer && pHealer->IsPlayer() )
-				    {
-			    		bIsBeingHealedByAMedic = true;
-				    	break;
-			    	}
-			    }
-
-		    	if ( !bIsBeingHealedByAMedic )
-		    	{
-			    	return new CTFBotMedicHeal;
-			    }
+			    return new CTFBotMedicHeal;
 		    }
 
 		    if ( me->IsPlayerClass( TF_CLASS_ENGINEER ) )
 		    {
 			    return new CTFBotEngineerBuild;
 			}
-
-	    	// NOTE: Snipers are intentionally left out so they go after the flag. Actual sniping behavior is done as a mission.
-
-		    if ( me->HasAttribute( CTFBot::AGGRESSIVE ) )
-		    {
-		    	// push for the point first, then attack
-		    	return new CTFBotPushToCapturePoint( new CTFBotFetchFlag );
-		    }
 
 		    // Defend our base from the robots
 		    return new CTFBotMVMDefender;

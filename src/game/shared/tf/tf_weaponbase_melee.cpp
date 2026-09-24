@@ -268,7 +268,10 @@ void CTFWeaponBaseMelee::SecondaryAttack()
 	{
 		CTFPlayer *pPlayer = GetTFPlayerOwner();
 
-		const bool bButtonPressRequired = ( iAltFireBoost_ButtonPressRequired || tf2m_teammate_boost_buttonpressrequired.GetBool() && !pPlayer->m_afButtonPressed & IN_ATTACK2 );
+		const bool bButtonPressRequired =
+            ( iAltFireBoost_ButtonPressRequired != 0 ) ||
+            ( tf2m_teammate_boost_buttonpressrequired.GetBool() &&
+            !( pPlayer->m_afButtonPressed & IN_ATTACK2 ) );
 
 		float flBuffRange = tf2m_teammate_boost_range.GetFloat();
 		CALL_ATTRIB_HOOK_FLOAT_ON_OTHER( pPlayer, flBuffRange, mult_umbrella_buff_range );
@@ -283,9 +286,14 @@ void CTFWeaponBaseMelee::SecondaryAttack()
 		AngleVectors( pPlayer->EyeAngles(), &vecDir );
 		Vector vecEnd = vecStart + ( vecDir * flBuffRange );
 
-		// Pure raycast against hitboxes only (no hull/AABB volume)
+		// We use a hull as our trace. Hopefully will work better and will be more responsive.
+		// A man can dream.
+		static const Vector vecBoostMins( -24.0f, -24.0f, -24.0f );
+		static const Vector vecBoostMaxs(  24.0f,  24.0f,  24.0f );
+
 		CTraceFilterSimple filter( pPlayer, COLLISION_GROUP_PLAYER );
-		UTIL_TraceLine( vecStart, vecEnd, MASK_SOLID | CONTENTS_HITBOX, &filter, &tr );
+		UTIL_TraceHull( vecStart, vecEnd, vecBoostMins, vecBoostMaxs,
+		                MASK_SOLID | CONTENTS_HITBOX, &filter, &tr );
 
 #if !defined( CLIENT_DLL )
 		lagcompensation->FinishLagCompensation( pPlayer );
@@ -339,6 +347,20 @@ void CTFWeaponBaseMelee::SecondaryAttack()
 				if ( iMode == 2 )
 					pszBoostSound = "TeammateBoost.Reflect";
 				pPlayer->EmitSound( pszBoostSound );
+
+				// Get our voiceline
+                int RandVoiceline = RandomInt( 0, 1 );
+				if ( !m_hLastBoostTarget->IsPlayerClass( TF_CLASS_ENGINEER ) )
+				{
+					if ( RandVoiceline == 0 )
+						pPlayer->SpeakConceptIfAllowed( MP_CONCEPT_PLAYER_GO );
+					else
+						pPlayer->SpeakConceptIfAllowed( MP_CONCEPT_PLAYER_BATTLECRY );
+				}
+				else
+				{
+					pPlayer->SpeakConceptIfAllowed( MP_CONCEPT_PLAYER_MOVEUP );
+				}
             #endif
 
 				SendWeaponAnim( ACT_MP_GESTURE_VC_FINGERPOINT_MELEE );

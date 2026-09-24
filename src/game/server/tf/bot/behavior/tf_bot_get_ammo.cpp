@@ -236,6 +236,15 @@ ActionResult< CTFBot >	CTFBotGetAmmo::OnStart( CTFBot *me, Action< CTFBot > *pri
 //---------------------------------------------------------------------------------------------
 ActionResult< CTFBot >	CTFBotGetAmmo::Update( CTFBot *me, float interval )
 {
+	// Can't check for this if Engie, or else Engineer bots will break
+	if ( !me->IsPlayerClass( TF_CLASS_ENGINEER ) )
+	{
+        if ( !me->IsAmmoLow() )
+	    {
+	    	return Done( "Ammo is no longer low" );
+	    }
+	}
+
 	if ( me->IsAmmoFull() )
 	{
 		return Done( "My ammo is full" );
