@@ -18438,6 +18438,9 @@ void CTFPlayer::DoTauntAttack( void )
 				if ( FVisible( pList[i], MASK_SOLID ) == false )
 					continue;
 
+				if ( !pList[i]->IsAlive() )
+					continue;
+
 				Vector vecPos = WorldSpaceCenter();
 				vecPos += (pList[i]->WorldSpaceCenter() - vecPos) * 0.75;
 
@@ -18475,8 +18478,34 @@ void CTFPlayer::DoTauntAttack( void )
 					}
 					else 
 					{
-						// No physics push so it doesn't push the player out of the range of the punch
-						pList[i]->TakeDamage(CTakeDamageInfo( this, this, GetActiveTFWeapon(), vecForward * 15000, vecPos, 40.0f, DMG_CLUB | DMG_PREVENT_PHYSICS_FORCE, TF_DMG_CUSTOM_TAUNTATK_PUNCHOUT ) );
+						float flDamage = 40.0f;
+						int nDamageType = DMG_CLUB | DMG_PREVENT_PHYSICS_FORCE;
+
+						CTFWeaponBaseMelee *pMelee = dynamic_cast<CTFWeaponBaseMelee*>( GetActiveTFWeapon() );
+
+						if ( m_Shared.IsCritBoosted() )
+						{
+							if ( pMelee )
+							{
+								int iDummyType = 0;
+								int iDummyCustom = 0;
+								flDamage = pMelee->GetMeleeDamage( pList[i], &iDummyType, &iDummyCustom );
+							}
+							nDamageType |= DMG_CRITICAL;
+						}
+						else if ( m_Shared.InCond( TF_COND_ENERGY_BUFF ) )
+						{
+							if ( pMelee )
+							{
+								int iDummyType = 0;
+								int iDummyCustom = 0;
+								flDamage = pMelee->GetMeleeDamage( pList[i], &iDummyType, &iDummyCustom );
+							}
+						}
+
+						pList[i]->TakeDamage( CTakeDamageInfo( this, this, GetActiveTFWeapon(),
+							vecForward * 15000, vecPos, flDamage, nDamageType, TF_DMG_CUSTOM_TAUNTATK_PUNCHOUT ) );
+
 						EmitSound( "Weapon_BoxingGloves.HitFlesh" );
 					}
 				}
