@@ -760,10 +760,10 @@ CChoreoScene *C_SceneEntity::LoadScene( const char *filename )
 	char *pBuffer = NULL;
 	size_t bufsize = scenefilecache->GetSceneBufferSize( loadfile );
 	if ( bufsize <= 0 )
-		return NULL;
+		return LoadLooseScene( loadfile, this );
 
 	pBuffer = new char[ bufsize ];
-	if ( !scenefilecache->GetSceneData( filename, (byte *)pBuffer, bufsize ) )
+	if ( !scenefilecache->GetSceneData( loadfile, (byte *)pBuffer, bufsize ) )
 	{
 		delete[] pBuffer;
 		return NULL;

@@ -6,6 +6,9 @@
 
 #include "cbase.h"
 #include "sceneentity_shared.h"
+#include "choreoscene.h"
+#include "filesystem.h"
+#include "utlbuffer.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -122,3 +125,30 @@ void CSceneTokenProcessor::SetBuffer( char *buffer )
 }
 
 CSceneTokenProcessor g_TokenProcessor;
+
+//-----------------------------------------------------------------------------
+// Raw VCD support, following Mapbase's compiled-scene-first loading policy.
+// Keep the buffer local so playback and metadata queries release it alike.
+//-----------------------------------------------------------------------------
+CChoreoScene *LoadLooseScene( const char *filename, IChoreoEventCallback *pCallback )
+{
+	char loadfile[MAX_PATH];
+	Q_strncpy( loadfile, filename, sizeof( loadfile ) );
+	Q_SetExtension( loadfile, ".vcd", sizeof( loadfile ) );
+	Q_FixSlashes( loadfile );
+
+	CUtlBuffer buffer( 0, 0, CUtlBuffer::TEXT_BUFFER );
+	if ( !filesystem->ReadFile( loadfile, "MOD", buffer ) || buffer.TellPut() == 0 )
+		return NULL;
+
+	if ( IsBufferBinaryVCD( (char *)buffer.Base(), buffer.TellPut() ) )
+	{
+		Warning( "LoadLooseScene: Expected a text VCD in '%s'\n", loadfile );
+		return NULL;
+	}
+
+	g_TokenProcessor.SetBuffer( (char *)buffer.Base() );
+	CChoreoScene *pScene = ChoreoLoadScene( loadfile, pCallback, &g_TokenProcessor, Scene_Printf );
+	g_TokenProcessor.SetBuffer( NULL );
+	return pScene;
+}

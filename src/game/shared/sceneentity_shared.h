@@ -19,6 +19,7 @@
 
 class CBaseFlex;
 
+class IChoreoEventCallback;
 class CChoreoEvent;
 class CChoreoScene;
 class CChoreoActor;
@@ -113,6 +114,10 @@ private:
 };
 
 extern CSceneTokenProcessor g_TokenProcessor;
+
+// Mapbase-style fallback for scenes missing from scenes.image.
+// The caller owns the returned scene. Only the mod's search paths are consulted.
+CChoreoScene *LoadLooseScene( const char *filename, IChoreoEventCallback *pCallback );
 
 void Scene_Printf( PRINTF_FORMAT_STRING const char *pFormat, ... );
 extern ConVar scene_clientflex;

@@ -209,8 +209,12 @@ bool CopySceneFileIntoMemory( char const *pFilename, void **pBuffer, int *pSize 
 	if ( bufSize > 0 )
 	{
 		*pBuffer = new byte[bufSize];
-		*pSize = bufSize;
-		return scenefilecache->GetSceneData( pFilename, (byte *)(*pBuffer), bufSize );
+		if ( scenefilecache->GetSceneData( pFilename, (byte *)(*pBuffer), bufSize ) )
+		{
+			*pSize = bufSize;
+			return true;
+		}
+		delete[] (byte *)(*pBuffer);
 	}
 
 	*pBuffer = 0;
@@ -957,7 +961,8 @@ float CSceneEntity::GetSoundSystemLatency( void )
 // Purpose: 
 // Input  : *scene - 
 //-----------------------------------------------------------------------------
-void CSceneEntity::PrecacheScene( CChoreoScene *scene )
+// Shared by entity precaching and the loose-VCD response precache path.
+static void PrecacheChoreoScene( CChoreoScene *scene, IChoreoEventCallback *pCallback )
 {
 	Assert( scene );
 
@@ -978,7 +983,7 @@ void CSceneEntity::PrecacheScene( CChoreoScene *scene )
 				// Defined in SoundEmitterSystem.cpp
 				// NOTE:  The script entries associated with .vcds are forced to preload to avoid
 				//  loading hitches during triggering
-				PrecacheScriptSound( event->GetParameters() );
+				CBaseEntity::PrecacheScriptSound( event->GetParameters() );
 
 				if ( event->GetCloseCaptionType() == CChoreoEvent::CC_MASTER && 
 					 event->GetNumSlaves() > 0 )
@@ -986,7 +991,7 @@ void CSceneEntity::PrecacheScene( CChoreoScene *scene )
 					char tok[ CChoreoEvent::MAX_CCTOKEN_STRING ];
 					if ( event->GetPlaybackCloseCaptionToken( tok, sizeof( tok ) ) )
 					{
-						PrecacheScriptSound( tok );
+						CBaseEntity::PrecacheScriptSound( tok );
 					}
 				}
 			}
@@ -999,12 +1004,14 @@ void CSceneEntity::PrecacheScene( CChoreoScene *scene )
 					CChoreoScene *subscene = event->GetSubScene();
 					if ( !subscene )
 					{
-						subscene = LoadScene( event->GetParameters(), this );
+						subscene = CSceneEntity::LoadScene( event->GetParameters(), pCallback );
+						if ( !subscene )
+							break;
 						subscene->SetSubScene( true );
 						event->SetSubScene( subscene );
 
 						// Now precache it's resources, if any
-						PrecacheScene( subscene );
+						PrecacheChoreoScene( subscene, pCallback );
 					}
 				}
 			}
@@ -1012,6 +1019,12 @@ void CSceneEntity::PrecacheScene( CChoreoScene *scene )
 		}
 	}
 }
+
+void CSceneEntity::PrecacheScene( CChoreoScene *scene )
+{
+	PrecacheChoreoScene( scene, this );
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -2569,7 +2582,7 @@ void CSceneEntity::StartPlayback( void )
 		m_pScene = LoadScene( STRING( m_iszSceneFile ), this );
 		if ( !m_pScene )
 		{
-			DevMsg( "%s missing from scenes.image\n", STRING( m_iszSceneFile ) );
+			DevMsg( "%s missing from scenes.image or mod scene files\n", STRING( m_iszSceneFile ) );
 			m_bSceneMissing = true;
 			return;
 		}
@@ -3426,8 +3439,12 @@ CChoreoScene *CSceneEntity::LoadScene( const char *filename, IChoreoEventCallbac
 	int fileSize;
 	if ( !CopySceneFileIntoMemory( loadfile, &pBuffer, &fileSize ) )
 	{
-		MissingSceneWarning( loadfile );
-		return NULL;
+		CChoreoScene *pScene = LoadLooseScene( loadfile, pCallback );
+		if ( pScene )
+			pScene->SetPrintFunc( LocalScene_Printf );
+		else
+			MissingSceneWarning( loadfile );
+		return pScene;
 	}
 
 	CChoreoScene *pScene = new CChoreoScene( NULL );
@@ -4754,6 +4771,16 @@ float GetSceneDuration( char const *pszScene )
 	{
 		msecs = cachedData.msecs;
 	}
+	else
+	{
+		CChoreoScene *pScene = LoadLooseScene( pszScene, NULL );
+		if ( pScene )
+		{
+			float flDuration = pScene->FindStopTime();
+			delete pScene;
+			return flDuration;
+		}
+	}
 
 	return (float)msecs * 0.001f;
 }
@@ -4770,7 +4797,19 @@ int GetSceneSpeechCount( char const *pszScene )
 	{
 		return cachedData.numSounds;
 	}
-	return 0;
+
+	int nSpeechCount = 0;
+	CChoreoScene *pScene = LoadLooseScene( pszScene, NULL );
+	if ( pScene )
+	{
+		for ( int i = 0; i < pScene->GetNumEvents(); ++i )
+		{
+			if ( pScene->GetEvent( i )->GetType() == CChoreoEvent::SPEAK )
+				++nSpeechCount;
+		}
+		delete pScene;
+	}
+	return nSpeechCount;
 }
 
 //-----------------------------------------------------------------------------
@@ -4796,11 +4835,11 @@ void PrecacheInstancedScene( char const *pszScene )
 	SceneCachedData_t sceneData;
 	if ( !scenefilecache->GetSceneCachedData( pszScene, &sceneData ) )
 	{
-		// Scenes are sloppy and don't always exist.
-		// A scene that is not in the pre-built cache image, but on disk, is a true error.
-		if ( developer.GetInt() && ( IsX360() && ( g_pFullFileSystem->GetDVDMode() != DVDMODE_STRICT ) && g_pFullFileSystem->FileExists( pszScene, "GAME" ) ) )
+		CChoreoScene *pScene = LoadLooseScene( pszScene, NULL );
+		if ( pScene )
 		{
-			Warning( "PrecacheInstancedScene: Missing scene '%s' from scene image cache.\nRebuild scene image cache!\n", pszScene );
+			PrecacheChoreoScene( pScene, NULL );
+			delete pScene;
 		}
 	}
 	else
