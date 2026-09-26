@@ -20,6 +20,7 @@
 #include "choreochannel.h"
 #include "scenefilecache/ISceneFileCache.h"
 #include "c_sceneentity.h"
+#include "sceneentity_shared.h"
 #include "c_baseflex.h"
 #include "sentence.h"
 #include "engine/IEngineSound.h"
@@ -412,40 +413,53 @@ CChoreoScene *LoadSceneForModel( const char *filename, IChoreoEventCallback *pCa
 
 	char *pBuffer = NULL;
 	size_t bufsize = scenefilecache->GetSceneBufferSize( loadfile );
-	if ( bufsize <= 0 )
-		return NULL;
-
-	pBuffer = new char[ bufsize ];
-	if ( !scenefilecache->GetSceneData( filename, (byte *)pBuffer, bufsize ) )
-	{
-		delete[] pBuffer;
-		return NULL;
-	}
 
 	CChoreoScene *pScene;
-	if ( IsBufferBinaryVCD( pBuffer, bufsize ) )
+	if ( bufsize > 0 )
 	{
-		pScene = new CChoreoScene( pCallback );
-		CUtlBuffer buf( pBuffer, bufsize, CUtlBuffer::READ_ONLY );
-		if ( !pScene->RestoreFromBinaryBuffer( buf, loadfile, &g_ChoreoStringPool ) )
+		pBuffer = new char[ bufsize ];
+		if ( !scenefilecache->GetSceneData( filename, (byte *)pBuffer, bufsize ) )
 		{
-			Warning( "Unable to restore binary scene '%s'\n", loadfile );
-			delete pScene;
-			pScene = NULL;
+			delete[] pBuffer;
+			return NULL;
+		}
+
+		if ( IsBufferBinaryVCD( pBuffer, bufsize ) )
+		{
+			pScene = new CChoreoScene( pCallback );
+			CUtlBuffer buf( pBuffer, bufsize, CUtlBuffer::READ_ONLY );
+			if ( !pScene->RestoreFromBinaryBuffer( buf, loadfile, &g_ChoreoStringPool ) )
+			{
+				Warning( "Unable to restore binary scene '%s'\n", loadfile );
+				delete pScene;
+				pScene = NULL;
+			}
+			else
+			{
+				pScene->SetPrintFunc( Scene_Printf );
+				pScene->SetEventCallbackInterface( pCallback );
+			}
 		}
 		else
 		{
-			pScene->SetPrintFunc( Scene_Printf );
-			pScene->SetEventCallbackInterface( pCallback );
+			g_TokenProcessor.SetBuffer( pBuffer );
+			pScene = ChoreoLoadScene( loadfile, pCallback, &g_TokenProcessor, Scene_Printf );
 		}
+
+		delete[] pBuffer;
 	}
 	else
 	{
-		g_TokenProcessor.SetBuffer( pBuffer );
-		pScene = ChoreoLoadScene( loadfile, pCallback, &g_TokenProcessor, Scene_Printf );
+		// Not in scenes.image - fall back to a loose .vcd on disk via the
+		// same helper CSceneEntity::LoadScene uses, so this stays consistent
+		// with the rest of the loose-file policy instead of duplicating it.
+		pScene = LoadLooseScene( loadfile, pCallback );
+		if ( pScene )
+			pScene->SetPrintFunc( Scene_Printf );
 	}
 
-	delete[] pBuffer;
+	if ( pScene == NULL )
+		return NULL;
 
 	if ( flSceneEndTime != NULL )
 	{

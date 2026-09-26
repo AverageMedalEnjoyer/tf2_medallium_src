@@ -141,6 +141,14 @@ CChoreoScene *LoadLooseScene( const char *filename, IChoreoEventCallback *pCallb
 	if ( !filesystem->ReadFile( loadfile, "MOD", buffer ) || buffer.TellPut() == 0 )
 		return NULL;
 
+	// ReadFile() only guarantees the bytes read from disk - no trailing null.
+	// engine->ParseFile() (via CSceneTokenProcessor::GetToken) walks the buffer
+	// as a plain C-string and relies on a terminator to know where to stop, so
+	// without this it reads past the end into whatever memory follows once it
+	// hits the last real token - surfacing as garbled "expecting X got Y"
+	// parse errors on essentially-random files.
+	buffer.PutChar( '\0' );
+
 	if ( IsBufferBinaryVCD( (char *)buffer.Base(), buffer.TellPut() ) )
 	{
 		Warning( "LoadLooseScene: Expected a text VCD in '%s'\n", loadfile );
