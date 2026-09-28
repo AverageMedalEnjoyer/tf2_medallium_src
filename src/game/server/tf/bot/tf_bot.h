@@ -305,6 +305,32 @@ public:
 	void ScriptSetActionPoint( HSCRIPT hPoint ) { SetActionPoint( ScriptToEntClass< CTFBotActionPoint >( hPoint ) ); }
 	HSCRIPT ScriptGetActionPoint( void ) const { return ToHScript( GetActionPoint() ); }
 
+    float                   m_flAnger;              // 0.0 - 1.0
+    float                   m_flCockiness;          // 0.0 - 1.0
+
+    struct HatedPlayerInfo_t
+    {
+        CHandle<CTFPlayer>  m_hPlayer;
+        int                 m_nDeathsToThem;
+        int                 m_nKillsOnThem;
+    };
+    CUtlVector<HatedPlayerInfo_t> m_hatedPlayers;   // Max 3
+
+    CHandle<CTFPlayer>      m_hLastKiller;
+    int                     m_nConsecutiveDeathsFromLastKiller;
+
+    CountdownTimer          m_insultTimer;
+    CountdownTimer          m_highAngerTimer;
+    float                   m_flLastEmotionThink;
+
+    bool                    m_bIsRageQuitting;
+    CountdownTimer          m_rageQuitDelayTimer;
+
+    float GetAnger() const { return m_flAnger; }
+    float GetCockiness() const { return m_flCockiness; }
+    bool  IsRageQuitting() const { return m_bIsRageQuitting; }
+    void  UpdateEmotions();
+
 	bool HasOffensiveBuff( void ) const;
     bool HasNearbyBuffedTeammate( float flRange = 900.0f ) const;
 	bool IsOnObjective() const;
@@ -352,6 +378,8 @@ public:
     const char *GetRandomCritDeathMessage( CBaseEntity *pKiller );
     const char *GetRandomKillMessage( CBaseEntity *pVictim );
     const char *GetRandomPraiseMessage( CBaseEntity *pTeammate );
+    const char *GetRandomInsultMessage( CBaseEntity *pHatedPlayer = NULL );
+    const char *GetRandomRageQuitMessage( void );
 
 	bool HasProxy( void ) const;
 	void SetProxy( CTFBotProxy *proxy );					// attach this bot to a bot_proxy entity for map I/O communications
@@ -549,6 +577,7 @@ private:
     EHANDLE m_hVictim;
     bool    m_bKilledByCrit;
 	bool    m_bKilledByRandomCrit;
+    int     m_iDamageCustom;
 
 	CountdownTimer m_lookAtEnemyInvasionAreasTimer;
 

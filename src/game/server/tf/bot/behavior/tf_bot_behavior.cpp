@@ -106,6 +106,12 @@ ActionResult< CTFBot >	CTFBotMainAction::Update( CTFBot *me, float interval )
 		return Done( "Not on a playing team" );
 	}
 
+	// Are we ragequitting?
+    if ( me->IsRageQuitting() )
+	{
+		return Continue();
+	}
+
 	// Should I accept taunt from my partner?
 	if ( me->FindPartnerTauntInitiator() )
 	{
@@ -1024,6 +1030,36 @@ const CKnownEntity *CTFBotMainAction::SelectMoreDangerousThreat( const INextBot 
 		return threat;
 	}
 
+    if ( me->m_hatedPlayers.Count() > 0 && me->m_flAnger > 0.2f )
+    {
+        CTFPlayer *pThreat1Player = ToTFPlayer( threat1 ? threat1->GetEntity() : NULL );
+        CTFPlayer *pThreat2Player = ToTFPlayer( threat2 ? threat2->GetEntity() : NULL );
+
+        bool bHate1 = false;
+        bool bHate2 = false;
+
+        for ( int i = 0; i < me->m_hatedPlayers.Count(); ++i )
+        {
+            if ( me->m_hatedPlayers[i].m_hPlayer == pThreat1Player )
+                 bHate1 = true;
+            if ( me->m_hatedPlayers[i].m_hPlayer == pThreat2Player )
+                bHate2 = true;
+        }
+
+        // Chance to focus the hated target (Higher anger = more likely)
+        float flFocusChance = me->m_flAnger * 0.85f;
+
+        if ( bHate1 && !bHate2 && RandomFloat(0,1) < flFocusChance )
+            return threat1;
+        if ( bHate2 && !bHate1 && RandomFloat(0,1) < flFocusChance )
+            return threat2;
+        if ( bHate1 && bHate2 )
+        {
+            // Both threats are hated, just pick the closer one, but still biased.
+            return SelectCloserThreat( me, threat1, threat2 );
+        }
+    }
+
  	// smarter bots first aim at the Medic healing our dangerous target
 	return GetHealerOfThreat( threat );
 }
@@ -1179,10 +1215,11 @@ const CKnownEntity *CTFBotMainAction::SelectMoreDangerousThreatInternal( const I
 //---------------------------------------------------------------------------------------------
 QueryResultType CTFBotMainAction::ShouldAttack( const INextBot *meBot, const CKnownEntity *them ) const
 {
+    CTFBot *me = ToTFBot( meBot->GetEntity() );
+
 	if ( g_pPopulationManager )
 	{
 		// if I'm in my spawn room, obey the population manager's attack restrictions
-		CTFBot *me = ToTFBot( meBot->GetEntity() );
 		CTFNavArea *myArea = me->GetLastKnownArea();
 		int spawnRoomFlag = me->GetTeamNumber() == TF_TEAM_RED ? TF_NAV_SPAWN_ROOM_RED : TF_NAV_SPAWN_ROOM_BLUE;
 
@@ -1191,6 +1228,10 @@ QueryResultType CTFBotMainAction::ShouldAttack( const INextBot *meBot, const CKn
 			return g_pPopulationManager->CanBotsAttackWhileInSpawnRoom() ? ANSWER_YES : ANSWER_NO;
 		}
 	}
+
+	// Are we ragequitting?
+	if ( me && me->IsRageQuitting() )
+		return ANSWER_NO;
 
 	return ANSWER_YES;
 }
@@ -1544,17 +1585,21 @@ QueryResultType	CTFBotMainAction::ShouldRetreat( const INextBot *bot ) const
 {
 	CTFBot *me = (CTFBot *)bot->GetEntity();
 
-	// don't retreat if we're in "melee only" mode
-	if ( TheTFBots().IsMeleeOnly() )
+	// Are we ragequitting?
+	if ( me->IsRageQuitting() )
 		return ANSWER_NO;
 
-	// don't retreat if ubered
-	if ( me->m_Shared.IsInvulnerable() )
+	// don't retreat if we're in "melee only" mode
+	if ( TheTFBots().IsMeleeOnly() )
 		return ANSWER_NO;
 
 	// don't retreat if we're ignoring enemies
 	if ( me->HasAttribute( CTFBot::IGNORE_ENEMIES ) )
 		return ANSWER_NO;
+
+	// We are a very cocky bot, we will not retreat.
+	if ( me->m_flCockiness >= 0.70f )
+        return ANSWER_NO;
 
 	// retreat if stunned
 	if ( me->m_Shared.IsControlStunned() || me->m_Shared.IsLoserStateStunned() )

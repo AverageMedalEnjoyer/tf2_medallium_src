@@ -73,7 +73,8 @@ ConVar tf_bot_chat_allow( "tf_bot_chat_allow", "1", FCVAR_REPLICATED | FCVAR_NOT
 ConVar tf_bot_chat_allow_mvmrobots("tf_bot_chat_allow_mvmrobots", "0", FCVAR_REPLICATED | FCVAR_NOTIFY, "When set to 1, robots in MVM will use chat.");
 ConVar tf_bot_chat_chance( "tf_bot_chat_chance", "0.30", FCVAR_REPLICATED, "The percent of chance that a bot will send a chat message (0.30 = 30%). Cannot go below 0.05 (5%) and cannot go above 1.0 (100%.)" );
 ConVar tf_bot_chat_chance_bybotcount( "tf_bot_chat_chance_bybotcount", "1", FCVAR_REPLICATED, "When set to 1, the chance a bot can send a chat message scales down the more bots there are in a map (does not count MVM robots)." );
-ConVar tf_bot_chat_chance_bybotcount_percentage("tf_bot_chat_chance_bybotcount_percentage", "0.01", FCVAR_REPLICATED, "The amount each bot scales the chance of sending a chat message down (0.01 = 1%).");
+ConVar tf_bot_chat_chance_bybotcount_percentage( "tf_bot_chat_chance_bybotcount_percentage", "0.01", FCVAR_REPLICATED, "The amount each bot scales the chance of sending a chat message down (0.01 = 1%)." );
+ConVar tf_bot_chat_allow_typo( "tf_bot_chat_allow_typo", "0", FCVAR_REPLICATED | FCVAR_NOTIFY, "When set to 1, bots have a 50% chance to make typos in chat messages by randomly removing 1-3 characters." );
 
 extern ConVar tf_bot_sniper_spot_max_count;
 extern ConVar tf_bot_fire_weapon_min_time;
@@ -88,7 +89,7 @@ extern ConVar tf_bot_path_lookahead_range;
 extern ConVar tf_mvm_miniboss_scale;
 
 //-----------------------------------------------------------------------------
-bool LoadScript( const char *pszFilename, CUtlVector< CUtlString > &outLines, CBaseEntity *pKiller = NULL, CBaseEntity *pVictim = NULL, CBaseEntity *pTeammate = NULL )
+bool LoadScript( const char *pszFilename, CUtlVector< CUtlString > &outLines, CBaseEntity *pKiller = NULL, CBaseEntity *pVictim = NULL, CBaseEntity *pTeammate = NULL, CBaseEntity *pSelf = NULL )
 {
 	outLines.RemoveAll();
 
@@ -123,6 +124,26 @@ bool LoadScript( const char *pszFilename, CUtlVector< CUtlString > &outLines, CB
 		pszTeammateName = ( (CBasePlayer*)pTeammate)->GetPlayerName();
 	}
 
+	// Team name
+	const char *pszOurTeam   = "Spectator";
+	const char *pszEnemyTeam = "Spectator";
+	if ( pSelf && pSelf->IsPlayer() )
+	{
+		CTFPlayer *pPlayer = ToTFPlayer( pSelf );
+		int iTeam = pPlayer->GetTeamNumber();
+
+		if ( iTeam == TF_TEAM_RED )
+		{
+			pszOurTeam   = ( RandomInt( 0, 1 ) == 0 ) ? "Red"  : "RED";
+			pszEnemyTeam = ( RandomInt( 0, 1 ) == 0 ) ? "Blu"  : "Blue";
+		}
+		else if ( iTeam == TF_TEAM_BLUE )
+		{
+			pszOurTeam   = ( RandomInt( 0, 1 ) == 0 ) ? "Blu"  : "Blue";
+			pszEnemyTeam = ( RandomInt( 0, 1 ) == 0 ) ? "Red"  : "RED";
+		}
+	}
+
 	char szLine[512];
 	while ( !filesystem->EndOfFile( hFile ) )
 	{
@@ -138,8 +159,12 @@ bool LoadScript( const char *pszFilename, CUtlVector< CUtlString > &outLines, CB
 			// Just don't put comments in the bot scripts. They'll send them in chat if you do. -MEDAL
 			//
 			// Skip comments
-			//if ( len == 0 || szLine[0] == '#' || szLine[0] == '/' )
+			//if ( szLine[0] == '#' || szLine[0] == '/' )
 			//	continue;
+
+			// Line is blank (0 characters)
+			if ( len == 0 )
+				continue;
 
             char szBuffer[512];
             Q_strncpy( szBuffer, szLine, sizeof( szBuffer ) );
@@ -168,11 +193,40 @@ bool LoadScript( const char *pszFilename, CUtlVector< CUtlString > &outLines, CB
                 Q_strncpy( szBuffer, szTemp, sizeof( szBuffer ) );
             }
 
+			// Replace [ourteam] with the name of our team
+			if ( Q_stristr( szBuffer, "[ourteam]" ) )
+			{
+				char szTemp[512];
+				Q_StrSubst( szBuffer, "[ourteam]", pszOurTeam, szTemp, sizeof( szTemp ) );
+				Q_strncpy( szBuffer, szTemp, sizeof( szBuffer ) );
+			}
+
+			// Replace [enemyteam] with the name of the opposite team
+			if ( Q_stristr( szBuffer, "[enemyteam]" ) )
+			{
+				char szTemp[512];
+				Q_StrSubst( szBuffer, "[enemyteam]", pszEnemyTeam, szTemp, sizeof( szTemp ) );
+				Q_strncpy( szBuffer, szTemp, sizeof( szBuffer ) );
+			}
+
             outLines.AddToTail( szBuffer );
 		}
 	}
 
 	filesystem->Close( hFile );
+
+	// Shuffle our lines
+	for ( int i = outLines.Count() - 1; i > 0; --i )
+	{
+		int j = RandomInt( 0, i );
+		if ( i != j )
+		{
+			CUtlString temp = outLines[i];
+			outLines[i] = outLines[j];
+			outLines[j] = temp;
+		}
+	}
+
 	return outLines.Count() > 0;
 }
 
@@ -1588,6 +1642,21 @@ void CTFBot::Spawn()
 	SetBrokenFormation( false );
 
 	GetVisionInterface()->ForgetAllKnownEntities();
+
+    m_flAnger = ( RandomFloat( 0.0f, 1.0f ) < 0.20f )
+        ? RandomFloat( 0.10f, 0.50f )
+        : 0.0f;
+    m_flCockiness = ( RandomFloat( 0.0f, 1.0f ) < 0.20f )
+        ? RandomFloat( 0.10f, 0.90f )
+        : 0.0f;
+    m_hatedPlayers.RemoveAll();
+    m_hLastKiller = NULL;
+    m_nConsecutiveDeathsFromLastKiller = 0;
+    m_insultTimer.Invalidate();
+    m_highAngerTimer.Invalidate();
+    m_flLastEmotionThink = 0.0f;
+    m_bIsRageQuitting = false;
+    m_rageQuitDelayTimer.Invalidate();
 }
 
 
@@ -1634,6 +1703,8 @@ void CTFBot::ReEvaluateCurrentClass( void )
 void CTFBot::PhysicsSimulate( void )
 {
 	BaseClass::PhysicsSimulate();
+
+	UpdateEmotions();
 
     if ( IsAlive() )
 	{
@@ -2751,18 +2822,47 @@ void CTFBot::FireGameEvent( IGameEvent *event )
 		}
 	}
     else if ( FStrEq( eventName, "player_death" ) )
-	{
+    {
+        int iAttacker = event->GetInt( "attacker" );
+        int iVictim   = event->GetInt( "userid" );
+
 		// Did *I* get the kill?
-		CBasePlayer *pAttacker = UTIL_PlayerByUserId( event->GetInt( "attacker" ) );
-		if ( pAttacker == this )
-		{
-			CBasePlayer *pVictim = UTIL_PlayerByUserId( event->GetInt( "userid" ) );
-			if ( pVictim )
-			{
+        if ( iAttacker == GetUserID() )
+        {
+            CTFPlayer *pVictim = ToTFPlayer( UTIL_PlayerByUserId( iVictim ) );
+            if ( pVictim )
+            {
 				m_hVictim = pVictim;
-			}
-		}
-	}
+
+                // Normal kill
+                m_flAnger     = Max( 0.0f, m_flAnger - 0.05f );
+                m_flCockiness = Min( 1.0f, m_flCockiness + 0.05f );
+
+                bool bWasRevenge = this->m_Shared.IsPlayerDominated( pVictim->entindex() );
+
+                if ( bWasRevenge )
+                {
+                    // We got a revenge, drop by 30%.
+                    m_flAnger = Max( 0.0f, m_flAnger - 0.30f );
+                }
+
+                // Update hatred list
+                for ( int i = 0; i < m_hatedPlayers.Count(); ++i )
+                {
+                    if ( m_hatedPlayers[i].m_hPlayer == pVictim )
+                    {
+                        m_hatedPlayers[i].m_nKillsOnThem++;
+
+                        if ( bWasRevenge || m_hatedPlayers[i].m_nKillsOnThem > m_hatedPlayers[i].m_nDeathsToThem )
+                        {
+                            m_hatedPlayers.Remove( i );
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 	
@@ -2777,8 +2877,23 @@ void CTFBot::Event_Killed( const CTakeDamageInfo &info )
 	m_bKilledByRandomCrit = false;
 	if ( m_bKilledByCrit ) // Check if our crit was random or not
 	{
-		CTFPlayer *pTFAttacker = ToTFPlayer( m_hKiller );
-		m_bKilledByRandomCrit = ( pTFAttacker && !pTFAttacker->m_Shared.IsCritBoosted() );
+        CTFPlayer *pTFAttacker = ToTFPlayer( m_hKiller );
+
+		// Backstabs and headshots always crit but are not "random" crits
+		if ( pTFAttacker &&
+			 !pTFAttacker->m_Shared.IsCritBoosted() &&
+			 !pTFAttacker->m_Shared.IsMiniCritBoosted() &&
+			 m_iDamageCustom != TF_DMG_CUSTOM_BACKSTAB &&
+			 m_iDamageCustom != TF_DMG_CUSTOM_HEADSHOT )
+		{
+			m_bKilledByRandomCrit = true;
+		}
+	}
+
+	// We get VERY angry from being randomcritted
+	if ( m_bKilledByRandomCrit )
+	{
+	    m_flAnger = Min( 1.0f, m_flAnger + 0.25f );
 	}
 
 	if ( HasProxy() )
@@ -2923,6 +3038,50 @@ void CTFBot::Event_Killed( const CTakeDamageInfo &info )
 	}
 
 	StopIdleSound();
+
+    CBaseEntity *pKiller = info.GetAttacker();
+    CTFPlayer *pKillerPlayer = ToTFPlayer( pKiller );
+
+    if ( pKillerPlayer && pKillerPlayer != this )
+    {
+        if ( pKillerPlayer == m_hLastKiller )
+            m_nConsecutiveDeathsFromLastKiller++;
+        else
+        {
+            m_hLastKiller = pKillerPlayer;
+            m_nConsecutiveDeathsFromLastKiller = 1;
+        }
+
+        // Anger from being killed
+        m_flAnger = Min( 1.0f, m_flAnger + 0.05f );
+
+        // Domination check
+        if ( this->m_Shared.IsPlayerDominated( pKillerPlayer->entindex() ) ||
+             m_nConsecutiveDeathsFromLastKiller >= 3 )
+        {
+            m_flAnger = Min( 1.0f, m_flAnger + 0.25f );
+        }
+
+        // Update "hatred" list
+        bool bFound = false;
+        for ( int i = 0; i < m_hatedPlayers.Count(); ++i )
+        {
+            if ( m_hatedPlayers[i].m_hPlayer == pKillerPlayer )
+            {
+                m_hatedPlayers[i].m_nDeathsToThem++;
+                bFound = true;
+                break;
+            }
+        }
+        if ( !bFound && m_hatedPlayers.Count() < 3 )
+        {
+            HatedPlayerInfo_t info;
+            info.m_hPlayer = pKillerPlayer;
+            info.m_nDeathsToThem = 1;
+            info.m_nKillsOnThem = 0;
+            m_hatedPlayers.AddToTail( info );
+        }
+    }
 }
 
 
@@ -6164,6 +6323,47 @@ void CTFBot::SayTeam( const char *pszMessage )
 }
 
 //-----------------------------------------------------------------------------
+// Randomly remove 1-3 characters from a bot chat message to simulate a typo
+//-----------------------------------------------------------------------------
+static void ApplyTypoToMessage( CUtlString &message, float flAnger )
+{
+	if ( !tf_bot_chat_allow_typo.GetBool() )
+		return;
+
+	// Our chance to have a typo is based on our anger.
+    if ( RandomFloat( 0.0f, 1.0f ) > 0.10f * flAnger )
+		return;
+
+	int len = message.Length();
+	if ( len < 4 ) // Don't butcher short messages
+		return;
+
+	int nToRemove = RandomInt( 1, 3 );
+	nToRemove = Min( nToRemove, len - 2 ); // Always leave at least 2 characters
+
+	char szBuffer[512];
+	Q_strncpy( szBuffer, message.Get(), sizeof( szBuffer ) );
+
+	for ( int i = 0; i < nToRemove; ++i )
+	{
+		int currentLen = Q_strlen( szBuffer );
+		if ( currentLen < 3 )
+			break;
+
+		// Pick a random character to remove
+		int idx = RandomInt( 1, currentLen - 2 );
+
+		// Shift everything left
+		for ( int j = idx; j < currentLen; ++j )
+		{
+			szBuffer[j] = szBuffer[j + 1];
+		}
+	}
+
+	message = szBuffer;
+}
+
+//-----------------------------------------------------------------------------
 void CTFBot::DeliverQueuedChatMessage( void )
 {
 	if ( m_queuedChatMessages.Count() == 0 )
@@ -6172,15 +6372,20 @@ void CTFBot::DeliverQueuedChatMessage( void )
 	QueuedChatMessage_t message = m_queuedChatMessages[0];
 	m_queuedChatMessages.Remove( 0 );
 
+	ApplyTypoToMessage( message.m_message, m_flAnger );
+
+    char szBotName[128];
+	Q_snprintf( szBotName, sizeof( szBotName ), "[BOT] %s", GetPlayerName() ); // Bot tag beside name in chat message
+
 	CReliableBroadcastRecipientFilter filter;
 	if ( message.m_bTeamOnly )
 	{
-		filter.AddRecipientsByTeam( GetTeam() ); // Only teammates
-		UTIL_SayText2Filter( filter, this, true, "TF_Chat_Team", GetPlayerName(), message.m_message.Get() );
+		filter.AddRecipientsByTeam( GetTeam() );
+		UTIL_SayText2Filter( filter, this, true, "TF_Chat_Team", szBotName, message.m_message.Get() );
 	}
 	else
 	{
-		UTIL_SayText2Filter( filter, this, true, "TF_Chat_All", GetPlayerName(), message.m_message.Get() );
+		UTIL_SayText2Filter( filter, this, true, "TF_Chat_All", szBotName, message.m_message.Get() );
 	}
 
 	if ( m_queuedChatMessages.Count() > 0 )
@@ -6235,23 +6440,27 @@ float CTFBot::GetChatMessageChance( void ) const
 const char *CTFBot::GetRandomDeathMessage( CBaseEntity *pKiller )
 {
 	// Chance we will even send our message
-    if ( RandomFloat( 0.0f, 1.0f ) > GetChatMessageChance() )
-        return "";
+	if ( RandomFloat( 0.0f, 1.0f ) > GetChatMessageChance() )
+		return "";
 
 	static CUtlVector< CUtlString > deathMessages;
 
-	LoadScript( "scripts/bot/bot_deathmsgs.txt", deathMessages, pKiller, this );
+	LoadScript( "scripts/bot/bot_deathmsgs.txt", deathMessages, pKiller, this, NULL, this );
 
 	if ( deathMessages.Count() == 0 )
 		return "NULL! MSG FILE EMPTY!";
 
 	static const char *pszDeathByPlayerTag = "[deathbyplayer]";
-	static const int nDeathByPlayerTagLen = Q_strlen( pszDeathByPlayerTag );
+	static const int   nDeathByPlayerTagLen = Q_strlen( pszDeathByPlayerTag );
+
+	static const char *pszDeathBySelfTag = "[deathbyself]";
+	static const int   nDeathBySelfTagLen = Q_strlen( pszDeathBySelfTag );
 
 	static CUtlVector< CUtlString > eligibleMessages;
 	eligibleMessages.RemoveAll();
 
-	const bool bKilledByPlayer = ( pKiller && pKiller->IsPlayer() );
+	const bool bKilledBySelf   = ( pKiller == this );
+	const bool bKilledByPlayer = ( pKiller && pKiller->IsPlayer() && !bKilledBySelf );
 
 	for ( int i = 0; i < deathMessages.Count(); ++i )
 	{
@@ -6264,6 +6473,16 @@ const char *CTFBot::GetRandomDeathMessage( CBaseEntity *pKiller )
 				continue;
 
 			pszLine += nDeathByPlayerTagLen;
+			while ( *pszLine == ' ' )
+				++pszLine;
+		}
+		// Lines that start with [deathbyself] are only used when ourselves killed us
+		else if ( !Q_strnicmp( pszLine, pszDeathBySelfTag, nDeathBySelfTagLen ) )
+		{
+			if ( !bKilledBySelf )
+				continue;
+
+			pszLine += nDeathBySelfTagLen;
 			while ( *pszLine == ' ' )
 				++pszLine;
 		}
@@ -6287,27 +6506,39 @@ const char *CTFBot::GetRandomCritDeathMessage( CBaseEntity *pKiller )
 
 	static CUtlVector< CUtlString > deathMessages;
 
-	LoadScript( "scripts/bot/bot_deathmsgs_crit.txt", deathMessages, pKiller, this );
+	LoadScript( "scripts/bot/bot_deathmsgs_crit.txt", deathMessages, pKiller, this, NULL, this );
 
 	if ( deathMessages.Count() == 0 )
 		return "NULL! MSG FILE EMPTY!";
 
-	static const char *pszRandCritTag = "[randcrit]";
-	static const int nRandCritTagLen = Q_strlen( pszRandCritTag );
+	static const char *pszRandCritTag = "[deathbyrandomcrit]";
+	static const int   nRandCritTagLen = Q_strlen( pszRandCritTag );
 
 	static const char *pszDeathByPlayerTag = "[deathbyplayer]";
-	static const int nDeathByPlayerTagLen = Q_strlen( pszDeathByPlayerTag );
+	static const int   nDeathByPlayerTagLen = Q_strlen( pszDeathByPlayerTag );
+
+	static const char *pszDeathBySelfTag = "[deathbyself]";
+	static const int   nDeathBySelfTagLen = Q_strlen( pszDeathBySelfTag );
+
+	static const char *pszBackstabTag = "[deathbybackstab]";
+	static const int   nBackstabTagLen = Q_strlen( pszBackstabTag );
+
+	static const char *pszHeadshotTag = "[deathbyheadshot]";
+	static const int   nHeadshotTagLen = Q_strlen( pszHeadshotTag );
 
 	static CUtlVector< CUtlString > eligibleMessages;
 	eligibleMessages.RemoveAll();
 
-	const bool bKilledByPlayer = ( pKiller && pKiller->IsPlayer() );
+	const bool bKilledBySelf   = ( pKiller == this );
+	const bool bKilledByPlayer = ( pKiller && pKiller->IsPlayer() && !bKilledBySelf );
+	const bool bBackstab       = ( m_iDamageCustom == TF_DMG_CUSTOM_BACKSTAB );
+	const bool bHeadshot       = ( m_iDamageCustom == TF_DMG_CUSTOM_HEADSHOT );
 
 	for ( int i = 0; i < deathMessages.Count(); ++i )
 	{
 		const char *pszLine = deathMessages[i].Get();
 
-		// Handle [randcrit]
+		// Lines that start with [deathbyrandomcrit] are only used when we died via random crits
 		if ( !Q_strnicmp( pszLine, pszRandCritTag, nRandCritTagLen ) )
 		{
 			if ( !WasKilledByRandomCrit() )
@@ -6317,14 +6548,43 @@ const char *CTFBot::GetRandomCritDeathMessage( CBaseEntity *pKiller )
 			while ( *pszLine == ' ' )
 				++pszLine;
 		}
-
-		// Handle [deathbyplayer]
-		if ( !Q_strnicmp( pszLine, pszDeathByPlayerTag, nDeathByPlayerTagLen ) )
+		// Lines that start with [deathbyplayer] are only used when a player killed us
+		else if ( !Q_strnicmp( pszLine, pszDeathByPlayerTag, nDeathByPlayerTagLen ) )
 		{
 			if ( !bKilledByPlayer )
 				continue;
 
 			pszLine += nDeathByPlayerTagLen;
+			while ( *pszLine == ' ' )
+				++pszLine;
+		}
+		// Lines that start with [deathbyself] are only used when ourselves killed us
+		else if ( !Q_strnicmp( pszLine, pszDeathBySelfTag, nDeathBySelfTagLen ) )
+		{
+			if ( !bKilledBySelf )
+				continue;
+
+			pszLine += nDeathBySelfTagLen;
+			while ( *pszLine == ' ' )
+				++pszLine;
+		}
+		// Lines that start with [deathbybackstab] are only used when we died via backstab
+		else if ( !Q_strnicmp( pszLine, pszBackstabTag, nBackstabTagLen ) )
+		{
+			if ( !bBackstab )
+				continue;
+
+			pszLine += nBackstabTagLen;
+			while ( *pszLine == ' ' )
+				++pszLine;
+		}
+		// Lines that start with [deathbyheadshot] are only used when we died via headshot
+		else if ( !Q_strnicmp( pszLine, pszHeadshotTag, nHeadshotTagLen ) )
+		{
+			if ( !bHeadshot )
+				continue;
+
+			pszLine += nHeadshotTagLen;
 			while ( *pszLine == ' ' )
 				++pszLine;
 		}
@@ -6348,7 +6608,7 @@ const char *CTFBot::GetRandomKillMessage( CBaseEntity *pVictim )
 
 	static CUtlVector< CUtlString > killMessages;
 
-    LoadScript( "scripts/bot/bot_killmsgs.txt", killMessages, this, pVictim );
+    LoadScript( "scripts/bot/bot_killmsgs.txt", killMessages, this, pVictim, NULL, this );
 
 	if ( killMessages.Count() == 0 )
 		return "NULL! MSG FILE EMPTY!";
@@ -6368,11 +6628,301 @@ const char *CTFBot::GetRandomPraiseMessage( CBaseEntity *pTeammate )
 
 	static CUtlVector< CUtlString > praiseMessages;
 
-	LoadScript( "scripts/bot/bot_praisemsgs.txt", praiseMessages, NULL, NULL, pTeammate );
+	LoadScript( "scripts/bot/bot_praisemsgs.txt", praiseMessages, NULL, NULL, pTeammate, this );
 
 	if ( praiseMessages.Count() == 0 )
 		return "NULL! MSG FILE EMPTY!";
 
 	int RandMsg = RandomInt( 0, praiseMessages.Count() - 1 );
 	return praiseMessages[ RandMsg ].Get();
+}
+
+//-----------------------------------------------------------------------------
+const char *CTFBot::GetRandomInsultMessage( CBaseEntity *pHatedPlayer )
+{
+    if ( RandomFloat( 0.0f, 1.0f ) > GetChatMessageChance() )
+        return "";
+
+    static CUtlVector< CUtlString > insultMessages;
+
+    LoadScript( "scripts/bot/bot_insultmsgs.txt", insultMessages, NULL, NULL, NULL, this );
+
+    if ( insultMessages.Count() == 0 )
+        return "";
+
+    static const char *pszAnger80Tag = "[80%_anger]";
+    static const int   nAnger80TagLen = Q_strlen( pszAnger80Tag );
+    static const char *pszCockyTag = "[cocky]";
+    static const int   nCockyTagLen = Q_strlen( pszCockyTag );
+
+    static CUtlVector< CUtlString > eligible;
+    eligible.RemoveAll();
+
+    bool bUseAnger80 = ( m_flAnger >= 0.80f );
+    bool bUseCocky   = ( m_flCockiness >= 0.60f && m_flAnger < 0.60f );
+    bool bHasHated   = ( m_hatedPlayers.Count() > 0 );
+
+    for ( int i = 0; i < insultMessages.Count(); ++i )
+    {
+        const char *pszLine = insultMessages[i].Get();
+
+        // Skip lines that require a hated player when we have none
+        if ( Q_stristr( pszLine, "[hatedplayer]" ) && !bHasHated )
+            continue;
+
+        if ( !Q_strnicmp( pszLine, pszAnger80Tag, nAnger80TagLen ) )
+        {
+            if ( !bUseAnger80 ) continue;
+            pszLine += nAnger80TagLen;
+            while ( *pszLine == ' ' ) ++pszLine;
+        }
+        else if ( !Q_strnicmp( pszLine, pszCockyTag, nCockyTagLen ) )
+        {
+            if ( !bUseCocky ) continue;
+            pszLine += nCockyTagLen;
+            while ( *pszLine == ' ' ) ++pszLine;
+        }
+
+        eligible.AddToTail( pszLine );
+    }
+
+    if ( eligible.Count() == 0 )
+        return "";
+
+    static CUtlString s_Result;
+	s_Result = eligible[ RandomInt( 0, eligible.Count()-1 ) ];
+
+    // Replace [hatedplayer] with our currently hated players, randomly chooses one of multiple.
+	// Will not use lines with [hatedplayer] if we have no hated player.
+    if ( Q_stristr( s_Result.Get(), "[hatedplayer]" ) && bHasHated )
+	{
+		CTFPlayer *pTarget = NULL;
+		if ( pHatedPlayer && pHatedPlayer->IsPlayer() )
+			pTarget = ToTFPlayer( pHatedPlayer );
+		else
+			pTarget = m_hatedPlayers[ RandomInt( 0, m_hatedPlayers.Count()-1 ) ].m_hPlayer;
+
+		if ( pTarget )
+		{
+			char szTemp[512];
+			Q_StrSubst( s_Result.Get(), "[hatedplayer]", pTarget->GetPlayerName(), szTemp, sizeof(szTemp) );
+			s_Result = szTemp;
+		}
+	}
+
+    return s_Result.Get();
+}
+
+//-----------------------------------------------------------------------------
+const char *CTFBot::GetRandomRageQuitMessage( void )
+{
+	// Always send a ragequit message
+	static CUtlVector< CUtlString > rageQuitMessages;
+
+	LoadScript( "scripts/bot/bot_ragequitmsgs.txt", rageQuitMessages, NULL, NULL, NULL, this );
+
+	if ( rageQuitMessages.Count() == 0 )
+		return "gg";
+
+    static CUtlString s_Result;
+	s_Result = rageQuitMessages[ RandomInt( 0, rageQuitMessages.Count() - 1 ) ];
+	return s_Result.Get();
+}
+
+//-----------------------------------------------------------------------------
+void CTFBot::UpdateEmotions()
+{
+    if ( IsAlive() && gpGlobals->curtime - m_flLastEmotionThink >= 1.0f )
+    {
+        m_flLastEmotionThink = gpGlobals->curtime;
+
+        bool bDominatingSomeone = false;
+		bool bIsBeingDominated  = false;
+
+        for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+        {
+            CTFPlayer *pPlayer = ToTFPlayer( UTIL_PlayerByIndex( i ) );
+            if ( !pPlayer || pPlayer == this )
+                continue;
+
+            // Am I dominating this player?
+            if ( pPlayer->m_Shared.IsPlayerDominated( this->entindex() ) )
+            {
+                bDominatingSomeone = true;
+                break;
+            }
+
+            // Is this player dominating me?
+	    	if ( this->m_Shared.IsPlayerDominated( pPlayer->entindex() ) )
+		    {
+		    	bIsBeingDominated = true;
+		    }
+        }
+
+        if ( bIsBeingDominated )
+        {
+	        m_flAnger = Min( 1.0f, m_flAnger + 0.02f );
+      	}
+
+	    // Dominating someone, anger falls, cockiness rises
+       	if ( bDominatingSomeone )
+       	{
+        	m_flAnger     = Max( 0.0f, m_flAnger - 0.02f );
+		    m_flCockiness = Min( 1.0f, m_flCockiness + 0.02f );
+	    }
+
+    	// 100% cockiness forces anger down hard
+	    if ( m_flCockiness >= 1.0f )
+	    	m_flAnger = Max( 0.0f, m_flAnger - 0.50f );
+    }
+
+    static float s_flLastHealThink = 0.0f;
+    if ( IsAlive() && gpGlobals->curtime - s_flLastHealThink >= 0.5f )
+    {
+        s_flLastHealThink = gpGlobals->curtime;
+
+        bool bHealed = false;
+        for ( int i = 0; i < m_Shared.GetNumHealers(); ++i )
+        {
+            if ( !m_Shared.HealerIsDispenser( i ) )
+            {
+                bHealed = true;
+                break;
+            }
+        }
+
+        if ( bHealed )
+        {
+            m_flCockiness = Min( 1.0f, m_flCockiness + 0.01f );
+        }
+    }
+
+    // Ragequit check
+    if ( m_bIsRageQuitting )
+    {
+	    if ( m_rageQuitDelayTimer.IsElapsed() )
+	    {
+	    	//if ( gpGlobals->curtime - s_flLastBotAddTime >= 3.0f )
+	    	//{
+	    	//	engine->ServerCommand( "tf_bot_add 1\n" );
+	    	//	s_flLastBotAddTime = gpGlobals->curtime;
+	    	//}
+
+			// Make our bot leave
+    		engine->ServerCommand( UTIL_VarArgs( "kickid %d\n", GetUserID() ) );
+    	}
+	    return;
+    }
+
+    if ( m_flAnger >= 1.0f )
+    {
+	    if ( !m_highAngerTimer.HasStarted() )
+	    	m_highAngerTimer.Start( 40.0f );
+
+	    if ( m_highAngerTimer.IsElapsed() )
+	    {
+	    	// 1. Send the ragequit message first
+	    	const char *pszMsg = GetRandomRageQuitMessage();
+	    	if ( pszMsg && *pszMsg )
+		    	Say( pszMsg );
+
+	    	m_bIsRageQuitting = true;
+	    	m_rageQuitDelayTimer.Start( 3.0f );
+
+	    	// Optional but recommended: force-stop current path & fire
+	        if ( GetLocomotionInterface() )
+		    	GetLocomotionInterface()->Stop();
+		    SetAttribute( SUPPRESS_FIRE );
+	    }
+    }
+    else
+    {
+	   m_highAngerTimer.Invalidate();
+    }
+    // Insult timer (angry or cocky)
+    if ( ( m_flAnger >= 0.60f || m_flCockiness >= 0.60f ) && 
+         ( !m_insultTimer.HasStarted() || m_insultTimer.IsElapsed() ) )
+    {
+        // Random send between 40 seconds and 3 minutes
+        float flDelay = RandomFloat( 40.0f, 180.0f );
+        m_insultTimer.Start( flDelay );
+
+        CBaseEntity *pTarget = NULL;
+        if ( m_hatedPlayers.Count() > 0 )
+            pTarget = m_hatedPlayers[ RandomInt( 0, m_hatedPlayers.Count()-1 ) ].m_hPlayer;
+
+        const char *pszInsult = GetRandomInsultMessage( pTarget );
+        if ( pszInsult && *pszInsult )
+            Say( pszInsult );
+    }
+}
+
+//-----------------------------------------------------------------------------
+CON_COMMAND_F( tf_bot_print_info, "Print the name, anger, cockiness and hated players of every TFBot currently in the game.", FCVAR_GAMEDLL )
+{
+	if ( !UTIL_IsCommandIssuedByServerAdmin() )
+		return;
+
+	Msg( "\n===== TFBot Information =====\n" );
+
+	int nBots = 0;
+
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( !pPlayer || !pPlayer->IsConnected() )
+			continue;
+
+		CTFBot *pBot = ToTFBot( pPlayer );
+		if ( !pBot )
+			continue;
+
+		// Build the entire line for this bot in one buffer
+		char szLine[512];
+		Q_snprintf( szLine, sizeof(szLine),
+			"%-32s  Anger: %5.1f%%   Cockiness: %5.1f%%\n",
+			pBot->GetPlayerName(),
+			pBot->m_flAnger * 100.0f,
+			pBot->m_flCockiness * 100.0f );
+
+		// Append hated list
+		if ( pBot->m_hatedPlayers.Count() > 0 )
+		{
+			Q_strncat( szLine, "    Hated: ", sizeof(szLine) );
+
+			for ( int h = 0; h < pBot->m_hatedPlayers.Count(); ++h )
+			{
+				CTFPlayer *pHated = pBot->m_hatedPlayers[h].m_hPlayer;
+				if ( !pHated )
+					continue;
+
+				char szEntry[128];
+				Q_snprintf( szEntry, sizeof(szEntry), "%s (D:%d K:%d)%s",
+					pHated->GetPlayerName(),
+					pBot->m_hatedPlayers[h].m_nDeathsToThem,
+					pBot->m_hatedPlayers[h].m_nKillsOnThem,
+					(h < pBot->m_hatedPlayers.Count() - 1) ? ", " : "" );
+
+				Q_strncat( szLine, szEntry, sizeof(szLine) );
+			}
+			Q_strncat( szLine, "\n", sizeof(szLine) );
+		}
+		else
+		{
+			Q_strncat( szLine, "    Hated: (none)\n", sizeof(szLine) );
+		}
+
+		Msg( "%s", szLine );
+
+		++nBots;
+	}
+
+	if ( nBots == 0 )
+	{
+		Msg( "No TFBots found.\n" );
+	}
+	//else
+	//{
+	//	Msg( "===========================\n(%d bots)\n\n", nBots );
+	//}
 }

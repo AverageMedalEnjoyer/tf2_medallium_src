@@ -119,6 +119,13 @@ bool CTFBotGetAmmo::IsPossible( CTFBot *me )
 {
 	VPROF_BUDGET( "CTFBotGetAmmo::IsPossible", "NextBot" );
 
+	// Angry bots care less about their ammo
+    if ( me->m_flAnger >= 0.60f )
+    {
+        if ( !me->IsAmmoLow() )
+            return false;
+    }
+
 	int i;
 
 	CUtlVector< CNavArea * > nearbyAreaVector;

@@ -124,9 +124,21 @@ bool CTFBotGetHealth::IsPossible( CTFBot *me )
 		return false;
 	}
 
-	float healthRatio = (float)me->GetHealth() / (float)me->GetMaxHealth();
+    float flHealthRatio = (float)me->GetHealth() / (float)me->GetMaxHealth();
 
-	float t = ( healthRatio - tf_bot_health_critical_ratio.GetFloat() ) / ( tf_bot_health_ok_ratio.GetFloat() - tf_bot_health_critical_ratio.GetFloat() );
+	// Angry bots care less about their life
+    if ( me->m_flAnger >= 0.60f )
+    {
+        if ( flHealthRatio > 0.30f && !me->m_Shared.InCond( TF_COND_BURNING ) )
+            return false;
+    }
+    else if ( me->m_flAnger >= 0.30f )
+    {
+        if ( flHealthRatio > 0.50f && !me->m_Shared.InCond( TF_COND_BURNING ) )
+            return false;
+    }
+
+	float t = ( flHealthRatio - tf_bot_health_critical_ratio.GetFloat() ) / ( tf_bot_health_ok_ratio.GetFloat() - tf_bot_health_critical_ratio.GetFloat() );
 	t = clamp( t, 0.0f, 1.0f );
 
 	if ( me->m_Shared.InCond( TF_COND_BURNING ) )
