@@ -30,6 +30,21 @@ class CTFBotGenerator;
 
 extern void BotGenerateAndWearItem( CTFPlayer *pBot, const char *itemName );
 
+struct BlastJumpSpot_t
+{
+	Vector					m_origin;
+	CUtlVector< Vector >	m_validDirs;
+};
+
+extern CUtlVector< BlastJumpSpot_t >	g_BlastJumpSpots;
+extern bool								g_bBlastJumpSpotsReady;
+extern ConVar							tf_bot_debug_blastjump_spots;
+
+void UpdateBlastJumpSpotGeneration();
+const BlastJumpSpot_t *FindNearestUsableBlastJumpSpot( CTFBot *me, float maxRange = 500.0f,
+                                                      const Vector *pPreferredDir = NULL,
+                                                      float minDot = 0.55f );
+
 //----------------------------------------------------------------------------
 // These must remain in sync with the bot_generator's spawnflags in tf.fgd:
 #define TFBOT_IGNORE_ENEMY_SCOUTS		0x0001
@@ -345,6 +360,10 @@ public:
 	CountdownTimer m_combatJumpTimer;
 	int  m_combatStrafeDir;
 	bool m_bCombatStrafing;
+
+    CountdownTimer m_nextBlastJumpAllowed;
+
+    bool            m_bIsBlastJumping;
 
     void UpdateStickybombLauncher();
     bool ShouldUseStickybombLauncher() const;

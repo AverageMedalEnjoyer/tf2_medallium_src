@@ -76,6 +76,9 @@ ConVar tf_bot_chat_chance_bybotcount( "tf_bot_chat_chance_bybotcount", "1", FCVA
 ConVar tf_bot_chat_chance_bybotcount_percentage( "tf_bot_chat_chance_bybotcount_percentage", "0.01", FCVAR_REPLICATED, "The amount each bot scales the chance of sending a chat message down (0.01 = 1%)." );
 ConVar tf_bot_chat_allow_typo( "tf_bot_chat_allow_typo", "0", FCVAR_REPLICATED | FCVAR_NOTIFY, "When set to 1, bots have a 50% chance to make typos in chat messages by randomly removing 1-3 characters." );
 
+ConVar tf_bot_debug_blastjump_spots( "tf_bot_debug_blastjump_spots", "0", FCVAR_CHEAT, "Draw all generated blast jump spots and their valid arc directions" );
+ConVar tf_bot_blastjump_gen_per_frame( "tf_bot_blastjump_gen_per_frame", "200", FCVAR_CHEAT, "How many random nav points to test per frame while generating" );
+
 extern ConVar tf_bot_sniper_spot_max_count;
 extern ConVar tf_bot_fire_weapon_min_time;
 extern ConVar tf_bot_sniper_misfire_chance;
@@ -87,6 +90,274 @@ extern ConVar tf_mvm_miniboss_min_health;
 extern ConVar tf_bot_path_lookahead_range;
 
 extern ConVar tf_mvm_miniboss_scale;
+
+static CUtlVector< Vector > s_usedOrigins;
+
+static const float kMinSpotSeparation	= 120.0f;
+static const float kUpClearance		= 500.0f;
+static const float kArcClearance	= 500.0f;
+static const float kArcHeight		= 180.0f;
+static const int   kArcSegments		= 8;
+static const float kSideClearance	= 30.0f;
+
+CUtlVector< BlastJumpSpot_t >	g_BlastJumpSpots;
+bool							g_bBlastJumpSpotsReady = false;
+
+// ----------------------------------------------------------------------
+static bool IsTooCloseToExistingBlastJumpSpot( const Vector &pos )
+{
+	for ( int i = 0; i < s_usedOrigins.Count(); ++i )
+	{
+		if ( ( pos - s_usedOrigins[i] ).LengthSqr() < (kMinSpotSeparation * kMinSpotSeparation) )
+			return true;
+	}
+	return false;
+}
+
+// ----------------------------------------------------------------------
+static bool BlastJumpTraceArcClear( const Vector &start, const Vector &dir )
+{
+	Vector cur = start + Vector( 0, 0, 8.0f );
+	const float stepLen = kArcClearance / kArcSegments;
+
+	Vector right( -dir.y, dir.x, 0.0f );
+	right.NormalizeInPlace();
+
+	for ( int i = 1; i <= kArcSegments; ++i )
+	{
+		float t = (float)i / (float)kArcSegments;
+		float height = 4.0f * kArcHeight * t * (1.0f - t);
+		Vector next = start + dir * (stepLen * i) + Vector( 0, 0, height + 8.0f );
+
+		trace_t tr;
+		UTIL_TraceLine( cur, next, MASK_SOLID_BRUSHONLY, NULL, COLLISION_GROUP_NONE, &tr );
+		if ( tr.fraction < 1.0f || tr.startsolid )
+			return false;
+
+		// Make sure our trace arcs have enough room, as not to cause
+		// blast jumping bots to bonk their head on a wall.
+		Vector sideL = next + right * kSideClearance;
+		Vector sideR = next - right * kSideClearance;
+
+		UTIL_TraceLine( next, sideL, MASK_SOLID_BRUSHONLY, NULL, COLLISION_GROUP_NONE, &tr );
+		if ( tr.fraction < 1.0f || tr.startsolid )
+			return false;
+
+		UTIL_TraceLine( next, sideR, MASK_SOLID_BRUSHONLY, NULL, COLLISION_GROUP_NONE, &tr );
+		if ( tr.fraction < 1.0f || tr.startsolid )
+			return false;
+
+		cur = next;
+	}
+	return true;
+}
+
+// ----------------------------------------------------------------------
+void UpdateBlastJumpSpotGeneration()
+{
+	if ( g_bBlastJumpSpotsReady )
+		return;
+
+	// Only run while at least one TFBot exists
+	bool anyBot = false;
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CTFBot *bot = ToTFBot( UTIL_PlayerByIndex( i ) );
+		if ( bot && bot->IsConnected() )
+		{
+			anyBot = true;
+			break;
+		}
+	}
+	if ( !anyBot )
+		return;
+
+	const int attempts = tf_bot_blastjump_gen_per_frame.GetInt();
+
+	for ( int a = 0; a < attempts; ++a )
+	{
+		CTFNavArea *area = (CTFNavArea *)TheNavMesh->GetNavAreaByID(
+			RandomInt( 1, TheNavMesh->GetNavAreaCount() ) );
+		if ( !area )
+			continue;
+
+		Vector origin = area->GetRandomPoint();
+
+		// Never place spots in water
+		if ( UTIL_PointContents( origin ) & MASK_WATER )
+			continue;
+
+		// Upward clearance
+		trace_t upTr;
+		UTIL_TraceLine( origin + Vector(0,0,8),
+						origin + Vector(0,0,8 + kUpClearance),
+						MASK_SOLID_BRUSHONLY, NULL, COLLISION_GROUP_NONE, &upTr );
+
+		if ( upTr.fraction < 1.0f || upTr.startsolid )
+			continue;
+
+		static const float yawOffsets[8] = { 0, 45, 90, 135, 180, 225, 270, 315 };
+		CUtlVector< Vector > goodDirs;
+
+		for ( int d = 0; d < 8; ++d )
+		{
+			QAngle ang( 0, yawOffsets[d], 0 );
+			Vector dir;
+			AngleVectors( ang, &dir );
+			dir.z = 0;
+			dir.NormalizeInPlace();
+
+			if ( BlastJumpTraceArcClear( origin, dir ) )
+				goodDirs.AddToTail( dir );
+		}
+
+		// Fallback
+		if ( goodDirs.Count() == 0 )
+		{
+			for ( int d = 0; d < 8; ++d )
+			{
+				QAngle ang( 0, yawOffsets[d], 0 );
+				Vector dir;
+				AngleVectors( ang, &dir );
+				dir.z = 0;
+				dir.NormalizeInPlace();
+
+				Vector cur = origin + Vector( 0, 0, 8.0f );
+				const float stepLen = kArcClearance / kArcSegments;
+				bool ok = true;
+				for ( int i = 1; i <= kArcSegments; ++i )
+				{
+					float t = (float)i / (float)kArcSegments;
+					float height = 4.0f * kArcHeight * t * (1.0f - t);
+					Vector next = origin + dir * (stepLen * i) + Vector( 0, 0, height + 8.0f );
+
+					trace_t tr;
+					UTIL_TraceLine( cur, next, MASK_SOLID_BRUSHONLY, NULL, COLLISION_GROUP_NONE, &tr );
+					if ( tr.fraction < 1.0f || tr.startsolid )
+					{
+						ok = false;
+						break;
+					}
+					cur = next;
+				}
+				if ( ok )
+					goodDirs.AddToTail( dir );
+			}
+		}
+
+		if ( goodDirs.Count() == 0 )
+			continue;
+
+		if ( IsTooCloseToExistingBlastJumpSpot( origin ) )
+			continue;
+
+		BlastJumpSpot_t &spot = g_BlastJumpSpots[ g_BlastJumpSpots.AddToTail() ];
+		spot.m_origin = origin;
+		spot.m_validDirs = goodDirs;
+		s_usedOrigins.AddToTail( origin );
+	}
+
+	if ( g_BlastJumpSpots.Count() > 280 ||
+		 (gpGlobals->curtime > 20.0f && g_BlastJumpSpots.Count() > 100) )
+	{
+		g_bBlastJumpSpotsReady = true;
+		DevMsg( "TFBot: Generated %d blast-jump spots\n", g_BlastJumpSpots.Count() );
+	}
+}
+
+// ----------------------------------------------------------------------
+void DrawBlastJumpSpots()
+{
+	if ( !tf_bot_debug_blastjump_spots.GetBool() )
+		return;
+
+	static float s_flLastDraw = 0.0f;
+	if ( gpGlobals->curtime - s_flLastDraw < 0.25f )
+		return;
+	s_flLastDraw = gpGlobals->curtime;
+
+	// Find a player to use as the “viewer”
+	CBasePlayer *pViewer = UTIL_GetListenServerHost();
+	if ( !pViewer )
+	{
+		// Fallback: First connected human or bot
+		for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+		{
+			CBasePlayer *p = UTIL_PlayerByIndex( i );
+			if ( p && p->IsConnected() )
+			{
+				pViewer = p;
+				break;
+			}
+		}
+	}
+	if ( !pViewer )
+		return;
+
+	const Vector viewerPos = pViewer->GetAbsOrigin();
+	const float flMaxDistSqr = 1000.0f * 1000.0f;
+	const float flDuration   = 0.3f;
+
+	for ( int i = 0; i < g_BlastJumpSpots.Count(); ++i )
+	{
+		const BlastJumpSpot_t &s = g_BlastJumpSpots[i];
+
+		// Skip anything farther than a radius of 1000
+		if ( ( s.m_origin - viewerPos ).LengthSqr() > flMaxDistSqr )
+			continue;
+
+		NDebugOverlay::Sphere( s.m_origin, 12.0f, 0, 255, 0, true, flDuration );
+
+		char szLabel[32];
+		Q_snprintf( szLabel, sizeof(szLabel), "BJ %d", i );
+		NDebugOverlay::Text( s.m_origin + Vector(0,0,20), szLabel, false, flDuration );
+
+		for ( int d = 0; d < s.m_validDirs.Count(); ++d )
+		{
+			Vector end = s.m_origin + s.m_validDirs[d] * 200.0f + Vector(0,0,80);
+			NDebugOverlay::Line( s.m_origin, end, 0, 200, 255, true, flDuration );
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
+const BlastJumpSpot_t *FindNearestUsableBlastJumpSpot( CTFBot *me, float maxRange /*=500*/,
+													  const Vector *pPreferredDir /*=NULL*/,
+													  float minDot /*=0.55f*/ )
+{
+	if ( !g_bBlastJumpSpotsReady || !me )
+		return NULL;
+
+	const BlastJumpSpot_t *best = NULL;
+	float bestDistSq = maxRange * maxRange;
+
+	for ( int i = 0; i < g_BlastJumpSpots.Count(); ++i )
+	{
+		const BlastJumpSpot_t &s = g_BlastJumpSpots[i];
+		float distSq = ( s.m_origin - me->GetAbsOrigin() ).LengthSqr();
+		if ( distSq >= bestDistSq )
+			continue;
+
+		if ( pPreferredDir && !pPreferredDir->IsZero() )
+		{
+			bool hasGoodDir = false;
+			for ( int d = 0; d < s.m_validDirs.Count(); ++d )
+			{
+				if ( DotProduct( s.m_validDirs[d], *pPreferredDir ) >= minDot )
+				{
+					hasGoodDir = true;
+					break;
+				}
+			}
+			if ( !hasGoodDir )
+				continue;		// Reject this spot entirely
+		}
+
+		bestDistSq = distSq;
+		best = &s;
+	}
+	return best;
+}
 
 //-----------------------------------------------------------------------------
 bool LoadScript( const char *pszFilename, CUtlVector< CUtlString > &outLines, CBaseEntity *pKiller = NULL, CBaseEntity *pVictim = NULL, CBaseEntity *pTeammate = NULL, CBaseEntity *pSelf = NULL )
@@ -1643,6 +1914,11 @@ void CTFBot::Spawn()
 
 	GetVisionInterface()->ForgetAllKnownEntities();
 
+	m_bIsBlastJumping = false;
+
+    if ( !g_bBlastJumpSpotsReady )
+	    UpdateBlastJumpSpotGeneration();
+
     m_flAnger = ( RandomFloat( 0.0f, 1.0f ) < 0.20f )
         ? RandomFloat( 0.10f, 0.50f )
         : 0.0f;
@@ -1705,6 +1981,11 @@ void CTFBot::PhysicsSimulate( void )
 	BaseClass::PhysicsSimulate();
 
 	UpdateEmotions();
+
+    UpdateBlastJumpSpotGeneration();
+
+    if ( tf_bot_debug_blastjump_spots.GetBool() )
+	    DrawBlastJumpSpots();
 
     if ( IsAlive() )
 	{
@@ -1994,11 +2275,16 @@ void CTFBot::DoCombatJump()
 //-----------------------------------------------------------------------------------------------------
 void CTFBot::UpdateCombatMovement()
 {
-	// If we don't have a threat, we shouldn't be combat strafing or jumping
+	bool bMVM = ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() && ( GetTeamNumber() == TF_TEAM_PVE_INVADERS && HasTheFlag() ) ) || ( IsPlayerClass( TF_CLASS_SCOUT ) && IsMiniBoss() );
+	bool bIsBadTime = PointInRespawnRoom( this, WorldSpaceCenter() ) || m_bIsBlastJumping;
+
+	// We shouldn't be combat strafing or jumping in these situations
 	const CKnownEntity *threat = GetVisionInterface()->GetPrimaryKnownThreat( true );
-	if ( !threat || !threat->IsVisibleRecently() )
+	if ( ( !threat || !threat->IsVisibleRecently() ) || // No Threat
+		( bMVM || // MVM Bomb Carrier or Giant Scout
+		bIsBadTime ) ) // In Respawnroom or Blast Jumping
 	{
-		// Stop combat strafing if we don't have a threat
+		// Stop combat strafing
 		if ( m_bCombatStrafing )
 		{
 			ReleaseLeftButton();
@@ -2065,7 +2351,10 @@ void CTFBot::UpdateCombatMovement()
 	{
 		if ( TransientlyConsistentRandomValue( 2.0f, 17 ) < 0.22f )	// 22% chance
 		{
-			DoCombatJump();
+			if ( !bMVM && !bIsBadTime )
+			{
+			    DoCombatJump();
+			}
 		}
 		else
 		{

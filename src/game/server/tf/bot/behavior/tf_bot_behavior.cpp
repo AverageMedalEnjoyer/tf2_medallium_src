@@ -118,6 +118,59 @@ ActionResult< CTFBot >	CTFBotMainAction::Update( CTFBot *me, float interval )
 		return SuspendFor( new CTFBotTaunt, "Responding to teammate partner taunt" );
 	}
 
+	// Currently only Soldier bots can blast jump, but this is eventually 
+	// going to get more support for other classes in the future (Demoman Stickyjumping, Pyro Detonatorjumping, etc).
+    if ( g_bBlastJumpSpotsReady &&
+		 me->IsPlayerClass( TF_CLASS_SOLDIER ) &&
+		 me->GetHealth() > 100 &&
+		 me->m_nextBlastJumpAllowed.IsElapsed() &&
+		 !me->IsMiniBoss() &&					// No MVM giants
+		 !me->HasTheFlag() )					// No MVM bomb carrier
+	{
+		CTFWeaponBase *rocket = dynamic_cast< CTFWeaponBase * >(
+			me->Weapon_OwnsThisType( "tf_weapon_rocketlauncher" ) );
+
+		// Make sure we have enough ammo to blast jump...
+		if ( rocket && me->GetAmmoCount( rocket->GetPrimaryAmmoType() ) > 0 )
+		{
+			const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
+			bool bInCombat = ( threat && threat->IsVisibleRecently() && threat->GetEntity() );
+
+			// Preferred direction
+			Vector preferredDir = vec3_origin;
+			if ( bInCombat )
+			{
+				preferredDir = threat->GetEntity()->GetAbsOrigin() - me->GetAbsOrigin();
+				preferredDir.z = 0.0f;
+				preferredDir.NormalizeInPlace();
+			}
+			else
+			{
+				// Roll out: Blast jump in the direction our bot is already going
+				// Probably going to be redone as it's not very reliable currently. -MEDAL
+				preferredDir = me->GetLocomotionInterface()->GetMotionVector();
+				if ( preferredDir.IsZero() )
+				{
+					Vector forward;
+					me->EyeVectors( &forward );
+					preferredDir = forward;
+					preferredDir.z = 0.0f;
+					preferredDir.NormalizeInPlace();
+				}
+			}
+
+			// Only accept spots whose arcs actually point a preferable direction
+			const BlastJumpSpot_t *spot = FindNearestUsableBlastJumpSpot(
+				me, 500.0f, &preferredDir, 0.55f );
+
+			if ( spot )
+			{
+				return SuspendFor( new CTFBotBlastJump( spot, bInCombat ),
+								   bInCombat ? "Doing a divebomb blast jump" : "Doing a roll out blast jump" );
+			}
+		}
+	}
+
 	// make sure our vision FOV matches the player's
 	me->GetVisionInterface()->SetFieldOfView( me->GetFOV() );
 
@@ -263,7 +316,7 @@ ActionResult< CTFBot >	CTFBotMainAction::Update( CTFBot *me, float interval )
 
 	me->UpdateLookingAroundForEnemies();
 	FireWeaponAtEnemy( me );
-	Dodge( me );
+	//Dodge( me );
 
 	if ( me->IsPlayerClass( TF_CLASS_DEMOMAN ) )
 	{
@@ -1675,7 +1728,8 @@ QueryResultType	CTFBotMainAction::ShouldRetreat( const INextBot *bot ) const
 	return ANSWER_NO;
 }
 
-
+// Isn't needed anymore as bot strafing is defined in UpdateCombatMovement(). -MEDAL
+/*
 //-----------------------------------------------------------------------------------------
 void CTFBotMainAction::Dodge( CTFBot *me )
 {
@@ -1776,5 +1830,236 @@ void CTFBotMainAction::Dodge( CTFBot *me )
 			}
 		}
 	}
+}
+*/
+
+//-----------------------------------------------------------------------------------------
+CTFBotBlastJump::CTFBotBlastJump( const BlastJumpSpot_t *spot, bool bCombat )
+{
+	m_spot           = spot;
+	m_bCombat        = bCombat;
+	m_state          = APPROACH;
+	m_jumpDir        = vec3_origin;
+	m_bHasLeftGround = false;
+}
+
+//-----------------------------------------------------------------------------------------
+ActionResult< CTFBot > CTFBotBlastJump::OnStart( CTFBot *me, Action< CTFBot > *prior )
+{
+	if ( !m_spot || m_spot->m_validDirs.Count() == 0 )
+		return Done( "No valid spot" );
+
+	Vector desiredDir = vec3_origin;
+
+	if ( m_bCombat )
+	{
+		const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
+		if ( threat && threat->GetEntity() )
+		{
+			desiredDir = threat->GetEntity()->GetAbsOrigin() - me->GetAbsOrigin();
+			desiredDir.z = 0.0f;
+			desiredDir.NormalizeInPlace();
+		}
+	}
+	else
+	{
+		desiredDir = me->GetLocomotionInterface()->GetMotionVector();
+		if ( desiredDir.IsZero() )
+		{
+			Vector forward;
+			me->EyeVectors( &forward );
+			desiredDir = forward;
+			desiredDir.z = 0.0f;
+			desiredDir.NormalizeInPlace();
+		}
+	}
+
+	float bestDot = -2.0f;
+	m_jumpDir = m_spot->m_validDirs[0];
+	for ( int i = 0; i < m_spot->m_validDirs.Count(); ++i )
+	{
+		float d = DotProduct( m_spot->m_validDirs[i], desiredDir );
+		if ( d > bestDot )
+		{
+			bestDot   = d;
+			m_jumpDir = m_spot->m_validDirs[i];
+		}
+	}
+
+	me->m_bIsBlastJumping = true;
+
+	m_state          = APPROACH;
+	m_bHasLeftGround = false;
+	m_failSafeTimer.Invalidate();
+	m_airborneTimer.Invalidate();
+
+	me->m_nextBlastJumpAllowed.Start( 10.0f );
+
+	CTFBotPathCost cost( me, FASTEST_ROUTE );
+	m_path.SetMinLookAheadDistance( me->GetDesiredPathLookAheadRange() );
+	m_path.Compute( me, m_spot->m_origin, cost );
+	m_repathTimer.Start( 1.0f );
+
+	return Continue();
+}
+
+//-----------------------------------------------------------------------------------------
+ActionResult< CTFBot > CTFBotBlastJump::Update( CTFBot *me, float interval )
+{
+	CTFWeaponBase *rocket = dynamic_cast< CTFWeaponBase * >(
+		me->Weapon_OwnsThisType( "tf_weapon_rocketlauncher" ) );
+
+	if ( !rocket ||
+		 me->GetHealth() <= 100 ||
+		 me->GetAmmoCount( rocket->GetPrimaryAmmoType() ) <= 0 )
+	{
+		me->m_bIsBlastJumping = false;
+
+		return Done( "No rocket launcher, ammo, or low health." );
+	}
+
+	if ( m_failSafeTimer.HasStarted() )
+	{
+		if ( !me->GetLocomotionInterface()->IsOnGround() )
+		{
+			if ( !m_airborneTimer.HasStarted() )
+				m_airborneTimer.Start();
+
+			if ( m_airborneTimer.GetElapsedTime() >= 0.5f )
+			{
+				m_bHasLeftGround = true;
+				m_failSafeTimer.Invalidate();
+			}
+		}
+		else
+		{
+			m_airborneTimer.Invalidate();
+		}
+
+		if ( m_failSafeTimer.IsElapsed() && !m_bHasLeftGround )
+		{
+			me->m_bIsBlastJumping = false;
+
+			return Done( "Our blast jump failed, cancelling." );
+		}
+	}
+
+	// Keep moving along our blast jump trace arc while airborne
+	if ( ( m_state == JUMP || m_state == IN_AIR ) && !m_jumpDir.IsZero() )
+	{
+		me->GetLocomotionInterface()->Approach( me->GetAbsOrigin() + m_jumpDir * 400.0f );
+	}
+
+	switch ( m_state )
+	{
+	    case APPROACH:
+		{
+			if ( m_repathTimer.IsElapsed() )
+			{
+				CTFBotPathCost cost( me, FASTEST_ROUTE );
+				m_path.Compute( me, m_spot->m_origin, cost );
+				m_repathTimer.Start( 1.0f );
+			}
+			m_path.Update( me );
+
+			if ( me->IsRangeLessThan( m_spot->m_origin, 120.0f ) )
+			{
+				Vector aimPos = me->GetAbsOrigin() - m_jumpDir * 22.0f + Vector( 0, 0, 3.0f );
+				me->GetBodyInterface()->AimHeadTowards(
+					aimPos, IBody::CRITICAL, 0.25f, NULL, "Getting ready for blast jump." );
+			}
+
+			if ( me->IsRangeLessThan( m_spot->m_origin, 40.0f ) )
+			{
+				if ( rocket->Clip1() <= 0 )
+				{
+					me->Weapon_Switch( rocket );
+					break;
+				}
+
+				m_state = JUMP;
+				m_failSafeTimer.Start( 4.0f );
+				m_bHasLeftGround = false;
+				m_airborneTimer.Invalidate();
+			}
+			break;
+		}
+
+	    case JUMP:
+		{
+			Vector aimPos = me->GetAbsOrigin() - m_jumpDir * 18.0f + Vector( 0, 0, 2.0f );
+			me->GetBodyInterface()->AimHeadTowards(
+				aimPos, IBody::CRITICAL, 0.15f, NULL, "Aiming opposite of my blast jump's arc trace." );
+
+			if ( me->GetLocomotionInterface()->IsOnGround() )
+			{
+				me->PressCrouchButton();
+				me->PressJumpButton();
+			}
+			else
+			{
+				me->Weapon_Switch( rocket );
+				me->PressFireButton();
+				m_state = IN_AIR;
+			}
+			break;
+		}
+
+	    case IN_AIR:
+		{
+			if ( m_bCombat )
+			{
+				const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
+				if ( threat && threat->GetEntity() && threat->IsVisibleRecently() )
+				{
+					me->GetBodyInterface()->AimHeadTowards(
+						threat->GetEntity()->WorldSpaceCenter(),
+						IBody::CRITICAL, 0.2f, NULL, "Divebombing" );
+
+					if ( rocket->Clip1() > 0 || me->GetAmmoCount( rocket->GetPrimaryAmmoType() ) > 0 )
+					{
+						me->Weapon_Switch( rocket );
+						me->PressFireButton();
+					}
+				}
+				else
+				{
+					Vector lookDir = -m_jumpDir;
+					lookDir.z = -0.4f;
+					lookDir.NormalizeInPlace();
+					me->GetBodyInterface()->AimHeadTowards(
+						me->EyePosition() + lookDir * 80.0f,
+						IBody::IMPORTANT, 0.2f, NULL, "Air control look" );
+				}
+			}
+			else
+			{
+				Vector lookDir = -m_jumpDir;
+				lookDir.z = -0.4f;
+				lookDir.NormalizeInPlace();
+				me->GetBodyInterface()->AimHeadTowards(
+					me->EyePosition() + lookDir * 80.0f,
+					IBody::IMPORTANT, 0.2f, NULL, "Air control look" );
+			}
+
+			if ( me->GetLocomotionInterface()->IsOnGround() )
+			{
+				me->m_bIsBlastJumping = false;
+
+				return Done( "We landed after our blast jump, return back to normal behavior." );
+			}
+			break;
+		}
+	}
+
+	return Continue();
+}
+
+//-----------------------------------------------------------------------------------------
+EventDesiredResult< CTFBot > CTFBotBlastJump::OnLandOnGround( CTFBot *me, CBaseEntity *ground )
+{
+    me->m_bIsBlastJumping = false;
+
+	return TryDone( RESULT_IMPORTANT, "Landed, back to normal behavior" );
 }
 

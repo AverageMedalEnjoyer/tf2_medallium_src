@@ -66,13 +66,35 @@ private:
 														   const CKnownEntity *threat2 ) const;
 
 
-	void Dodge( CTFBot *me );
+	//void Dodge( CTFBot *me );
 
 	IntervalTimer m_undergroundTimer;
 
 	CountdownTimer m_reevaluateClassTimer;
 };
 
+class CTFBotBlastJump : public Action< CTFBot >
+{
+public:
+	CTFBotBlastJump( const BlastJumpSpot_t *spot, bool bCombat = false );
+	virtual ActionResult< CTFBot > OnStart( CTFBot *me, Action< CTFBot > *prior );
+	virtual ActionResult< CTFBot > Update( CTFBot *me, float interval );
+	virtual EventDesiredResult< CTFBot > OnLandOnGround( CTFBot *me, CBaseEntity *ground );
+	virtual const char *GetName() const { return "BlastJump"; }
 
+private:
+	const BlastJumpSpot_t *	m_spot;
+	Vector					m_jumpDir;
+    bool                    m_bCombat;
+	enum State_t { APPROACH, JUMP, IN_AIR };
+	State_t					m_state;
+
+	PathFollower			m_path;
+	CountdownTimer			m_repathTimer;
+
+	CountdownTimer			m_failSafeTimer;	// 4 second cancel timer
+	IntervalTimer			m_airborneTimer;	// How long we've been off the ground
+	bool					m_bHasLeftGround;
+};
 
 #endif // TF_BOT_BEHAVIOR_H
