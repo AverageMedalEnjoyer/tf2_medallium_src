@@ -2190,7 +2190,7 @@ CON_COMMAND(clear_loadout_ui, "Clear local loadout back to stock defaults (show 
 #if defined( TF_CLIENT_DLL ) && INVENTORY_VIA_WEBAPI
 bool CTFInventoryManager::LoadPreset(equipped_class_t unClass, equipped_preset_t unPreset)
 {
-	if (!IsValidPlayerClass(unClass))
+	if (!IsValidTFPlayerClass(unClass))
 		return false;
 
 	if (!IsPresetIndexValid(unPreset))
