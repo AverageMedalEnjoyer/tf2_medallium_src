@@ -1450,6 +1450,9 @@ void CTFClassMenu::UpdateNumClassLabels( int iTeam )
 		}
 	}
 
+	// Civilian is last in the list, so on a full team his icons would be the first to get cut off - leave room for them
+	int nCivilianImages = g_TF_PR->GetCountForPlayerClass( iTeam, TF_CLASS_CIVILIAN, true );
+
 	for( int i = TF_FIRST_NORMAL_CLASS ; i < TF_LAST_NORMAL_CLASS ; i++ )
 	{
 		if ( bSpectator == true )
@@ -1526,7 +1529,9 @@ void CTFClassMenu::UpdateNumClassLabels( int iTeam )
 			}
 		}
 
-		if ( nTotalCount < CLASS_COUNT_IMAGES )
+		int nMaxImages = ( g_ClassDefinesRemap[i] == TF_CLASS_CIVILIAN ) ? CLASS_COUNT_IMAGES : CLASS_COUNT_IMAGES - nCivilianImages;
+
+		if ( nTotalCount < nMaxImages )
 		{
 			for ( int j = 0 ; j < classCount ; ++j )
 			{
@@ -1538,7 +1543,7 @@ void CTFClassMenu::UpdateNumClassLabels( int iTeam )
 				}
 
 				nTotalCount++;
-				if ( nTotalCount >= CLASS_COUNT_IMAGES )
+				if ( nTotalCount >= nMaxImages )
 				{
 					break;
 				}
