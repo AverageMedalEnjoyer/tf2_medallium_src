@@ -8,6 +8,13 @@
 
 #include "Path/NextBotPathFollow.h"
 
+CTriggerAreaCapture *GetCaptureTriggerForPoint( CTeamControlPoint *point );
+bool                 GetControlPointCaptureExtent( CTeamControlPoint *point, Extent &outExtent );
+int                  CountTeammatesOnPoint( CTFBot *me, CTeamControlPoint *point );
+int                  CountLivingTeammates( CTFBot *me );
+Vector               SelectRandomPointInCaptureZone( CTeamControlPoint *point );
+CTeamControlPoint   *FindThreatenedFriendlyPoint( CTFBot *me );
+
 class CTFBotCapturePoint : public Action< CTFBot >
 {
 public:

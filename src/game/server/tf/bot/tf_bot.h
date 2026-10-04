@@ -355,6 +355,8 @@ public:
 	void StartCombatStrafe();
 	void DoCombatJump();
 
+    CUtlVector< Vector > m_usedBlastJumpOrigins;
+
 	CountdownTimer m_combatStrafeTimer;
 	CountdownTimer m_combatStrafeCooldownTimer;
 	CountdownTimer m_combatJumpTimer;

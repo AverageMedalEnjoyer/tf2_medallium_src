@@ -9,6 +9,7 @@
 #include "tf_gamerules.h"
 #include "trigger_area_capture.h"
 #include "bot/tf_bot.h"
+#include "bot/behavior/scenario/capture_point/tf_bot_capture_point.h"
 #include "bot/behavior/scenario/capture_point/tf_bot_defend_point_block_capture.h"
 #include "bot/behavior/medic/tf_bot_medic_heal.h"
 #include "bot/behavior/tf_bot_attack.h"
@@ -99,16 +100,20 @@ ActionResult< CTFBot >	CTFBotDefendPointBlockCapture::Update( CTFBot *me, float 
 	me->EquipBestWeaponForThreat( threat );
 
 	Extent pointExtent;
-	pointExtent.Init( m_point );
+	if ( !GetControlPointCaptureExtent( m_point, pointExtent ) )
+	{
+		pointExtent.Init( m_point );		// fallback
+	}
 
 	bool isStandingOnThePoint = pointExtent.Contains( me->GetAbsOrigin() );
 
 	const CUtlVector< CTFNavArea * > *controlPointAreas = TheTFNavMesh()->GetControlPointAreas( m_point->GetPointIndex() );
 	if ( controlPointAreas )
 	{
-		for( int i=0; i<controlPointAreas->Count(); ++i )
+		for ( int i = 0; i < controlPointAreas->Count(); ++i )
 		{
-			if ( me->GetLastKnownArea() && me->GetLastKnownArea()->GetID() == controlPointAreas->Element(i)->GetID() )
+			if ( me->GetLastKnownArea() &&
+				 me->GetLastKnownArea()->GetID() == controlPointAreas->Element( i )->GetID() )
 			{
 				isStandingOnThePoint = true;
 			}
@@ -120,41 +125,20 @@ ActionResult< CTFBot >	CTFBotDefendPointBlockCapture::Update( CTFBot *me, float 
 		return SuspendFor( new CTFBotPrepareStickybombTrap, "Placing stickies for defense" );
 	}
 
-	if ( controlPointAreas )
+	if ( controlPointAreas && controlPointAreas->Count() > 0 )
 	{
 		// move to a random spot on this control point
 		if ( m_repathTimer.IsElapsed() )
 		{
-			m_repathTimer.Start( RandomFloat( 0.5f, 1.0f ) );
+			m_repathTimer.Start( RandomFloat( 1.5f, 3.0f ) );
 
-			float totalArea = 0.0f;
-			int i;
-			for( i=0; i<controlPointAreas->Count(); ++i )
-			{
-				CTFNavArea *area = controlPointAreas->Element(i);
-				totalArea += area->GetSizeX() * area->GetSizeY();
-			}
-
-			float which = RandomFloat( 0.0f, totalArea - 1.0f );
-			CTFNavArea *goalArea = NULL;
-			for( i=0; i<controlPointAreas->Count(); ++i )
-			{
-				CTFNavArea *area = controlPointAreas->Element(i);
-				which -= area->GetSizeX() * area->GetSizeY();
-				if ( which <= 0.0f )
-				{
-					goalArea = area;
-					break;
-				}
-			}
-
+			CTFNavArea *goalArea = controlPointAreas->Element( RandomInt( 0, controlPointAreas->Count() - 1 ) );
 			if ( goalArea )
 			{
 				CTFBotPathCost cost( me, DEFAULT_ROUTE );
 				m_path.Compute( me, goalArea->GetRandomPoint(), cost );
 			}
 		}
-
 		m_path.Update( me );
 	}
 	else if ( !isStandingOnThePoint )
@@ -162,12 +146,13 @@ ActionResult< CTFBot >	CTFBotDefendPointBlockCapture::Update( CTFBot *me, float 
 		// get on the point!
 		if ( m_repathTimer.IsElapsed() )
 		{
-			m_repathTimer.Start( RandomFloat( 0.5f, 1.0f ) ); 
+			m_repathTimer.Start( RandomFloat( 0.5f, 1.0f ) );
 
+			// Aim for the centre of the *current* extent, not a stale origin
+			Vector center = ( pointExtent.lo + pointExtent.hi ) * 0.5f;
 			CTFBotPathCost cost( me, DEFAULT_ROUTE );
-			m_path.Compute( me, ( pointExtent.lo + pointExtent.hi )/2.0f, cost );
+			m_path.Compute( me, center, cost );
 		}
-
 		m_path.Update( me );
 	}
 

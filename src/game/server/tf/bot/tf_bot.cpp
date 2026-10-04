@@ -104,6 +104,14 @@ CUtlVector< BlastJumpSpot_t >	g_BlastJumpSpots;
 bool							g_bBlastJumpSpotsReady = false;
 
 // ----------------------------------------------------------------------
+static void ClearAllBlastJumpSpots()
+{
+	g_BlastJumpSpots.RemoveAll();
+	s_usedOrigins.RemoveAll();
+	g_bBlastJumpSpotsReady = false;
+}
+
+// ----------------------------------------------------------------------
 static bool IsTooCloseToExistingBlastJumpSpot( const Vector &pos )
 {
 	for ( int i = 0; i < s_usedOrigins.Count(); ++i )
@@ -338,6 +346,23 @@ const BlastJumpSpot_t *FindNearestUsableBlastJumpSpot( CTFBot *me, float maxRang
 		if ( distSq >= bestDistSq )
 			continue;
 
+		bool bUsedByThisBot = false;
+		for ( int u = 0; u < me->m_usedBlastJumpOrigins.Count(); ++u )
+		{
+			if ( ( s.m_origin - me->m_usedBlastJumpOrigins[u] ).LengthSqr() < ( 80.0f * 80.0f ) )
+			{
+				bUsedByThisBot = true;
+				break;
+			}
+		}
+
+		if ( bUsedByThisBot )
+			continue;
+		
+		// We cannot see this spot from our current position, so we cannot use it.
+		if ( !me->IsLineOfFireClear( s.m_origin ) )
+			continue;
+
 		if ( pPreferredDir && !pPreferredDir->IsZero() )
 		{
 			bool hasGoodDir = false;
@@ -349,6 +374,7 @@ const BlastJumpSpot_t *FindNearestUsableBlastJumpSpot( CTFBot *me, float maxRang
 					break;
 				}
 			}
+
 			if ( !hasGoodDir )
 				continue;		// Reject this spot entirely
 		}
@@ -1916,8 +1942,10 @@ void CTFBot::Spawn()
 
 	m_bIsBlastJumping = false;
 
-    if ( !g_bBlastJumpSpotsReady )
-	    UpdateBlastJumpSpotGeneration();
+    ClearAllBlastJumpSpots();
+	UpdateBlastJumpSpotGeneration();
+
+    m_usedBlastJumpOrigins.RemoveAll();
 
     m_flAnger = ( RandomFloat( 0.0f, 1.0f ) < 0.20f )
         ? RandomFloat( 0.10f, 0.50f )
@@ -3470,17 +3498,32 @@ CTeamControlPoint *CTFBot::SelectPointToCapture( CUtlVector< CTeamControlPoint *
 //---------------------------------------------------------------------------------------------
 CTeamControlPoint *CTFBot::SelectPointToDefend( CUtlVector< CTeamControlPoint * > *defendVector ) const
 {
-	if ( defendVector && defendVector->Count() > 0 )
+	if ( !defendVector || defendVector->Count() == 0 )
+		return NULL;
+
+	CTeamControlPoint *contested = NULL;
+	float bestDistSq = FLT_MAX;
+	for ( int i = 0; i < defendVector->Count(); ++i )
 	{
-		if ( HasAttribute( CTFBot::PRIORITIZE_DEFENSE ) )
+		CTeamControlPoint *point = defendVector->Element( i );
+		if ( point && point->LastContestedAt() > 0.0f &&
+			 ( gpGlobals->curtime - point->LastContestedAt() ) < 5.0f )
 		{
-			return SelectClosestControlPointByTravelDistance( defendVector );
+			float distSq = ( point->GetAbsOrigin() - GetAbsOrigin() ).LengthSqr();
+			if ( distSq < bestDistSq )
+			{
+				bestDistSq = distSq;
+				contested = point;
+			}
 		}
-
-		return defendVector->Element( RandomInt( 0, defendVector->Count()-1 ) );
 	}
+	if ( contested )
+		return contested;
 
-	return NULL;
+	if ( HasAttribute( CTFBot::PRIORITIZE_DEFENSE ) )
+		return SelectClosestControlPointByTravelDistance( defendVector );
+
+	return defendVector->Element( RandomInt( 0, defendVector->Count() - 1 ) );
 }
 
 
@@ -3497,12 +3540,39 @@ CTeamControlPoint *CTFBot::GetMyControlPoint( void ) const
 
 	m_evaluateControlPointTimer.Start( RandomFloat( 1.0f, 2.0f ) );
 
-
 	CUtlVector< CTeamControlPoint * > captureVector;
 	TFGameRules()->CollectCapturePoints( const_cast< CTFBot * >( this ), &captureVector );
 
 	CUtlVector< CTeamControlPoint * > defendVector;
 	TFGameRules()->CollectDefendPoints( const_cast< CTFBot * >( this ), &defendVector );
+
+	{
+		CTeamControlPoint *threatened = NULL;
+		float bestDistSq = FLT_MAX;
+		for ( int i = 0; i < defendVector.Count(); ++i )
+		{
+			CTeamControlPoint *point = defendVector[i];
+			if ( !point )
+				continue;
+
+			if ( point->LastContestedAt() > 0.0f &&
+				 ( gpGlobals->curtime - point->LastContestedAt() ) < 5.0f )
+			{
+				float distSq = ( point->GetAbsOrigin() - GetAbsOrigin() ).LengthSqr();
+				if ( distSq < bestDistSq )
+				{
+					bestDistSq = distSq;
+					threatened = point;
+				}
+			}
+		}
+
+		if ( threatened && bestDistSq < ( 2500.0f * 2500.0f ) )
+		{
+			m_myControlPoint = threatened;
+			return m_myControlPoint;
+		}
+	}
 
 	bool bOnOffense = ( TFGameRules()->IsAttackDefenseMode() && GetTeamNumber() == TF_TEAM_BLUE );
 	

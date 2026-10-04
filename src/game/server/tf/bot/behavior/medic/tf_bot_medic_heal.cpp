@@ -38,6 +38,10 @@ ActionResult< CTFBot >	CTFBotMedicHeal::OnStart( CTFBot *me, Action< CTFBot > *p
 	m_opportunisticStickTimer.Invalidate();
 	m_bUberLocked = false;
 
+	m_attemptHealTimer.Invalidate();
+	m_beamFailTimer.Invalidate();
+	m_bCommittedToPatient = false;
+
 	return Continue();
 }
 
@@ -361,6 +365,7 @@ public:
 		m_isOnFire = false;
 		m_maxRange = maxRange;
 		m_isInCombat = isInCombat;
+		m_bestWillingness = -1.0f;
 	}
 
     bool Inspect( const CKnownEntity &known )
@@ -420,32 +425,65 @@ public:
 		float maxHealth = m_isInCombat ? player->GetMaxHealth() : player->m_Shared.GetMaxBuffedHealth();
 		float healthRatio = (float)player->GetHealth() / maxHealth;
 
-		if ( m_isOnFire )
+		// Starts from health need, then penalised by distance and local danger.
+		float willingness = 1.0f - healthRatio;		// 0 = full health, 1 = almost dead
+
+		// Distance penalty (further = lower willingness)
+		float dist = m_me->GetRangeTo( player );
+		float distFactor = Clamp( dist / effectiveRange, 0.0f, 1.0f );
+		willingness *= ( 1.0f - 0.55f * distFactor );
+
+		// Count nearby enemies and nearby teammates
+		int nearbyEnemies = 0;
+		int nearbyTeammates = 0;
+		const float enemyRadius = 450.0f;
+		const float teammateRadius = 350.0f;
+
+		for ( int i = 1; i <= gpGlobals->maxClients; ++i )
 		{
-			// only others on fire who have less health can trump
-			if ( player->m_Shared.InCond( TF_COND_BURNING ) && healthRatio < m_injuredHealthRatio )
+			CTFPlayer *p = ToTFPlayer( UTIL_PlayerByIndex( i ) );
+			if ( !p || !p->IsAlive() || p == player )
+				continue;
+
+			float r = ( p->GetAbsOrigin() - player->GetAbsOrigin() ).Length();
+			if ( p->GetTeamNumber() == player->GetTeamNumber() )
 			{
-				m_mostInjured = player;
-				m_injuredHealthRatio = healthRatio;
+				if ( r < teammateRadius )
+					++nearbyTeammates;
+			}
+			else if ( p->GetTeamNumber() == GetEnemyTeam( player->GetTeamNumber() ) )
+			{
+				if ( r < enemyRadius )
+					++nearbyEnemies;
 			}
 		}
-		else
+
+		// Enemy pressure penalty
+		if ( nearbyEnemies > 0 )
 		{
-			if ( player->m_Shared.InCond( TF_COND_BURNING ) )
-			{
-				// fire trumps
-				m_mostInjured = player;
-				m_injuredHealthRatio = healthRatio;
-				m_isOnFire = true;
-			}
-			else
-			{
-				if ( healthRatio < m_injuredHealthRatio )
-				{
-					m_mostInjured = player;
-					m_injuredHealthRatio = healthRatio;
-				}
-			}
+			float enemyPenalty = Min( 0.65f, nearbyEnemies * 0.18f );
+			willingness *= ( 1.0f - enemyPenalty );
+		}
+
+		// Extra heavy penalty if the patient is alone
+		if ( nearbyTeammates == 0 && nearbyEnemies > 0 )
+		{
+			willingness *= 0.45f;
+		}
+
+		// On-fire still has priority
+		if ( player->m_Shared.InCond( TF_COND_BURNING ) )
+		{
+			willingness += 0.35f;
+		}
+
+		// Only accept if willingness is reasonable and better than current best
+		if ( willingness > 0.12f && willingness > m_bestWillingness )
+		{
+			m_mostInjured = player;
+			m_injuredHealthRatio = healthRatio;
+			m_bestWillingness = willingness;
+			m_isOnFire = player->m_Shared.InCond( TF_COND_BURNING );
 		}
 
 		return true;
@@ -457,6 +495,7 @@ public:
 	bool m_isOnFire;
 	float m_maxRange;
 	bool m_isInCombat;
+	float m_bestWillingness;
 };
 
 
@@ -621,12 +660,10 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 		{
 			if ( objVector[i]->GetType() == OBJ_TELEPORTER )
 			{
-				CObjectTeleporter *teleporter = (CObjectTeleporter *)objVector[i];
-
+				CObjectTeleporter *teleporter = static_cast< CObjectTeleporter * >( objVector[i] );
 				if ( teleporter->IsEntrance() && teleporter->IsReady() )
 				{
 					float rangeSq = ( teleporter->GetAbsOrigin() - m_patient->GetAbsOrigin() ).LengthSqr();
-
 					if ( rangeSq < closeRangeSq )
 					{
 						closeRangeSq = rangeSq;
@@ -638,35 +675,107 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 
 		if ( closeTeleporter )
 		{
-			return SuspendFor( new CTFBotUseTeleporter( closeTeleporter, CTFBotUseTeleporter::ALWAYS_USE ), "Following my patient through a teleporter" );
+			return SuspendFor( new CTFBotUseTeleporter( closeTeleporter ), "Following my patient through a teleporter" );
 		}
 	}
 
-
-	CTFPlayer *actualHealTarget = m_patient;
+	CWeaponMedigun *medigun = dynamic_cast< CWeaponMedigun * >( me->m_Shared.GetActiveTFWeapon() );
+	const CKnownEntity *knownThreat = me->GetVisionInterface()->GetPrimaryKnownThreat();
 	bool isHealTargetBlocked = true;
 	bool isActivelyHealing = false;
 	bool isUsingProjectileShield = false;
-	const CKnownEntity *knownThreat = me->GetVisionInterface()->GetPrimaryKnownThreat();
 
-	CWeaponMedigun *medigun = dynamic_cast< CWeaponMedigun * >( me->m_Shared.GetActiveTFWeapon() );
-	if ( medigun )
+	CTFPlayer *actualHealTarget = m_patient;
+
+	// Stick-with-patient under heavy pressure
+	if ( m_patient )
 	{
-		if( medigun->GetMedigunType() == MEDIGUN_RESIST )
+		int nearbyEnemies = 0;
+		const float threatRadius = 500.0f;
+		for ( int i = 1; i <= gpGlobals->maxClients; ++i )
 		{
-			// If I'm a Vaccinnator medic and am told to prefer a certain type of resist, then cycle to that resist
-			while( ( me->HasAttribute( CTFBot::PREFER_VACCINATOR_BULLETS )	&& medigun->GetResistType() != MEDIGUN_BULLET_RESIST )
-				|| ( me->HasAttribute( CTFBot::PREFER_VACCINATOR_BLAST )	&& medigun->GetResistType() != MEDIGUN_BLAST_RESIST )
-				|| ( me->HasAttribute( CTFBot::PREFER_VACCINATOR_FIRE )		&& medigun->GetResistType() != MEDIGUN_FIRE_RESIST ) )
-			{
-				medigun->CycleResistType();
-			}
+			CTFPlayer *p = ToTFPlayer( UTIL_PlayerByIndex( i ) );
+			if ( !p || !p->IsAlive() || p->GetTeamNumber() == me->GetTeamNumber() )
+				continue;
+			if ( ( p->GetAbsOrigin() - m_patient->GetAbsOrigin() ).Length() < threatRadius )
+				++nearbyEnemies;
 		}
 
-        // Opportunistic healing: look farther (1500 units) and stick until the target is healthy
-        if ( !medigun->IsReleasingCharge() && !TFGameRules()->IsInTraining() && !me->IsInASquad() && !m_bUberLocked )
+		bool bPatientUnderHeavyFire = ( m_patient->GetTimeSinceLastInjury( GetEnemyTeam( m_patient->GetTeamNumber() ) ) < 2.5f ) ||
+									  ( nearbyEnemies >= 2 );
+
+		if ( bPatientUnderHeavyFire )
 		{
-			// Still have a previous opportunistic patient?
+			m_bCommittedToPatient = true;
+			m_opportunisticPatient = NULL;		// cancel opportunistic while committed
+			m_attemptHealTimer.Invalidate();
+		}
+		else if ( m_bCommittedToPatient )
+		{
+			// release commitment once things calm down
+			if ( m_patient->GetTimeSinceLastInjury( GetEnemyTeam( m_patient->GetTeamNumber() ) ) > 4.0f && nearbyEnemies == 0 )
+			{
+				m_bCommittedToPatient = false;
+			}
+		}
+	}
+
+	if ( medigun )
+	{
+		// if we have an opportunistic patient, prefer them while they remain valid
+		if ( !m_bCommittedToPatient )
+		{
+			// CHANGED START
+			// Give up on opportunistic patient after 6 seconds of trying, or if beam fails >1s, or patient running away
+			bool bGiveUp = false;
+
+			if ( m_opportunisticPatient != NULL )
+			{
+				if ( !m_attemptHealTimer.HasStarted() )
+					m_attemptHealTimer.Start( 6.0f );
+
+				if ( m_attemptHealTimer.IsElapsed() )
+				{
+					bGiveUp = true;
+				}
+
+				// Beam connection check
+				if ( medigun->GetHealTarget() == m_opportunisticPatient )
+				{
+					m_beamFailTimer.Invalidate();
+				}
+				else
+				{
+					if ( !m_beamFailTimer.HasStarted() )
+						m_beamFailTimer.Start();
+					if ( m_beamFailTimer.GetElapsedTime() > 1.0f )
+						bGiveUp = true;
+				}
+
+				// Patient actively running away from us
+				Vector toMedic = me->GetAbsOrigin() - m_opportunisticPatient->GetAbsOrigin();
+				Vector patientVel = m_opportunisticPatient->GetAbsVelocity();
+				patientVel.z = 0.0f;
+				toMedic.z = 0.0f;
+				if ( !patientVel.IsZero() && !toMedic.IsZero() )
+				{
+					patientVel.NormalizeInPlace();
+					toMedic.NormalizeInPlace();
+					if ( DotProduct( patientVel, toMedic ) < -0.35f && me->IsRangeGreaterThan( m_opportunisticPatient, 180.0f ) )
+					{
+						bGiveUp = true;
+					}
+				}
+
+				if ( bGiveUp )
+				{
+					m_opportunisticPatient = NULL;
+					m_opportunisticStickTimer.Invalidate();
+					m_attemptHealTimer.Invalidate();
+					m_beamFailTimer.Invalidate();
+				}
+			}
+
 			if ( m_opportunisticPatient != NULL && m_opportunisticPatient->IsAlive() )
 			{
 				float healthRatio = (float)m_opportunisticPatient->GetHealth() / (float)m_opportunisticPatient->GetMaxHealth();
@@ -682,6 +791,8 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 					// Finished or lost them
 					m_opportunisticPatient = NULL;
 					m_opportunisticStickTimer.Invalidate();
+					m_attemptHealTimer.Invalidate();
+					m_beamFailTimer.Invalidate();
 				}
 			}
 
@@ -700,6 +811,8 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 					{
 						m_opportunisticPatient = neighbor.m_mostInjured;
 						m_opportunisticStickTimer.Start( 10.0f );	// grace period
+						m_attemptHealTimer.Start( 6.0f );
+						m_beamFailTimer.Invalidate();
 						actualHealTarget = m_opportunisticPatient;
 					}
 				}
@@ -1096,7 +1209,7 @@ void CTFBotMedicHeal::ComputeFollowPosition( CTFBot *me )
 			else
 			{
 				// we're good where we are
-				m_followGoal = me->GetAbsOrigin();
+				m_followGoal = m_patient->GetAbsOrigin() - ( tf_bot_medic_stop_follow_range.GetFloat() * 0.85f ) * patientForward;
 			}
 		}
 		else
@@ -1179,11 +1292,24 @@ void CTFBotMedicHeal::ComputeFollowPosition( CTFBot *me )
 				continue;
 			}
 
-			// This is a valid cover spot, keep the closest one to our current position
-			float rangeSq = ( me->EyePosition() - eyePos ).LengthSqr();
-			if ( rangeSq < bestCoverRangeSq )
+			// Strong preference for positions behind the patient
+			Vector toCover = actualPos - m_patient->GetAbsOrigin();
+			toCover.z = 0.0f;
+			toCover.NormalizeInPlace();
+			float behindDot = DotProduct( toCover, -patientForward );	// 1.0 = directly behind
+			float score = ( me->EyePosition() - eyePos ).LengthSqr();
+			if ( behindDot > 0.25f )
 			{
-				bestCoverRangeSq = rangeSq;
+				score *= ( 1.0f - 0.55f * behindDot );
+			}
+			else
+			{
+				score *= 1.8f;
+			}
+
+			if ( score < bestCoverRangeSq )
+			{
+				bestCoverRangeSq = score;
 				bestCoverPos = actualPos;
 				bFoundCover = true;
 			}

@@ -21,7 +21,178 @@ ConVar tf_bot_offense_must_push_time( "tf_bot_offense_must_push_time", "120", FC
 ConVar tf_bot_capture_seek_and_destroy_min_duration( "tf_bot_capture_seek_and_destroy_min_duration", "15", FCVAR_CHEAT, "If a capturing bot decides to go hunting, this is the min duration he will hunt for before reconsidering" );
 ConVar tf_bot_capture_seek_and_destroy_max_duration( "tf_bot_capture_seek_and_destroy_max_duration", "30", FCVAR_CHEAT, "If a capturing bot decides to go hunting, this is the max duration he will hunt for before reconsidering" );
 
+CTriggerAreaCapture *GetCaptureTriggerForPoint( CTeamControlPoint *point )
+{
+	if ( !point )
+		return NULL;
 
+	for ( int i = 0; i < ITriggerAreaCaptureAutoList::AutoList().Count(); ++i )
+	{
+		CTriggerAreaCapture *trigger = static_cast< CTriggerAreaCapture * >(
+			ITriggerAreaCaptureAutoList::AutoList()[i] );
+		if ( trigger && trigger->GetControlPoint() == point )
+			return trigger;
+	}
+
+	// Fallback
+	CBaseEntity *ent = NULL;
+	while ( ( ent = gEntList.FindEntityByClassname( ent, "trigger_capture_area" ) ) != NULL )
+	{
+		CTriggerAreaCapture *trigger = dynamic_cast< CTriggerAreaCapture * >( ent );
+		if ( trigger && trigger->GetControlPoint() == point )
+			return trigger;
+	}
+
+	return NULL;
+}
+
+bool GetControlPointCaptureExtent( CTeamControlPoint *point, Extent &outExtent )
+{
+	CTriggerAreaCapture *trigger = GetCaptureTriggerForPoint( point );
+	if ( trigger )
+	{
+		outExtent.Init( static_cast< CBaseEntity * >( trigger ) );
+		return true;
+	}
+
+	if ( point )
+	{
+		outExtent.Init( static_cast< CBaseEntity * >( point ) );
+		return true;
+	}
+	return false;
+}
+
+int CountTeammatesOnPoint( CTFBot *me, CTeamControlPoint *point )
+{
+	if ( !me || !point )
+		return 0;
+
+	Extent extent;
+	if ( !GetControlPointCaptureExtent( point, extent ) )
+		return 0;
+
+	int count = 0;
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CTFPlayer *player = ToTFPlayer( UTIL_PlayerByIndex( i ) );
+		if ( !player || !player->IsAlive() || player->GetTeamNumber() != me->GetTeamNumber() )
+			continue;
+
+		if ( extent.Contains( player->GetAbsOrigin() ) )
+			++count;
+	}
+	return count;
+}
+
+int CountLivingTeammates( CTFBot *me )
+{
+	if ( !me )
+		return 0;
+
+	int count = 0;
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CTFPlayer *player = ToTFPlayer( UTIL_PlayerByIndex( i ) );
+		if ( player && player->IsAlive() && player->GetTeamNumber() == me->GetTeamNumber() )
+			++count;
+	}
+	return count;
+}
+
+Vector SelectRandomPointInCaptureZone( CTeamControlPoint *point )
+{
+	if ( !point )
+		return vec3_origin;
+
+	const CUtlVector< CTFNavArea * > *areas =
+		TheTFNavMesh()->GetControlPointAreas( point->GetPointIndex() );
+	if ( areas && areas->Count() > 0 )
+	{
+		CTFNavArea *area = areas->Element( RandomInt( 0, areas->Count() - 1 ) );
+		if ( area )
+			return area->GetRandomPoint();
+	}
+
+	Extent extent;
+	if ( GetControlPointCaptureExtent( point, extent ) )
+	{
+		Vector p;
+		p.x = RandomFloat( extent.lo.x, extent.hi.x );
+		p.y = RandomFloat( extent.lo.y, extent.hi.y );
+		p.z = ( extent.lo.z + extent.hi.z ) * 0.5f;
+		return p;
+	}
+
+	return point->GetAbsOrigin();
+}
+
+CTeamControlPoint *FindThreatenedFriendlyPoint( CTFBot *me )
+{
+	if ( !me )
+		return NULL;
+
+	CTeamControlPointMaster *master =
+		g_hControlPointMasters.Count() ? g_hControlPointMasters[0] : NULL;
+	if ( !master )
+		return NULL;
+
+	CTeamControlPoint *closest = NULL;
+	float closestDistSq = FLT_MAX;
+	const float kMaxReactRangeSq = 800.0f * 800.0f;
+
+	for ( int i = 0; i < master->GetNumPoints(); ++i )
+	{
+		CTeamControlPoint *point = master->GetControlPoint( i );
+		if ( !point || point->GetOwner() != me->GetTeamNumber() )
+			continue;
+
+		float distSq = ( point->GetAbsOrigin() - me->GetAbsOrigin() ).LengthSqr();
+		if ( distSq > kMaxReactRangeSq )
+			continue;
+
+		bool bContested = false;
+
+		if ( point->LastContestedAt() > 0.0f &&
+			 ( gpGlobals->curtime - point->LastContestedAt() ) < 5.0f )
+		{
+			bContested = true;
+		}
+		else if ( point->GetTeamCapPercentage( me->GetTeamNumber() ) < 1.0f )
+		{
+			bContested = true;
+		}
+		else
+		{
+			Extent extent;
+			if ( GetControlPointCaptureExtent( point, extent ) )
+			{
+				for ( int p = 1; p <= gpGlobals->maxClients; ++p )
+				{
+					CTFPlayer *enemy = ToTFPlayer( UTIL_PlayerByIndex( p ) );
+					if ( !enemy || !enemy->IsAlive() || enemy->GetTeamNumber() == me->GetTeamNumber() )
+						continue;
+
+					if ( extent.Contains( enemy->GetAbsOrigin() ) )
+					{
+						bContested = true;
+						break;
+					}
+				}
+			}
+		}
+
+		if ( !bContested )
+			continue;
+
+		if ( distSq < closestDistSq )
+		{
+			closestDistSq = distSq;
+			closest = point;
+		}
+	}
+	return closest;
+}
 
 //---------------------------------------------------------------------------------------------
 ActionResult< CTFBot >	CTFBotCapturePoint::OnStart( CTFBot *me, Action< CTFBot > *priorAction )
@@ -47,6 +218,13 @@ ActionResult< CTFBot >	CTFBotCapturePoint::Update( CTFBot *me, float interval )
 		return Continue();
 	}
 
+	CTeamControlPoint *threatenedFriendly = FindThreatenedFriendlyPoint( me );
+	if ( threatenedFriendly )
+	{
+		me->ClearMyControlPoint();		// force re-evaluation
+		return ChangeTo( new CTFBotDefendPoint, "Friendly point is under attack, defending!" );
+	}
+
 	CTeamControlPoint *point = me->GetMyControlPoint();
 
 	if ( point == NULL )
@@ -57,7 +235,8 @@ ActionResult< CTFBot >	CTFBotCapturePoint::Update( CTFBot *me, float interval )
 
 	if ( point->GetTeamNumber() == me->GetTeamNumber() )
 	{
-		return ChangeTo( new CTFBotDefendPoint, "We need to defend our point(s)" );
+		me->ClearMyControlPoint();
+		return Continue();
 	}
 
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
@@ -83,39 +262,53 @@ ActionResult< CTFBot >	CTFBotCapturePoint::Update( CTFBot *me, float interval )
 		if ( threat && threat->IsVisibleRecently() &&
             me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 		{
-			return SuspendFor( new CTFBotSeekAndDestroy( RandomFloat( tf_bot_capture_seek_and_destroy_min_duration.GetFloat(), tf_bot_capture_seek_and_destroy_max_duration.GetFloat() ) ), "Too early to capture - hunting" );
+			return SuspendFor( new CTFBotSeekAndDestroy(
+				RandomFloat( tf_bot_capture_seek_and_destroy_min_duration.GetFloat(),
+							 tf_bot_capture_seek_and_destroy_max_duration.GetFloat() ) ),
+				"Too early to capture - hunting" );
 		}
 	}
 
+	const int livingTeam   = CountLivingTeammates( me );
+	const int neededOnPoint = Max( 1, ( livingTeam + 1 ) / 2 );	// ~half, at least 1
+	const int onPoint       = CountTeammatesOnPoint( me, point );
 
-	if ( me->IsCapturingPoint() )
+	Extent captureExtent;
+	const bool haveExtent = GetControlPointCaptureExtent( point, captureExtent );
+	const bool iAmOnPoint = haveExtent && captureExtent.Contains( me->GetAbsOrigin() );
+
+	if ( onPoint >= neededOnPoint && iAmOnPoint == false )
 	{
-		// move around on the point while we capture
-		const CUtlVector< CTFNavArea * > *controlPointAreas = TheTFNavMesh()->GetControlPointAreas( point->GetPointIndex() );
-		if ( controlPointAreas )
+		// Enough people are already capping patrol the perimeter
+		if ( m_repathTimer.IsElapsed() )
 		{
-			if ( controlPointAreas->Count() == 0 )
-			{
-				Assert( controlPointAreas->Count() );
-				return Continue(); // this control point has no nav areas for bot to move around
-			}
+			m_repathTimer.Start( RandomFloat( 3.0f, 5.0f ) );
 
-			// move to a random spot on this control point
-			if ( m_repathTimer.IsElapsed() )
-			{
-				m_repathTimer.Start( RandomFloat( 0.5f, 1.0f ) );
+			// Random point on a ring ~800-2000 units from the live centre
+			Vector center = haveExtent ? ( captureExtent.lo + captureExtent.hi ) * 0.5f
+									   : point->GetAbsOrigin();
+			float angle = RandomFloat( 0.0f, 2.0f * M_PI );
+			float radius = RandomFloat( 800.0f, 2000.0f );
+			Vector patrolGoal = center + Vector( cos( angle ) * radius, sin( angle ) * radius, 0.0f );
 
-				int which = RandomInt( 0, controlPointAreas->Count() - 1 );
-				CTFNavArea *goalArea = controlPointAreas->Element( which );
-				if ( goalArea )
-				{
-					CTFBotPathCost cost( me, DEFAULT_ROUTE );
-					m_path.Compute( me, goalArea->GetRandomPoint(), cost );
-				}
-			}
-
-			m_path.Update( me );
+			CTFBotPathCost cost( me, DEFAULT_ROUTE );
+			m_path.Compute( me, patrolGoal, cost );
 		}
+		m_path.Update( me );
+		return Continue();
+	}
+
+	if ( me->IsCapturingPoint() || iAmOnPoint )
+	{
+		if ( m_repathTimer.IsElapsed() )
+		{
+			m_repathTimer.Start( RandomFloat( 2.0f, 4.0f ) );	// change position every few seconds
+
+			Vector goal = SelectRandomPointInCaptureZone( point );
+			CTFBotPathCost cost( me, DEFAULT_ROUTE );
+			m_path.Compute( me, goal, cost );
+		}
+		m_path.Update( me );
 	}
 	else
 	{
@@ -124,9 +317,10 @@ ActionResult< CTFBot >	CTFBotCapturePoint::Update( CTFBot *me, float interval )
 		{
 			VPROF_BUDGET( "CTFBotCapturePoint::Update( repath )", "NextBot" );
 
+			Vector goal = SelectRandomPointInCaptureZone( point );
 			CTFBotPathCost cost( me, SAFEST_ROUTE );
-			m_path.Compute( me, point->GetAbsOrigin(), cost );
-			m_repathTimer.Start( RandomFloat( 2.0f, 3.0f ) ); 
+			m_path.Compute( me, goal, cost );
+			m_repathTimer.Start( RandomFloat( 2.0f, 3.0f ) );
 		}
 
 		if ( TFGameRules()->IsInTraining() && !me->IsAnyPointBeingCaptured() )

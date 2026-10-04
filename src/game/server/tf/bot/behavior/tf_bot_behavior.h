@@ -95,6 +95,9 @@ private:
 	CountdownTimer			m_failSafeTimer;	// 4 second cancel timer
 	IntervalTimer			m_airborneTimer;	// How long we've been off the ground
 	bool					m_bHasLeftGround;
+
+    CountdownTimer			m_approachTimer;
+    bool					m_bEnteredSpotRadius;
 };
 
 #endif // TF_BOT_BEHAVIOR_H

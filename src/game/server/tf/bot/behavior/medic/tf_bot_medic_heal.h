@@ -63,6 +63,10 @@ private:
 	bool m_bUberLocked;
 
 	bool CanDeployUber( CTFBot *me, const CWeaponMedigun* pMedigun ) const;
+
+    CountdownTimer m_attemptHealTimer;
+	IntervalTimer  m_beamFailTimer;				// Time since we last had a successful heal
+	bool           m_bCommittedToPatient;
 };
 
 inline bool CTFBotMedicHeal::IsPatientRunning( void ) const

@@ -58,32 +58,29 @@ bool CTFBotDefendPoint::IsPointThreatened( CTFBot *me )
 	if ( point == NULL )
 		return false;
 
+	// the point is, or was very recently, contested
 	if ( point->LastContestedAt() > 0.0f && ( gpGlobals->curtime - point->LastContestedAt() ) < 5.0f )
-	{
-		// the point is, or was very recently, contested
 		return true;
-	}
 
 	// if we just lost a point, we should fall back and stand on the next point to defend against a rush
 	if ( me->WasPointJustLost() )
-	{
 		return true;
-	}
 
-/*
 	// if an enemy is closer to the point than we are, head them off
 	// TODO: Compare time to reach, not distance
-	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
-	if ( threat )
+	Extent extent;
+	if ( GetControlPointCaptureExtent( point, extent ) )
 	{
-		const float tolerance = 100.0f;
+		for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+		{
+			CTFPlayer *enemy = ToTFPlayer( UTIL_PlayerByIndex( i ) );
+			if ( !enemy || !enemy->IsAlive() || enemy->GetTeamNumber() == me->GetTeamNumber() )
+				continue;
 
-		float themRange = ( threat->GetLastKnownPosition() - point->GetAbsOrigin() ).Length();
-		float myRange = ( me->GetAbsOrigin() - point->GetAbsOrigin() ).Length();
-		if ( myRange + tolerance > themRange )
-			return true;
+			if ( extent.Contains( enemy->GetAbsOrigin() ) )
+				return true;
+		}
 	}
-*/
 
 	return false;
 }
@@ -112,6 +109,13 @@ bool CTFBotDefendPoint::WillBlockCapture( CTFBot *me ) const
 //---------------------------------------------------------------------------------------------
 ActionResult< CTFBot >	CTFBotDefendPoint::Update( CTFBot *me, float interval )
 {
+	CTeamControlPoint *threatenedFriendly = FindThreatenedFriendlyPoint( me );
+	if ( threatenedFriendly )
+	{
+		me->ClearMyControlPoint();
+		return SuspendFor( new CTFBotDefendPointBlockCapture, "Friendly point is under attack within 800 units – blocking!" );
+	}
+
 	// King of the Hill logic
 	CTeamControlPointMaster *master = g_hControlPointMasters.Count() ? g_hControlPointMasters[0] : NULL;
 	if ( master && master->GetNumPoints() == 1 )

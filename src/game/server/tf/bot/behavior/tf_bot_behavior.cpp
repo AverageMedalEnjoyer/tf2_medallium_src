@@ -127,46 +127,117 @@ ActionResult< CTFBot >	CTFBotMainAction::Update( CTFBot *me, float interval )
 		 !me->IsMiniBoss() &&					// No MVM giants
 		 !me->HasTheFlag() )					// No MVM bomb carrier
 	{
-		CTFWeaponBase *rocket = dynamic_cast< CTFWeaponBase * >(
-			me->Weapon_OwnsThisType( "tf_weapon_rocketlauncher" ) );
+		CTFNavArea *myArea = me->GetLastKnownArea();
+		int spawnRoomFlag = ( me->GetTeamNumber() == TF_TEAM_RED ) ? TF_NAV_SPAWN_ROOM_RED : TF_NAV_SPAWN_ROOM_BLUE;
+		bool bInSpawnRoom = ( myArea && myArea->HasAttributeTF( spawnRoomFlag ) );
 
-		// Make sure we have enough ammo to blast jump...
-		if ( rocket && me->GetAmmoCount( rocket->GetPrimaryAmmoType() ) > 0 )
+		if ( !bInSpawnRoom )
 		{
-			const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
-			bool bInCombat = ( threat && threat->IsVisibleRecently() && threat->GetEntity() );
+			CTFWeaponBase *rocket = dynamic_cast< CTFWeaponBase * >(
+				me->Weapon_OwnsThisType( "tf_weapon_rocketlauncher" ) );
 
-			// Preferred direction
-			Vector preferredDir = vec3_origin;
-			if ( bInCombat )
+			// Make sure we have enough ammo to blast jump...
+			if ( rocket && me->GetAmmoCount( rocket->GetPrimaryAmmoType() ) > 0 )
 			{
-				preferredDir = threat->GetEntity()->GetAbsOrigin() - me->GetAbsOrigin();
-				preferredDir.z = 0.0f;
-				preferredDir.NormalizeInPlace();
-			}
-			else
-			{
-				// Roll out: Blast jump in the direction our bot is already going
-				// Probably going to be redone as it's not very reliable currently. -MEDAL
-				preferredDir = me->GetLocomotionInterface()->GetMotionVector();
-				if ( preferredDir.IsZero() )
+				const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
+				bool bInCombat = ( threat && threat->IsVisibleRecently() && threat->GetEntity() );
+
+				bool bWantDivebomb = false;
+				bool bRetreating   = ( me->GetIntentionInterface()->ShouldRetreat( me ) == ANSWER_YES );
+
+				if ( bInCombat )
 				{
-					Vector forward;
-					me->EyeVectors( &forward );
-					preferredDir = forward;
+					CTFPlayer *pThreatPlayer = ToTFPlayer( threat->GetEntity() );
+					if ( pThreatPlayer )
+					{
+						// Focus divebombs on weakened targets (absolute HP or % of max)
+						const float flThreatHealthRatio = (float)pThreatPlayer->GetHealth() / (float)pThreatPlayer->GetMaxHealth();
+						if ( pThreatPlayer->GetHealth() <= 100 || flThreatHealthRatio <= 0.40f )
+						{
+							bWantDivebomb = true;
+						}
+					}
+				}
+
+				// Preferred direction
+				Vector preferredDir = vec3_origin;
+				if ( bInCombat && bWantDivebomb )
+				{
+					// Normal divebomb: toward the low-HP threat
+					preferredDir = threat->GetEntity()->GetAbsOrigin() - me->GetAbsOrigin();
 					preferredDir.z = 0.0f;
 					preferredDir.NormalizeInPlace();
+
+					// If we are retreating, reverse it so we jump *away*
+					if ( bRetreating )
+					{
+						preferredDir = -preferredDir;
+					}
 				}
-			}
+				else if ( !bInCombat )
+				{
+					const PathFollower *path = me->GetCurrentPath();
+					if ( path && path->IsValid() && path->GetCurrentGoal() )
+					{
+						const float kLookAhead = 300.0f;
+						Vector start = me->GetAbsOrigin();
+						float traveled = 0.0f;
+						Vector lookAheadPos = path->GetCurrentGoal()->pos;
 
-			// Only accept spots whose arcs actually point a preferable direction
-			const BlastJumpSpot_t *spot = FindNearestUsableBlastJumpSpot(
-				me, 500.0f, &preferredDir, 0.55f );
+						const Path::Segment *seg = path->GetCurrentGoal();
+						while ( seg && traveled < kLookAhead )
+						{
+							float segLen = ( seg->pos - start ).Length();
+							if ( traveled + segLen >= kLookAhead )
+							{
+								float t = ( kLookAhead - traveled ) / segLen;
+								lookAheadPos = start + t * ( seg->pos - start );
+								break;
+							}
+							traveled += segLen;
+							start = seg->pos;
+							lookAheadPos = seg->pos;
 
-			if ( spot )
-			{
-				return SuspendFor( new CTFBotBlastJump( spot, bInCombat ),
-								   bInCombat ? "Doing a divebomb blast jump" : "Doing a roll out blast jump" );
+							const Path::Segment *next = path->NextSegment( seg );
+							if ( !next || next == seg )
+								break;
+							seg = next;
+						}
+
+						preferredDir = lookAheadPos - me->GetAbsOrigin();
+						preferredDir.z = 0.0f;
+						if ( !preferredDir.IsZero() )
+							preferredDir.NormalizeInPlace();
+					}
+
+					// Fallback if path is missing/invalid
+					if ( preferredDir.IsZero() )
+					{
+						preferredDir = me->GetLocomotionInterface()->GetMotionVector();
+						if ( preferredDir.IsZero() )
+						{
+							Vector forward;
+							me->EyeVectors( &forward );
+							preferredDir = forward;
+							preferredDir.z = 0.0f;
+							preferredDir.NormalizeInPlace();
+						}
+					}
+				}
+
+				// Only accept spots whose arcs actually point a preferable direction
+				// (and only when we actually decided we want to jump)
+				if ( !preferredDir.IsZero() )
+				{
+					const BlastJumpSpot_t *spot = FindNearestUsableBlastJumpSpot(
+						me, 500.0f, &preferredDir, 0.55f );
+
+					if ( spot )
+					{
+						return SuspendFor( new CTFBotBlastJump( spot, bWantDivebomb ),
+										   bWantDivebomb ? "Doing a divebomb blast jump" : "Doing a roll out blast jump" );
+					}
+				}
 			}
 		}
 	}
@@ -1841,6 +1912,7 @@ CTFBotBlastJump::CTFBotBlastJump( const BlastJumpSpot_t *spot, bool bCombat )
 	m_state          = APPROACH;
 	m_jumpDir        = vec3_origin;
 	m_bHasLeftGround = false;
+	m_bEnteredSpotRadius = false;
 }
 
 //-----------------------------------------------------------------------------------------
@@ -1848,6 +1920,12 @@ ActionResult< CTFBot > CTFBotBlastJump::OnStart( CTFBot *me, Action< CTFBot > *p
 {
 	if ( !m_spot || m_spot->m_validDirs.Count() == 0 )
 		return Done( "No valid spot" );
+
+	if ( me->IsRangeGreaterThan( m_spot->m_origin, 500.0f ) )
+	{
+		me->m_bIsBlastJumping = false;
+		return Done( "Selected blast-jump spot is farther than 500 units" );
+	}
 
 	Vector desiredDir = vec3_origin;
 
@@ -1859,6 +1937,11 @@ ActionResult< CTFBot > CTFBotBlastJump::OnStart( CTFBot *me, Action< CTFBot > *p
 			desiredDir = threat->GetEntity()->GetAbsOrigin() - me->GetAbsOrigin();
 			desiredDir.z = 0.0f;
 			desiredDir.NormalizeInPlace();
+
+			if ( me->GetIntentionInterface()->ShouldRetreat( me ) == ANSWER_YES )
+			{
+				desiredDir = -desiredDir;
+			}
 		}
 	}
 	else
@@ -1892,12 +1975,22 @@ ActionResult< CTFBot > CTFBotBlastJump::OnStart( CTFBot *me, Action< CTFBot > *p
 	m_bHasLeftGround = false;
 	m_failSafeTimer.Invalidate();
 	m_airborneTimer.Invalidate();
+	m_approachTimer.Start( 5.0f );
+	m_bEnteredSpotRadius = false;
 
-	me->m_nextBlastJumpAllowed.Start( 10.0f );
+	float flCooldown = m_bCombat ? RandomFloat( 8.0f, 14.0f ) : RandomFloat( 14.0f, 22.0f );
+	me->m_nextBlastJumpAllowed.Start( flCooldown );
 
 	CTFBotPathCost cost( me, FASTEST_ROUTE );
 	m_path.SetMinLookAheadDistance( me->GetDesiredPathLookAheadRange() );
 	m_path.Compute( me, m_spot->m_origin, cost );
+
+	if ( !m_path.IsValid() || m_path.GetLength() > 750.0f )
+	{
+		me->m_bIsBlastJumping = false;
+		return Done( "No valid short path to blast-jump spot" );
+	}
+
 	m_repathTimer.Start( 1.0f );
 
 	return Continue();
@@ -1914,8 +2007,37 @@ ActionResult< CTFBot > CTFBotBlastJump::Update( CTFBot *me, float interval )
 		 me->GetAmmoCount( rocket->GetPrimaryAmmoType() ) <= 0 )
 	{
 		me->m_bIsBlastJumping = false;
+		
+		if ( m_spot )
+		{
+			me->m_usedBlastJumpOrigins.AddToTail( m_spot->m_origin );
+			if ( me->m_usedBlastJumpOrigins.Count() > 4 )
+				me->m_usedBlastJumpOrigins.Remove( 0 );
+		}
+		me->m_usedBlastJumpOrigins.RemoveAll();
 
 		return Done( "No rocket launcher, ammo, or low health." );
+	}
+
+	if ( m_state == APPROACH && m_approachTimer.IsElapsed() )
+	{
+		me->m_bIsBlastJumping = false;
+		if ( m_spot )
+		{
+			me->m_usedBlastJumpOrigins.AddToTail( m_spot->m_origin );
+			if ( me->m_usedBlastJumpOrigins.Count() > 4 )
+				me->m_usedBlastJumpOrigins.Remove( 0 );
+		}
+		me->m_usedBlastJumpOrigins.RemoveAll();
+		return Done( "Could not path to blast-jump spot within 5 seconds" );
+	}
+
+	// The moment we enter the radius of the spot, start the automatic cancel timer.
+	if ( !m_bEnteredSpotRadius && me->IsRangeLessThan( m_spot->m_origin, 120.0f ) )
+	{
+		m_bEnteredSpotRadius = true;
+		if ( !m_failSafeTimer.HasStarted() )
+			m_failSafeTimer.Start( 4.0f );
 	}
 
 	if ( m_failSafeTimer.HasStarted() )
@@ -1925,7 +2047,7 @@ ActionResult< CTFBot > CTFBotBlastJump::Update( CTFBot *me, float interval )
 			if ( !m_airborneTimer.HasStarted() )
 				m_airborneTimer.Start();
 
-			if ( m_airborneTimer.GetElapsedTime() >= 0.5f )
+			if ( m_airborneTimer.GetElapsedTime() >= 1.0f )
 			{
 				m_bHasLeftGround = true;
 				m_failSafeTimer.Invalidate();
@@ -1939,6 +2061,14 @@ ActionResult< CTFBot > CTFBotBlastJump::Update( CTFBot *me, float interval )
 		if ( m_failSafeTimer.IsElapsed() && !m_bHasLeftGround )
 		{
 			me->m_bIsBlastJumping = false;
+			
+			if ( m_spot )
+			{
+				me->m_usedBlastJumpOrigins.AddToTail( m_spot->m_origin );
+				if ( me->m_usedBlastJumpOrigins.Count() > 4 )
+					me->m_usedBlastJumpOrigins.Remove( 0 );
+			}
+			me->m_usedBlastJumpOrigins.RemoveAll();
 
 			return Done( "Our blast jump failed, cancelling." );
 		}
@@ -1958,6 +2088,20 @@ ActionResult< CTFBot > CTFBotBlastJump::Update( CTFBot *me, float interval )
 			{
 				CTFBotPathCost cost( me, FASTEST_ROUTE );
 				m_path.Compute( me, m_spot->m_origin, cost );
+				
+				if ( !m_path.IsValid() || m_path.GetLength() > 750.0f )
+				{
+					me->m_bIsBlastJumping = false;
+					if ( m_spot )
+					{
+						me->m_usedBlastJumpOrigins.AddToTail( m_spot->m_origin );
+						if ( me->m_usedBlastJumpOrigins.Count() > 4 )
+							me->m_usedBlastJumpOrigins.Remove( 0 );
+					}
+					me->m_usedBlastJumpOrigins.RemoveAll();
+					return Done( "Cannot path to blast jump spot" );
+				}
+
 				m_repathTimer.Start( 1.0f );
 			}
 			m_path.Update( me );
@@ -1978,7 +2122,8 @@ ActionResult< CTFBot > CTFBotBlastJump::Update( CTFBot *me, float interval )
 				}
 
 				m_state = JUMP;
-				m_failSafeTimer.Start( 4.0f );
+
+				// failsafe already started when we entered the radius
 				m_bHasLeftGround = false;
 				m_airborneTimer.Invalidate();
 			}
@@ -2046,6 +2191,14 @@ ActionResult< CTFBot > CTFBotBlastJump::Update( CTFBot *me, float interval )
 			{
 				me->m_bIsBlastJumping = false;
 
+				if ( m_spot )
+				{
+					me->m_usedBlastJumpOrigins.AddToTail( m_spot->m_origin );
+					if ( me->m_usedBlastJumpOrigins.Count() > 4 )
+						me->m_usedBlastJumpOrigins.Remove( 0 );
+				}
+				me->m_usedBlastJumpOrigins.RemoveAll();
+
 				return Done( "We landed after our blast jump, return back to normal behavior." );
 			}
 			break;
@@ -2060,6 +2213,13 @@ EventDesiredResult< CTFBot > CTFBotBlastJump::OnLandOnGround( CTFBot *me, CBaseE
 {
     me->m_bIsBlastJumping = false;
 
+	if ( m_spot )
+	{
+		me->m_usedBlastJumpOrigins.AddToTail( m_spot->m_origin );
+		if ( me->m_usedBlastJumpOrigins.Count() > 4 )
+			me->m_usedBlastJumpOrigins.Remove( 0 );
+	}
+	me->m_usedBlastJumpOrigins.RemoveAll();
+
 	return TryDone( RESULT_IMPORTANT, "Landed, back to normal behavior" );
 }
-
