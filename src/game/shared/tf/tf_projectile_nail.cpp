@@ -20,6 +20,8 @@
 #include "tf_player.h"
 #endif
 
+#define BLUTSAUGER_INDEX 36
+
 
 //=============================================================================
 //
@@ -27,6 +29,7 @@
 //
 #define SYRINGE_MODEL				"models/weapons/w_models/w_syringe_proj.mdl"
 #define SYRINGE_DISPATCH_EFFECT		"ClientProjectile_Syringe"
+#define SYRINGE_LEECH_MODEL			"models/weapons/c_models/c_leechgun/c_leech_proj.mdl"
 
 LINK_ENTITY_TO_CLASS( tf_projectile_syringe, CTFProjectile_Syringe );
 PRECACHE_REGISTER( tf_projectile_syringe );
@@ -39,6 +42,15 @@ void PrecacheSyringe(void *pUser)
 }
 
 PRECACHE_REGISTER_FN(PrecacheSyringe);
+
+
+short g_sModelIndexSyringeLeech;
+void PrecacheSyringeLeech(void *pUser)
+{
+	g_sModelIndexSyringeLeech = modelinfo->GetModelIndex( SYRINGE_LEECH_MODEL );
+}
+
+PRECACHE_REGISTER_FN(PrecacheSyringeLeech);
 
 //-----------------------------------------------------------------------------
 // CTFProjectile_Syringe
@@ -54,8 +66,48 @@ CTFBaseProjectile *CTFProjectile_Syringe::Create(
 	CBaseEntity *pOwner /*= NULL*/, 
 	CBaseEntity *pScorer /*= NULL*/, 
 	bool bCritical /*= false */
-) {
-	return CTFBaseProjectile::Create( "tf_projectile_syringe", vecOrigin, vecAngles, pOwner, SYRINGE_VELOCITY, g_sModelIndexSyringe, SYRINGE_DISPATCH_EFFECT, pScorer, bCritical );
+)
+{
+	int nModelIndex = g_sModelIndexSyringe;
+
+	if ( pLauncher )
+	{
+		CEconItemView *pItem = pLauncher->GetAttributeContainer()
+			? pLauncher->GetAttributeContainer()->GetItem() : NULL;
+
+		if ( pItem && pItem->GetItemDefIndex() == BLUTSAUGER_INDEX )
+			nModelIndex = g_sModelIndexSyringeLeech;
+	}
+
+	// Safety: never pass -1 - IDK why this fixes Client Projectile error, but it works!
+	if ( nModelIndex <= 0 )
+		nModelIndex = g_sModelIndexSyringe;
+
+	return CTFBaseProjectile::Create( "tf_projectile_syringe", vecOrigin, vecAngles, pOwner, SYRINGE_VELOCITY, nModelIndex, SYRINGE_DISPATCH_EFFECT, pScorer, bCritical );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: For Syringe Projectiles, Returns the correct projectile model path for the syringe based on the owner’s active weapon.
+//-----------------------------------------------------------------------------
+const char *CTFProjectile_Syringe::GetProjectileModelName( void )
+{
+	// Fallback; Create already chooses the index, but this is useful if anything else queries the name
+	CBaseEntity *pOwner = GetOwnerEntity();
+	if ( pOwner )
+	{
+		CTFPlayer *pPlayer = ToTFPlayer( pOwner );
+		if ( pPlayer )
+		{
+			CTFWeaponBase *pWeapon = pPlayer->GetActiveTFWeapon();
+			if ( pWeapon )
+			{
+				CEconItemView *pItem = pWeapon->GetAttributeContainer() ? pWeapon->GetAttributeContainer()->GetItem() : NULL;
+				if ( pItem && pItem->GetItemDefIndex() == BLUTSAUGER_INDEX )
+					return SYRINGE_LEECH_MODEL;
+			}
+		}
+	}
+	return SYRINGE_MODEL;
 }
 
 //-----------------------------------------------------------------------------
@@ -116,28 +168,42 @@ void GetSyringeTrailParticleName( CTFPlayer *pPlayer, CAttribute_String *attrPar
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: For Synrgine Projectiles, Add effects
+// Purpose: For Syringe Projectiles, Add effects
 //-----------------------------------------------------------------------------
 void ClientsideProjectileSyringeCallback( const CEffectData &data )
 {
 	// Get the syringe and add it to the client entity list, so we can attach a particle system to it.
 	C_TFPlayer *pPlayer = dynamic_cast<C_TFPlayer*>( ClientEntityList().GetBaseEntityFromHandle( data.m_hEntity ) );
-	if ( pPlayer )
-	{
-		C_LocalTempEntity *pSyringe = ClientsideProjectileCallback( data, SYRINGE_GRAVITY );
-		if ( pSyringe )
-		{
-			CAttribute_String attrParticleName;
-			
-			pSyringe->m_nSkin = ( pPlayer->GetTeamNumber() == TF_TEAM_RED ) ? 0 : 1;
-			bool bCritical = ( ( data.m_nDamageType & DMG_CRITICAL ) != 0 );
-			GetSyringeTrailParticleName( pPlayer, &attrParticleName, bCritical );
+	if ( !pPlayer )
+		return;
 
-			pSyringe->AddParticleEffect( attrParticleName.value().c_str() );
-			pSyringe->AddEffects( EF_NOSHADOW );
-			pSyringe->flags |= FTENT_USEFASTCOLLISIONS;
-		}
+	C_LocalTempEntity *pSyringe = ClientsideProjectileCallback( data, SYRINGE_GRAVITY );
+	if ( !pSyringe )
+		return;
+
+	// Choose the correct visual model for local player
+	const char *pszModel = SYRINGE_MODEL;
+	CTFWeaponBase *pWeapon = pPlayer->GetActiveTFWeapon();
+	if ( pWeapon )
+	{
+		CEconItemView *pItem = pWeapon->GetAttributeContainer()
+			? pWeapon->GetAttributeContainer()->GetItem() : NULL;
+		if ( pItem && pItem->GetItemDefIndex() == BLUTSAUGER_INDEX )
+			pszModel = SYRINGE_LEECH_MODEL;
 	}
+
+	// Force the model
+	pSyringe->SetModel( pszModel );
+
+	pSyringe->m_nSkin = ( pPlayer->GetTeamNumber() == TF_TEAM_RED ) ? 0 : 1;
+
+	bool bCritical = ( ( data.m_nDamageType & DMG_CRITICAL ) != 0 );
+	CAttribute_String attrParticleName;
+	GetSyringeTrailParticleName( pPlayer, &attrParticleName, bCritical );
+
+	pSyringe->AddParticleEffect( attrParticleName.value().c_str() );
+	pSyringe->AddEffects( EF_NOSHADOW );
+	pSyringe->flags |= FTENT_USEFASTCOLLISIONS;
 }
 
 DECLARE_CLIENT_EFFECT( SYRINGE_DISPATCH_EFFECT, ClientsideProjectileSyringeCallback );

@@ -25,7 +25,7 @@ public:
 	static CTFBaseProjectile *Create( const Vector &vecOrigin, const QAngle &vecAngles, CTFWeaponBaseGun *pLauncher = NULL, CBaseEntity *pOwner = NULL, CBaseEntity *pScorer = NULL, bool bCritical = false );	
 
 	virtual unsigned int PhysicsSolidMaskForEntity( void ) const;
-	virtual const char *GetProjectileModelName( void )	{ return "models/weapons/w_models/w_syringe_proj.mdl"; }
+	virtual const char *GetProjectileModelName( void );
 	virtual float GetGravity( void );
 };
 
