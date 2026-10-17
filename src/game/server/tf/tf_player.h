@@ -163,7 +163,7 @@ public:
 	virtual void		ResetPerRoundStats( void );
 
 	void				HandleCommand_JoinTeam( const char *pTeamName );
-	void				HandleCommand_JoinClass( const char *pClassName, bool bAllowSpawn = true );
+	virtual void		HandleCommand_JoinClass( const char *pClassName, bool bAllowSpawn = true );
 	void				HandleCommand_JoinTeam_NoMenus( const char *pTeamName );
 
 	void				CreateViewModel( int iViewModel = 0 );
@@ -241,7 +241,7 @@ public:
 	void				SetRememberLastWeapon( bool bRememberLastWeapon ) { m_bRememberLastWeapon = bRememberLastWeapon; }
 	void				SetRememberActiveWeapon( bool bRememberActiveWeapon ) { m_bRememberActiveWeapon = bRememberActiveWeapon; }
 
-	void				Regenerate( bool bRefillHealthAndAmmo = true );
+	virtual void		Regenerate( bool bRefillHealthAndAmmo = true );
 	float				GetNextRegenTime( void ){ return m_flNextRegenerateTime; }
 	void				SetNextRegenTime( float flTime ){ m_flNextRegenerateTime = flTime; }
 

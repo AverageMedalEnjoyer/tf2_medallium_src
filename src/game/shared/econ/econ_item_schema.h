@@ -1288,6 +1288,7 @@ public:
 	bool		IsAllowedInMatch( void ) const		{ return m_bAllowedInThisMatch; }
 	bool		IsBaseItem( void ) const			{ return m_bBaseItem; }
 	bool		IsModItem(void) const				{ return m_bModItem; }
+	bool		CanBeUsedByBots( void ) const		{ return m_bUsableByBots; }
 	bool		IsBundle( void ) const				{ return m_BundleInfo != NULL; }
 	bool		HasProperName( void ) const			{ return m_bProperName; }
 	const char	*GetClassToken( void ) const		{ return m_pszClassToken; }
@@ -1609,6 +1610,7 @@ private:
 	bool			m_bShouldShowInArmory;
 	bool			m_bBaseItem;
 	bool			m_bModItem;
+	bool			m_bUsableByBots;
 	bool			m_bImported;
 
 	// A pack bundle is a bundle that contains items that are not for sale individually
