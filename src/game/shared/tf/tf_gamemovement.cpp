@@ -82,6 +82,10 @@ extern ConVar cl_backspeed;
 extern ConVar cl_sidespeed;
 extern ConVar mp_tournament_readymode_countdown;
 
+// Medallium-specific movement convars
+ConVar  tf2m_duckjump ( "tf2m_duckjump", "1", FCVAR_REPLICATED, "Toggles jumping while ducked" );
+
+
 #define TF_MAX_SPEED   (400 * 1.3)	// 400 is Scout max speed, and we allow up to 3% movement bonus.
 
 #define TF_WATERJUMP_FORWARD	30
@@ -1221,14 +1225,15 @@ bool CTFGameMovement::CheckJumpButton()
 	if ( player->GetFlags() & FL_DUCKING )
 	{
 		// Let a scout do it.
-		bool bAllow = ( bScout && !bOnGround );
+		bool bAllow = ( bScout && !bOnGround ) || tf2m_duckjump.GetBool() ;
 
 		if ( !bAllow )
 			return false;
 	}
 
 	// Cannot jump while in the unduck transition.
-	if ( ( player->m_Local.m_bDucking && (  player->GetFlags() & FL_DUCKING ) ) || ( player->m_Local.m_flDuckJumpTime > 0.0f ) )
+	if ( ( player->m_Local.m_bDucking && (  player->GetFlags() & FL_DUCKING ) ) || ( player->m_Local.m_flDuckJumpTime > 0.0f ) && !tf2m_duckjump.GetBool() )
+
 		return false;
 
 	// Cannot jump again until the jump button has been released.
