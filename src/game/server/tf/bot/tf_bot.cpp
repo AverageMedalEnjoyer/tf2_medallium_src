@@ -70,7 +70,8 @@ ConVar tf_bot_spawn_use_preset_roster( "tf_bot_spawn_use_preset_roster", "1", FC
 
 ConVar tf_bot_give_items( "tf_bot_give_items", "1", FCVAR_GAMEDLL, "If nonzero, bots spawn with a random loadout." );
 ConVar tf_bot_give_items_nosteamcheck( "tf_bot_give_items_nosteamcheck", "1", FCVAR_GAMEDLL, "If nonzero, bots get loadouts even when no Steam client is logged in (needed on dedicated servers)." );
-ConVar tf_bot_give_items_nocosmetics( "tf_bot_give_items_nocosmetics", "0", FCVAR_GAMEDLL, "If nonzero, bots wear no random cosmetics. Set to 0 to give each bot one random cosmetic." );
+ConVar tf_bot_give_items_nocosmetics( "tf_bot_give_items_nocosmetics", "0", FCVAR_GAMEDLL, "If nonzero, bots wear no random cosmetics. Set to 0 to give each bot a hat, a misc item and a third cosmetic (see tf_bot_give_items_medals)." );
+ConVar tf_bot_give_items_medals( "tf_bot_give_items_medals", "1", FCVAR_GAMEDLL, "If nonzero, a bot's third cosmetic is a tournament medal. If 0, it is another regular misc item instead." );
 ConVar tf_bot_give_items_skip_australiums( "tf_bot_give_items_skip_australiums", "0", FCVAR_GAMEDLL, "If nonzero, bots never roll Australium weapons." );
 ConVar tf_bot_give_items_australium_rarity( "tf_bot_give_items_australium_rarity", "3", FCVAR_GAMEDLL, "Australium rarity: roughly 1 in N (higher = rarer)." );
 ConVar tf_bot_give_items_killstreak( "tf_bot_give_items_killstreak", "1", FCVAR_GAMEDLL, "If nonzero, bots can roll Killstreak weapons." );
@@ -6073,11 +6074,33 @@ bool CanEquipOnClass(CTFItemDefinition* pItemDef, int iClassIndex)
 
 const CEconItemDefinition* CTFBot::GiveRandomItemEx(loadout_positions_t loadoutPosition)
 {
-	CUtlVector< const CEconItemDefinition* > itemVector;
+	// the schema files every cosmetic, hats included, under "misc" (CTFItemDefinition::BInitFromKV even renames "head" to "misc"),
+	// so nothing would ever match HEAD or MISC2. Roll them from the misc pool instead: HEAD = a hat, MISC2 = a medal (or another misc item).
+	const bool bWantHat = (loadoutPosition == LOADOUT_POSITION_HEAD);
+	const bool bWantMedal = (loadoutPosition == LOADOUT_POSITION_MISC2 && tf_bot_give_items_medals.GetBool());
+	const int iAskedSlot = loadoutPosition; // before HEAD and MISC2 are folded into MISC; keeps their rolls apart below
+	if (bWantHat || loadoutPosition == LOADOUT_POSITION_MISC2)
+		loadoutPosition = LOADOUT_POSITION_MISC;
+
+	if (!IsValidItemSlot(loadoutPosition))
+		return NULL;
+
+	// Which items can be rolled only depends on the class, the slot and the kind of cosmetic, so each list is built once and kept.
+	// Walking all ~11,600 item definitions on every roll (9 times per roll, on every respawn) is what made the game stutter.
+	const int iClass = GetPlayerClass()->GetClassIndex();
+	const int iKind = bWantHat ? 1 : (bWantMedal ? 2 : 0);
+	static CUtlVector< const CEconItemDefinition* > s_itemLists[TF_CLASS_COUNT_ALL][CLASS_LOADOUT_POSITION_COUNT][3];
+	static bool s_bListBuilt[TF_CLASS_COUNT_ALL][CLASS_LOADOUT_POSITION_COUNT][3];
+	CUtlVector< const CEconItemDefinition* >& itemVector = s_itemLists[iClass][loadoutPosition][iKind];
+	bool& bListBuilt = s_bListBuilt[iClass][loadoutPosition][iKind];
 
 	const CEconItemSchema::ItemDefinitionMap_t& mapItemDefs = ItemSystem()->GetItemSchema()->GetItemDefinitionMap();
+	const equip_region_mask_t unMedalRegion = GetItemSchema()->GetEquipRegionBitMaskByName("medal");
 	FOR_EACH_MAP_FAST(mapItemDefs, iItem)
 	{
+		if (bListBuilt)
+			break;
+
 		CTFItemDefinition* pItemDef = dynamic_cast<CTFItemDefinition*>(mapItemDefs[iItem]);
 
 		if (!pItemDef->CanBeUsedByBots())
@@ -6107,6 +6130,26 @@ const CEconItemDefinition* CTFBot::GiveRandomItemEx(loadout_positions_t loadoutP
 			continue;
 		}
 
+		if (!IsWearableSlot(loadoutPosition) && !pItemDef->HasEconTag(GetItemSchema()->GetHandleForTag("can_deal_damage")))
+		{
+			// weapons must be able to deal damage - bots get stuck "using" sandviches/drinks and can't make real use of jars, banners, etc.
+			continue;
+		}
+
+		if (loadoutPosition == LOADOUT_POSITION_MISC)
+		{
+			// keep only the kind of cosmetic that was asked for: a hat, a medal or any other misc item
+			// (about 97% of the misc items are tournament medals, so they would drown out everything else)
+			bool bIsHat = FStrEq(pItemDef->GetDefinitionString("item_slot"), "head");
+			bool bIsMedal = (pItemDef->GetEquipRegionMask() & unMedalRegion) != 0;
+			// the MvM "GateBot Light" items (models/bots/...) are robot head parts with no equip region, so nothing stops them sitting on top of a hat
+			const char* pszModel = pItemDef->GetBasePlayerDisplayModel();
+			bool bIsRobotPart = (pszModel && V_stristr(pszModel, "models/bots/"));
+
+			if (bIsHat != bWantHat || bIsMedal != bWantMedal || bIsRobotPart)
+				continue;
+		}
+
 		// To keep an item away from bots, put "usable_by_bots" "0" in its items_game.txt definition. Revisit this in the future. - saint
 
 		if (pItemDef)
@@ -6114,17 +6157,16 @@ const CEconItemDefinition* CTFBot::GiveRandomItemEx(loadout_positions_t loadoutP
 			itemVector.AddToTail(pItemDef);
 		}
 	}
+	bListBuilt = true;
 
 	if (itemVector.Count() > 0)
 	{
-		// randomize the vector.
-		int m_nRandomSeed = RandomInt(0, 9999);
+		// Seeded by the bot, the class and the slot: the same bot rolling the same slot as the same class gets the same item every time,
+		// so a bot keeps its loadout instead of getting a new one on every respawn (different bots still get different ones).
+		const int aSeed[4] = { GetUserID(), iClass, iAskedSlot, iKind };
 		CUniformRandomStream randomize;
-		randomize.SetSeed(m_nRandomSeed);
-		itemVector.Shuffle(&randomize);
-
-		int which = randomize.RandomInt(0, itemVector.Count() - 1);
-		return itemVector[which];
+		randomize.SetSeed((int)MurmurHash2(aSeed, (int)sizeof(aSeed), 0));
+		return itemVector[randomize.RandomInt(0, itemVector.Count() - 1)];
 	}
 
 	return NULL;
@@ -6161,7 +6203,9 @@ void CTFBot::SelectRandomizedLoadout(void)
 
 	if (!tf_bot_give_items_nocosmetics.GetBool())
 	{
-		int iChosenSlotVal = RandomInt(0, 2);
+		// one cosmetic from each slot, counting down so the hat is granted last (CTFBot::AddItem lets a later item replace an earlier one it clashes with)
+		for (int iChosenSlotVal = 2; iChosenSlotVal >= 0; --iChosenSlotVal)
+		{
 		int iCosmeticSlot = LOADOUT_POSITION_HEAD;
 
 		switch (iChosenSlotVal)
@@ -6205,6 +6249,7 @@ void CTFBot::SelectRandomizedLoadout(void)
 			cosmetic.flPaintkitQuality = 0;
 			vecSavedRandomLoadout.AddToTail(cosmetic);
 		}
+		}
 	}
 }
 
@@ -6214,6 +6259,13 @@ void TFBotGenerateAndWearItem(CTFBot* pBot, CEconItemView* pItem)
 	int iClass = pBot->GetPlayerClass()->GetClassIndex();
 	int iItemSlot = pItem->GetStaticData()->GetLoadoutSlot(iClass);
 	CTFWeaponBase* pWeapon = dynamic_cast<CTFWeaponBase*>(pBot->GetEntityForLoadoutSlot(iItemSlot));
+
+	// wearables are made by AddItem. GiveNamedItem would only leave an unattached copy of them lying around.
+	if (IsWearableSlot(iItemSlot) || V_strnicmp(pItem->GetStaticData()->GetItemClass(), "tf_wearable", 11) == 0)
+	{
+		pBot->AddItem(pItem->GetItemDefinition()->GetDefinitionName(), pItem);
+		return;
+	}
 
 	// we need to force translating the name here.
 	// GiveNamedItem will not translate if we force creating the item
@@ -6610,6 +6662,8 @@ void CTFBot::GiveSavedLoadout(void)
 			delete pItemData;
 		}
 	}
+
+	DevMsg("BOT %s ENDED UP WITH %i WEARABLES\n", GetPlayerName(), GetNumWearables());
 }
 
 void CTFBot::HandleLoadout(void)
@@ -6625,6 +6679,7 @@ void CTFBot::HandleLoadout(void)
 
 	if (bLoggedIntoSteam && tf_bot_give_items.GetBool())
 	{
+		const double flStart = Plat_FloatTime();
 		if (vecSavedRandomLoadout.Count() > 0)
 		{
 			GiveSavedLoadout();
@@ -6634,6 +6689,7 @@ void CTFBot::HandleLoadout(void)
 			SelectRandomizedLoadout();
 			GiveSavedLoadout();
 		}
+		DevMsg("BOT %s GOT ITS LOADOUT IN %.2f ms\n", GetPlayerName(), (Plat_FloatTime() - flStart) * 1000.0);
 	}
 
 	m_InitialLoadoutLoadTimer.Invalidate();
@@ -6647,8 +6703,12 @@ void CTFBot::ResetLoadout(void)
 	bool bLoggedIntoSteam = tf_bot_give_items_nosteamcheck.GetBool() || (steamapicontext && steamapicontext->SteamUser() && steamapicontext->SteamUser()->BLoggedOn());
 	if (bLoggedIntoSteam && tf_bot_give_items.GetBool() && !(TFGameRules() && TFGameRules()->IsMannVsMachineMode()))
 	{
+		const double flStart = Plat_FloatTime();
 		vecSavedRandomLoadout.RemoveAll();
 		SelectRandomizedLoadout();
+		DevMsg("BOT %s ROLLED A LOADOUT IN %.2f ms\n", GetPlayerName(), (Plat_FloatTime() - flStart) * 1000.0);
+		// the saved loadout now belongs to this class, so respawning as the same class keeps it (Spawn only calls us when the class changed)
+		iOldClassIndex = GetPlayerClass()->GetClassIndex();
 	}
 }
 
@@ -7169,14 +7229,16 @@ void CTFBot::OnEventChangeAttributes( const CTFBot::EventChangeAttributes_t* pEv
 }
 
 
-void CTFBot::AddItem( const char* pszItemName )
+void CTFBot::AddItem( const char* pszItemName, const CEconItemView* pItemData )
 {
 	CItemSelectionCriteria criteria;
 	criteria.SetQuality( AE_USE_SCRIPT_VALUE );
 	criteria.BAddCondition( "name", k_EOperator_String_EQ, pszItemName, true );
 
 	int classNum = GetPlayerClass()->GetClassIndex();
-	CBaseEntity *pItem = ItemGeneration()->GenerateRandomItem( &criteria, WorldSpaceCenter(), vec3_angle, NULL, classNum);
+	// a caller that already has the exact item passes it in: spawning that directly skips searching the whole item schema by name
+	CBaseEntity *pItem = pItemData ? ItemGeneration()->GenerateItemFromScriptData( pItemData, WorldSpaceCenter(), vec3_angle, NULL )
+		: ItemGeneration()->GenerateRandomItem( &criteria, WorldSpaceCenter(), vec3_angle, NULL, classNum);
 	if ( pItem )
 	{
 		CTFWeaponBuilder *pBuilder = dynamic_cast<CTFWeaponBuilder *>( pItem );

@@ -593,7 +593,7 @@ public:
 	const EventChangeAttributes_t* GetEventChangeAttributes( const char* pszEventName ) const;
 	void OnEventChangeAttributes( const CTFBot::EventChangeAttributes_t* pEvent );
 
-	void AddItem( const char* pszItemName );
+	void AddItem( const char* pszItemName, const CEconItemView* pItemData = NULL );
 
 	int GetUberHealthThreshold();
 	float GetUberDeployDelayDuration();
