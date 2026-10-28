@@ -317,6 +317,11 @@ public:
 	bool				IsMiniBoss( void ) const;
 	void				SetIsMiniBoss( bool isMiniBoss ) { m_bIsMiniBoss = isMiniBoss; }
 
+	// Engineer robot squads - ETFSummonedType
+	int					GetSummonedType( void ) const;
+	void				SetSummonedType( int nType ) { m_nSummonedType = nType; }
+	bool				IsRobotPresentation( void ) const;	// sounds/looks like an MvM robot
+
 	bool				CanAttack( int iCanAttackFlags = 0 );
 	bool				CanJump() const;
 	bool				CanDuck() const;
@@ -1313,6 +1318,7 @@ private:
 	// In-game currency
 	CNetworkVar( int, m_nCurrency );
 	CNetworkVar( bool, m_bIsMiniBoss );
+	CNetworkVar( int, m_nSummonedType );
 
 	// Bounty Mode
 	CNetworkVar( uint32, m_nExperienceLevel );

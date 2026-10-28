@@ -16,6 +16,83 @@
 #include "bot/behavior/scenario/capture_the_flag/tf_bot_fetch_flag.h"
 #include "nav_mesh.h"
 #include "tier0/vprof.h"
+#include "tf_obj_sentrygun.h"
+
+
+//---------------------------------------------------------------------------------------------
+// The Vaccinator resist that would stop the most incoming damage: what the enemies
+// we can see around us and our patient shoot, the closest counting the most
+static medigun_resist_types_t ChooseVaccinatorResist( CTFBot *me, CTFPlayer *patient )
+{
+	float flScore[ MEDIGUN_NUM_RESISTS ] = { 0.0f, 0.0f, 0.0f };
+
+	CUtlVector< CKnownEntity > knownVector;
+	me->GetVisionInterface()->CollectKnownEntities( &knownVector );
+
+	FOR_EACH_VEC( knownVector, i )
+	{
+		const CKnownEntity &known = knownVector[i];
+		CBaseEntity *enemy = known.GetEntity();
+		if ( !enemy || !enemy->IsAlive() || enemy->GetTeamNumber() != GetEnemyTeam( me->GetTeamNumber() ) || !known.IsVisibleRecently() )
+			continue;
+
+		float flRange = me->GetRangeTo( enemy );
+		if ( patient )
+		{
+			flRange = MIN( flRange, ( enemy->GetAbsOrigin() - patient->GetAbsOrigin() ).Length() );
+		}
+
+		if ( flRange > 2000.0f )
+			continue;
+
+		float flWeight = 1.0f / ( 1.0f + flRange / 500.0f );
+
+		if ( enemy->IsBaseObject() )
+		{
+			// sentries shoot bullets (and rockets, but mostly bullets)
+			if ( dynamic_cast< CObjectSentrygun * >( enemy ) )
+			{
+				flScore[ MEDIGUN_BULLET_RESIST ] += 1.5f * flWeight;
+			}
+			continue;
+		}
+
+		CTFPlayer *player = ToTFPlayer( enemy );
+		if ( !player )
+			continue;
+
+		switch ( player->GetPlayerClass()->GetClassIndex() )
+		{
+		case TF_CLASS_SOLDIER:
+		case TF_CLASS_DEMOMAN:
+			flScore[ MEDIGUN_BLAST_RESIST ] += flWeight;
+			break;
+
+		case TF_CLASS_PYRO:
+			flScore[ MEDIGUN_FIRE_RESIST ] += flWeight;
+			break;
+
+		case TF_CLASS_SCOUT:
+		case TF_CLASS_HEAVYWEAPONS:
+		case TF_CLASS_SNIPER:
+		case TF_CLASS_SPY:
+		case TF_CLASS_ENGINEER:
+			flScore[ MEDIGUN_BULLET_RESIST ] += flWeight;
+			break;
+		}
+	}
+
+	medigun_resist_types_t best = MEDIGUN_BULLET_RESIST;
+	for ( int i = 1; i < MEDIGUN_NUM_RESISTS; ++i )
+	{
+		if ( flScore[i] > flScore[ best ] )
+		{
+			best = (medigun_resist_types_t)i;
+		}
+	}
+
+	return best;
+}
 
 extern ConVar tf_bot_path_lookahead_range;
 
@@ -722,6 +799,19 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 
 	if ( medigun )
 	{
+		// Vaccinator - resist whatever the enemies around us shoot (bots told to prefer a resist keep it)
+		if ( medigun->GetMedigunType() == MEDIGUN_RESIST && !TFGameRules()->IsMannVsMachineMode() && !medigun->IsReleasingCharge() && m_resistSwitchTimer.IsElapsed() &&
+			 !me->HasAttribute( CTFBot::PREFER_VACCINATOR_BULLETS ) && !me->HasAttribute( CTFBot::PREFER_VACCINATOR_BLAST ) && !me->HasAttribute( CTFBot::PREFER_VACCINATOR_FIRE ) )
+		{
+			medigun_resist_types_t resist = ChooseVaccinatorResist( me, m_patient );
+			for ( int i = 0; i < MEDIGUN_NUM_RESISTS && medigun->GetResistType() != resist; ++i )
+			{
+				medigun->CycleResistType();
+			}
+
+			m_resistSwitchTimer.Start( 0.75f );
+		}
+
 		// if we have an opportunistic patient, prefer them while they remain valid
 		if ( !m_bCommittedToPatient )
 		{
@@ -861,10 +951,24 @@ ActionResult< CTFBot >	CTFBotMedicHeal::Update( CTFBot *me, float interval )
 					useUber = true;
 				}
 			}
+			else if ( medigun->GetMedigunType() == MEDIGUN_UBER && !TFGameRules()->IsMannVsMachineMode() )
+			{
+				// Kritzkrieg - crits are for a patient who's winning a fight, not one who's dying
+				float flPatientHealthRatio = (float)m_patient->GetHealth() / (float)m_patient->GetMaxHealth();
+				bool bPatientFighting = m_patient->GetTimeSinceWeaponFired() < 1.0f && knownThreat && knownThreat->IsVisibleRecently();
+
+				useUber = bPatientFighting && flPatientHealthRatio > 0.4f && !m_patient->m_Shared.IsCritBoosted();
+
+				// don't die with it
+				if ( me->GetHealth() < 25 && knownThreat && knownThreat->IsVisibleRecently() )
+				{
+					useUber = true;
+				}
+			}
 			else
 			{
-				// use uber if our patient's health is getting low
-				const float healthyRatio = 0.5f;
+				// use uber if our patient's health is getting low - the Quick-Fix heals fast enough to save them a bit sooner
+				const float healthyRatio = ( medigun->GetMedigunType() == MEDIGUN_QUICKFIX && !TFGameRules()->IsMannVsMachineMode() ) ? 0.6f : 0.5f;
 				useUber = ( ( (float)m_patient->GetHealth() / (float)m_patient->GetMaxHealth() ) < healthyRatio );
 
 				// don't uber our patient if he's already uber from some other source

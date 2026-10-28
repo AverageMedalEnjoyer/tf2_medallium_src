@@ -3584,6 +3584,15 @@ bool CTeamplayRoundBasedRules::ShouldBalanceTeams( void )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: how many of this team's players count toward team balance
+//-----------------------------------------------------------------------------
+int CTeamplayRoundBasedRules::GetTeamNumPlayersForBalance( int iTeam )
+{
+	CTeam *pTeam = GetGlobalTeam( iTeam );
+	return pTeam ? pTeam->GetNumPlayers() : 0;
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: returns true if the passed team change would cause unbalanced teams
 //-----------------------------------------------------------------------------
 bool CTeamplayRoundBasedRules::WouldChangeUnbalanceTeams( int iNewTeam, int iCurrentTeam  )
@@ -3619,7 +3628,7 @@ bool CTeamplayRoundBasedRules::WouldChangeUnbalanceTeams( int iNewTeam, int iCur
 	}
 
 	// add one because we're joining this team
-	int iNewTeamPlayers = pNewTeam->GetNumPlayers() + 1;
+	int iNewTeamPlayers = GetTeamNumPlayersForBalance( iNewTeam ) + 1;
 
 	// for each game team
 	int i = FIRST_GAME_TEAM;
@@ -3631,7 +3640,7 @@ bool CTeamplayRoundBasedRules::WouldChangeUnbalanceTeams( int iNewTeam, int iCur
 		if ( pTeam == pNewTeam )
 			continue;
 
-		int iNumPlayers = pTeam->GetNumPlayers();
+		int iNumPlayers = GetTeamNumPlayersForBalance( i );
 
 		if ( i == iCurrentTeam )
 		{
@@ -3675,7 +3684,7 @@ bool CTeamplayRoundBasedRules::AreTeamsUnbalanced( int &iHeaviestTeam, int &iLig
 
 	for ( CTeam *pTeam = GetGlobalTeam(i); pTeam != NULL; pTeam = GetGlobalTeam(++i) )
 	{
-		int iNumPlayers = pTeam->GetNumPlayers();
+		int iNumPlayers = GetTeamNumPlayersForBalance( i );
 
 		if ( iNumPlayers < iLeastPlayers )
 		{

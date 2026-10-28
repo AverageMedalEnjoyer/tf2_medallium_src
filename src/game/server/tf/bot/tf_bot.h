@@ -89,6 +89,7 @@ public:
 	virtual int			ShouldTransmit( const CCheckTransmitInfo *pInfo ) OVERRIDE;
 	virtual void		ChangeTeam( int iTeamNum, bool bAutoTeam, bool bSilent, bool bAutoBalance = false ) OVERRIDE;
 	virtual bool		ShouldGib( const CTakeDamageInfo &info ) OVERRIDE;
+	virtual bool		IsReadyToSpawn( void ) OVERRIDE;
 
 	virtual int			DrawDebugTextOverlays(void);
 
@@ -414,6 +415,16 @@ public:
 	void SetSpawner( CTFBotGenerator *spawner );
 	CTFBotGenerator *GetSpawner( void ) const;
 
+	// Engineer robot squads - the squad (not respawn waves) decides when we respawn
+	bool IsSummonedRobot( void ) const						{ return GetSummonedType() != TF_SUMMONED_NONE; }
+	void SetSummoner( CTFPlayer *pSummoner )				{ m_hSummoner = pSummoner; }
+	CTFPlayer *GetSummoner( void ) const					{ return m_hSummoner; }
+	void SetRobotFactory( CBaseEntity *pFactory )			{ m_hRobotFactory = pFactory; }
+	CBaseEntity *GetRobotFactory( void ) const				{ return m_hRobotFactory; }
+	void SetRobotSquadOrder( int nOrder )					{ m_nRobotSquadOrder = nOrder; }
+	int GetRobotSquadOrder( void ) const					{ return m_nRobotSquadOrder; }
+	void RemoveSummonedRobot( void );						// kick this summoned robot from the server
+
 	void JoinSquad( CTFBotSquad *squad );					// become a member of the given squad
 	void LeaveSquad( void );								// leave our current squad
 	void DeleteSquad( void );
@@ -498,6 +509,13 @@ public:
 	void ScriptGetAllTags( HSCRIPT hTable );
 
 	Action< CTFBot > *OpportunisticallyUseWeaponAbilities( void );
+
+	// situational item use outside of MvM
+	bool IsEngagedWithEnemy( void ) const;									// enemy in sight, or hurt by one just now
+	bool IsHuntsmanSniper( void ) const;
+	void OnAirblastedPlayer( CTFPlayer *victim );								// pyros follow up with a "puff and sting"
+	CTFPlayer *GetPuffAndStingTarget( void ) const;								// who we just airblasted, while there's time to follow up
+	IntervalTimer &GetBowDrawTimer( void )										{ return m_bowDrawTimer; }
 
 	CTFPlayer *SelectRandomReachableEnemy( void );	// mostly for MvM - pick a random enemy player that is not in their spawn room
 
@@ -647,6 +665,11 @@ private:
 	CHandle< CTFBotProxy > m_proxy;
 	CHandle< CTFBotGenerator > m_spawner;
 
+	CHandle< CTFPlayer > m_hSummoner;					// engineer who summoned this robot
+	CHandle< CBaseEntity > m_hRobotFactory;				// teleporter exit we (re)spawn from
+	int m_nRobotSquadOrder;								// ETFRobotSquadOrder
+	bool m_bRobotKickPending;
+
 	CTFBotSquad *m_squad;
 	bool m_didReselectClass;
 
@@ -709,7 +732,11 @@ private:
 	float m_maxVisionRangeOverride;
 
 	CountdownTimer m_opportunisticTimer;
-	
+
+	CHandle< CTFPlayer > m_puffTarget;
+	CountdownTimer m_puffTimer;
+	IntervalTimer m_bowDrawTimer;		// how long we've been holding a Huntsman arrow back
+
 	CSoundPatch *m_pIdleSound;
 
 	float m_squadFormationError;

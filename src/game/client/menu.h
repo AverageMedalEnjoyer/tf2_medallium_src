@@ -37,6 +37,9 @@ public:
 	bool IsMenuOpen( void );
 	void SelectMenuItem( int menu_item );
 
+	// counts menus the server has shown, so local menus can tell when they've been replaced
+	int GetServerMenuCount( void ) const { return m_nServerMenuCount; }
+
 private:
 	virtual void OnThink();
 	virtual void Paint();
@@ -66,6 +69,7 @@ private:
 	int				m_fWaitingForMore;
 	int				m_nSelectedItem;
 	bool			m_bMenuTakesInput;
+	int				m_nServerMenuCount;
 
 	float			m_flSelectionTime;
 

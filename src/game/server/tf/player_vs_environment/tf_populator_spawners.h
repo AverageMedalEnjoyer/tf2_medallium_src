@@ -41,6 +41,10 @@ enum SpawnLocationResult
 	SPAWN_LOCATION_TELEPORTER
 };
 
+// Parses popfile TFBot keys shared by every bot definition (Skill, Attributes, Item, CharacterAttributes, ...).
+// Returns false if the key isn't one of them. Also used by Engineer robot squads.
+bool ParseDynamicAttributes( CTFBot::EventChangeAttributes_t& event, KeyValues* data );
+
 typedef CUtlVector< CHandle< CBaseEntity > > EntityHandleVector_t;
 typedef CUtlVector< CHandle< CTFTeamSpawn > > TFTeamSpawnVector_t;
 

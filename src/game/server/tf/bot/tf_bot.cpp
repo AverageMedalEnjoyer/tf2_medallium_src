@@ -1870,6 +1870,11 @@ CTFBot::CTFBot()
 	m_proxy = NULL;
 	m_spawner = NULL;
 
+	m_hSummoner = NULL;
+	m_hRobotFactory = NULL;
+	m_nRobotSquadOrder = TF_ROBOT_SQUAD_ORDER_ATTACK;
+	m_bRobotKickPending = false;
+
 	m_myControlPoint = NULL;
 
 	SetMission( NO_MISSION, MISSION_DOESNT_RESET_BEHAVIOR_SYSTEM );
@@ -2081,6 +2086,22 @@ void CTFBot::PhysicsSimulate( void )
 		}
 	}
 
+
+	if ( IsSummonedRobot() )
+	{
+		// summoned robots leave with their engineer
+		CTFPlayer *pSummoner = GetSummoner();
+		if ( !pSummoner || pSummoner->GetTeamNumber() != GetTeamNumber() )
+		{
+			RemoveSummonedRobot();
+		}
+
+		// and our items - skip the random bot loadout
+		m_InitialLoadoutLoadTimer.Invalidate();
+
+		// our squad picks our class, not us
+		return;
+	}
 
 	// If we're dead, choose a new class.
 	// We need to do this outside of the behavior system, since changing class can
@@ -3057,12 +3078,34 @@ void CTFBot::ChangeTeam( int iTeamNum, bool bAutoTeam, bool bSilent, bool bAutoB
 bool CTFBot::ShouldGib( const CTakeDamageInfo &info )
 {
 	// only gib giant/miniboss
-	if ( TFGameRules()->IsMannVsMachineMode() && ( IsMiniBoss() || GetModelScale() > 1.f ) )
+	if ( IsRobotPresentation() && ( IsMiniBoss() || GetModelScale() > 1.f ) )
 	{
 		return true;
 	}
 
 	return BaseClass::ShouldGib( info );
+}
+
+
+//-----------------------------------------------------------------------------------------------------
+void CTFBot::RemoveSummonedRobot( void )
+{
+	if ( m_bRobotKickPending )
+		return;
+
+	m_bRobotKickPending = true;
+	engine->ServerCommand( UTIL_VarArgs( "kickid %d\n", GetUserID() ) );
+}
+
+
+//-----------------------------------------------------------------------------------------------------
+bool CTFBot::IsReadyToSpawn( void )
+{
+	// summoned robots respawn together, when their squad says so
+	if ( IsSummonedRobot() )
+		return false;
+
+	return BaseClass::IsReadyToSpawn();
 }
 
 
@@ -5033,8 +5076,9 @@ void CTFBot::EquipBestWeaponForThreat( const CKnownEntity *threat )
 
 	case TF_CLASS_SNIPER:
 		{
+			// the Huntsman is at its best up close
 			const float closeSniperRange = 750.0f;
-			if ( secondary && IsRangeLessThan( threat->GetLastKnownPosition(), closeSniperRange ) )
+			if ( secondary && !IsHuntsmanSniper() && IsRangeLessThan( threat->GetLastKnownPosition(), closeSniperRange ) )
 				gun = secondary;
 		}
 		break;
@@ -5055,6 +5099,30 @@ void CTFBot::EquipBestWeaponForThreat( const CKnownEntity *threat )
 				if ( enemy->IsPlayerClass( TF_CLASS_SOLDIER ) || enemy->IsPlayerClass( TF_CLASS_DEMOMAN ) )
 				{
 					gun = primary;
+				}
+			}
+
+			// "puff and sting" - follow an airblast up while they're helpless
+			CTFPlayer *puffed = GetPuffAndStingTarget();
+			if ( puffed )
+			{
+				int iCritBurning = 0;
+				if ( melee )
+				{
+					CALL_ATTRIB_HOOK_INT_ON_OTHER( melee, iCritBurning, axtinguisher_properties );
+				}
+
+				bool bSecondaryLoaded = secondary && ( secondary->Clip1() > 0 || ( !secondary->UsesClipsForAmmo1() && GetAmmoCount( secondary->GetPrimaryAmmoType() ) > 0 ) );
+
+				if ( puffed->GetGroundEntity() == NULL && bSecondaryLoaded )
+				{
+					// shotgun, Reserve Shooter or flares while they're in the air
+					gun = secondary;
+				}
+				else if ( iCritBurning && puffed->m_Shared.InCond( TF_COND_BURNING ) && IsRangeLessThan( puffed, 150.0f ) )
+				{
+					// Axtinguisher on someone we've set alight
+					gun = melee;
 				}
 			}
 		}
@@ -5153,6 +5221,11 @@ bool CTFBot::IsCombatWeapon( CTFWeaponBase *weapon ) const
 		case TF_WEAPON_LUNCHBOX:
 		case TF_WEAPON_BUFF_ITEM:
 		case TF_WEAPON_PUMPKIN_BOMB:
+		// thrown on purpose by OpportunisticallyUseWeaponAbilities, not fired like a gun
+		case TF_WEAPON_JAR:
+		case TF_WEAPON_JAR_MILK:
+		case TF_WEAPON_JAR_GAS:
+		case TF_WEAPON_ROCKETPACK:
 			return false;
 		};
 	}
@@ -6844,6 +6917,325 @@ CBaseObject *CTFBot::GetNearestKnownSappableTarget( void )
 
 
 //-----------------------------------------------------------------------------------------
+bool CTFBot::IsEngagedWithEnemy( void ) const
+{
+	const CKnownEntity *threat = GetVisionInterface()->GetPrimaryKnownThreat( true );
+	if ( threat && threat->IsVisibleRecently() )
+		return true;
+
+	return GetTimeSinceLastInjury( GetEnemyTeam( GetTeamNumber() ) ) < 2.0f;
+}
+
+
+//-----------------------------------------------------------------------------------------
+bool CTFBot::IsHuntsmanSniper( void ) const
+{
+	if ( !IsPlayerClass( TF_CLASS_SNIPER ) )
+		return false;
+
+	CTFWeaponBase *primary = dynamic_cast< CTFWeaponBase * >( Weapon_GetSlot( TF_WPN_TYPE_PRIMARY ) );
+	return primary && primary->IsWeapon( TF_WEAPON_COMPOUND_BOW );
+}
+
+
+//-----------------------------------------------------------------------------------------
+void CTFBot::OnAirblastedPlayer( CTFPlayer *victim )
+{
+	m_puffTarget = victim;
+	m_puffTimer.Start( 1.0f );
+}
+
+
+//-----------------------------------------------------------------------------------------
+CTFPlayer *CTFBot::GetPuffAndStingTarget( void ) const
+{
+	if ( !m_puffTimer.HasStarted() || m_puffTimer.IsElapsed() )
+		return NULL;
+
+	CTFPlayer *victim = m_puffTarget.Get();
+	return ( victim && victim->IsAlive() ) ? victim : NULL;
+}
+
+
+//-----------------------------------------------------------------------------------------
+static int CountTeammatesNear( CTFBot *me, const Vector &where, float range )
+{
+	int count = 0;
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CTFPlayer *player = ToTFPlayer( UTIL_PlayerByIndex( i ) );
+		if ( !player || player == me || !player->IsAlive() || !player->InSameTeam( me ) )
+			continue;
+
+		if ( ( player->GetAbsOrigin() - where ).IsLengthLessThan( range ) )
+		{
+			++count;
+		}
+	}
+	return count;
+}
+
+
+//-----------------------------------------------------------------------------------------
+// Enemies we've seen lately near the given spot
+static int CountVisibleEnemiesNear( CTFBot *me, const Vector &where, float range )
+{
+	int count = 0;
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CTFPlayer *player = ToTFPlayer( UTIL_PlayerByIndex( i ) );
+		if ( !player || !player->IsAlive() || player->GetTeamNumber() != GetEnemyTeam( me->GetTeamNumber() ) )
+			continue;
+
+		const CKnownEntity *known = me->GetVisionInterface()->GetKnown( player );
+		if ( !known || !known->IsVisibleRecently() )
+			continue;
+
+		if ( ( player->GetAbsOrigin() - where ).IsLengthLessThan( range ) )
+		{
+			++count;
+		}
+	}
+	return count;
+}
+
+
+//-----------------------------------------------------------------------------------------
+static CTFPlayer *FindBurningTeammate( CTFBot *me, float range )
+{
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CTFPlayer *player = ToTFPlayer( UTIL_PlayerByIndex( i ) );
+		if ( !player || player == me || !player->IsAlive() || !player->InSameTeam( me ) )
+			continue;
+
+		if ( !player->m_Shared.InCond( TF_COND_BURNING ) || !me->IsRangeLessThan( player, range ) )
+			continue;
+
+		if ( me->IsLineOfFireClear( player ) )
+			return player;
+	}
+	return NULL;
+}
+
+
+//-----------------------------------------------------------------------------------------
+static bool IsEnemySentryTargetingMe( CTFBot *me, float range )
+{
+	CObjectSentrygun *sentry = me->GetEnemySentry();
+	if ( !sentry || sentry->IsDormant() || sentry->HasSapper() || sentry->IsDisabled() )
+		return false;
+
+	return sentry->GetTarget() == me && me->IsRangeLessThan( sentry, range );
+}
+
+
+//-----------------------------------------------------------------------------------------
+// Charge to close on an enemy we're lined up on, or to get out of a losing fight
+static bool ShouldDemoknightCharge( CTFBot *me, const Vector &forward )
+{
+	if ( me->m_Shared.InCond( TF_COND_SHIELD_CHARGE ) || me->m_Shared.GetDemomanChargeMeter() < 100.0f )
+		return false;
+
+	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
+	if ( !threat || !threat->GetEntity() || !threat->IsVisibleRecently() )
+		return false;
+
+	Vector toThreat = threat->GetEntity()->WorldSpaceCenter() - me->EyePosition();
+	float flRange = toThreat.NormalizeInPlace();
+	float flFacing = DotProduct( forward, toThreat );
+
+	// the charge crits our swing at the end of it
+	if ( flFacing > 0.95f && flRange > 150.0f && flRange < 900.0f && me->IsLineOfFireClear( threat->GetEntity() ) )
+		return true;
+
+	float flHealthRatio = (float)me->GetHealth() / (float)me->GetMaxHealth();
+	if ( flHealthRatio < 0.3f && flFacing < 0.0f && me->GetTimeSinceLastInjury( GetEnemyTeam( me->GetTeamNumber() ) ) < 1.0f )
+		return true;
+
+	return false;
+}
+
+
+//-----------------------------------------------------------------------------------------
+// Banners, drinks, food and throwables, used when they'll do the most good
+static Action< CTFBot > *UseItemsSituationally( CTFBot *me )
+{
+	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
+	CBaseEntity *threatEntity = ( threat && threat->IsVisibleRecently() ) ? threat->GetEntity() : NULL;
+	float flThreatRange = threatEntity ? me->GetRangeTo( threatEntity ) : FLT_MAX;
+
+	bool bInCombat = me->IsEngagedWithEnemy();
+	float flHealthRatio = (float)me->GetHealth() / (float)me->GetMaxHealth();
+	float flTimeSinceHurt = me->GetTimeSinceLastInjury( GetEnemyTeam( me->GetTeamNumber() ) );
+
+	for ( int w=0; w<MAX_WEAPONS; ++w )
+	{
+		CTFWeaponBase *weapon = ( CTFWeaponBase * )me->GetWeapon( w );
+		if ( !weapon )
+			continue;
+
+		switch ( weapon->GetWeaponID() )
+		{
+		case TF_WEAPON_BUFF_ITEM:
+			{
+				CTFBuffItem *buff = (CTFBuffItem *)weapon;
+				if ( !buff->IsFull() )
+					break;
+
+				int nAllies = CountTeammatesNear( me, me->GetAbsOrigin(), 750.0f );
+
+				bool bUse = false;
+				switch ( buff->GetBuffType() )
+				{
+				case 1:
+					// Buff Banner - mini-crits for everyone pushing in with us
+					bUse = threatEntity && flThreatRange < 1200.0f && ( nAllies > 0 || flThreatRange < 600.0f );
+					break;
+
+				case 2:
+					// Battalion's Backup - when the damage starts coming in
+					bUse = bInCombat && ( flTimeSinceHurt < 1.0f || nAllies > 1 );
+					break;
+
+				case 3:
+					// Concheror - heal and speed up whoever's fighting
+					bUse = bInCombat && ( flHealthRatio < 0.7f || nAllies > 0 );
+					break;
+
+				default:
+					// the parachute isn't a banner
+					continue;
+				}
+
+				// don't take a full banner to the grave
+				if ( bInCombat && flHealthRatio < 0.3f )
+				{
+					bUse = true;
+				}
+
+				if ( bUse )
+				{
+					return new CTFBotUseItem( buff );
+				}
+			}
+			break;
+
+		case TF_WEAPON_LUNCHBOX:
+			{
+				CTFLunchBox *lunchbox = (CTFLunchBox *)weapon;
+				if ( !lunchbox->HasAmmo() )
+					break;
+
+				bool bUse = false;
+				if ( me->IsPlayerClass( TF_CLASS_SCOUT ) )
+				{
+					if ( me->m_Shared.GetScoutEnergyDrinkMeter() < 100 )
+						break;
+
+					if ( lunchbox->GetLunchboxType() == LUNCHBOX_ADDS_MINICRITS )
+					{
+						// Crit-a-Cola - right before we get stuck in
+						bUse = threatEntity && flThreatRange < 900.0f && flHealthRatio > 0.5f;
+					}
+					else
+					{
+						// Bonk - soak up a sentry, or live through a fight we're losing
+						bUse = IsEnemySentryTargetingMe( me, 1100.0f ) || ( flHealthRatio < 0.4f && flTimeSinceHurt < 1.0f );
+					}
+				}
+				else if ( me->IsPlayerClass( TF_CLASS_HEAVYWEAPONS ) )
+				{
+					if ( lunchbox->GetLunchboxType() == LUNCHBOX_ADDS_MINICRITS )
+					{
+						// Buffalo Steak - charge someone who's already close, but not into a sentry
+						bUse = threatEntity && threatEntity->IsPlayer() && flThreatRange < 700.0f && flHealthRatio > 0.5f && !IsEnemySentryTargetingMe( me, 1100.0f );
+					}
+					else
+					{
+						// Sandvich, Dalokohs and the rest - eat when hurt and nobody's shooting at us
+						bUse = flHealthRatio < 0.6f && flTimeSinceHurt > 2.0f && ( !threatEntity || flThreatRange > 1200.0f );
+					}
+				}
+				else
+				{
+					bUse = true;
+				}
+
+				if ( bUse )
+				{
+					return new CTFBotUseItem( lunchbox );
+				}
+			}
+			break;
+
+		case TF_WEAPON_JAR:
+		case TF_WEAPON_JAR_MILK:
+		case TF_WEAPON_JAR_GAS:
+			{
+				if ( me->GetAmmoCount( weapon->GetPrimaryAmmoType() ) <= 0 )
+					break;
+
+				// put out a burning teammate - gas would only make it worse
+				if ( !weapon->IsWeapon( TF_WEAPON_JAR_GAS ) )
+				{
+					CTFPlayer *burning = FindBurningTeammate( me, 500.0f );
+					if ( burning )
+					{
+						return new CTFBotUseItem( weapon, burning );
+					}
+				}
+
+				if ( !threatEntity || !threatEntity->IsPlayer() || flThreatRange > 800.0f )
+					break;
+
+				CTFPlayer *threatPlayer = ToTFPlayer( threatEntity );
+
+				// worth it on a group
+				bool bThrow = CountVisibleEnemiesNear( me, threatEntity->GetAbsOrigin(), 300.0f ) >= 2;
+
+				if ( weapon->IsWeapon( TF_WEAPON_JAR ) )
+				{
+					// a doused spy can't hide, and giants take a lot of extra damage
+					bThrow |= threatPlayer->IsPlayerClass( TF_CLASS_SPY ) || threatPlayer->IsMiniBoss();
+				}
+				else if ( weapon->IsWeapon( TF_WEAPON_JAR_MILK ) )
+				{
+					// teammates fighting it heal off it
+					bThrow |= CountTeammatesNear( me, threatEntity->GetAbsOrigin(), 600.0f ) > 0;
+				}
+				else
+				{
+					// gas whoever we're about to light up
+					bThrow |= flThreatRange < 400.0f;
+				}
+
+				if ( bThrow && me->IsLineOfFireClear( threatEntity ) )
+				{
+					return new CTFBotUseItem( weapon, threatEntity );
+				}
+			}
+			break;
+
+		case TF_WEAPON_BAT_WOOD:
+		case TF_WEAPON_BAT_GIFTWRAP:
+			{
+				// sandman or wrap assassin
+				if ( me->GetAmmoCount( TF_AMMO_GRENADES1 ) > 0 && threat && threat->IsVisibleInFOVNow() )
+				{
+					// hit a stunball or bauble
+					me->PressAltFireButton();
+				}
+			}
+			break;
+		}
+	}
+
+	return NULL;
+}
+
+
+//-----------------------------------------------------------------------------------------
 Action< CTFBot > *CTFBot::OpportunisticallyUseWeaponAbilities( void )
 {
 	if ( !m_opportunisticTimer.IsElapsed() )
@@ -6860,6 +7252,12 @@ Action< CTFBot > *CTFBot::OpportunisticallyUseWeaponAbilities( void )
 		Vector forward;
 		EyeVectors( &forward );
 		bool bShouldCharge = GetLocomotionInterface()->IsPotentiallyTraversable( GetAbsOrigin(), GetAbsOrigin() + 100.0f * forward, ILocomotion::IMMEDIATELY );
+		if ( !TFGameRules()->IsMannVsMachineMode() )
+		{
+			// outside MvM, save the charge for closing on someone or getting away
+			bShouldCharge = bShouldCharge && ShouldDemoknightCharge( this, forward );
+		}
+
 		if ( HasAttribute( CTFBot::AIR_CHARGE_ONLY ) && ( GetGroundEntity() || GetAbsVelocity().z > 0 ) )
 		{
 			bShouldCharge = false;
@@ -6902,6 +7300,18 @@ Action< CTFBot > *CTFBot::OpportunisticallyUseWeaponAbilities( void )
 	if ( HasTheFlag() && !TFGameRules()->IsMannVsMachineMode() )
 	{
 		return NULL;
+	}
+
+	if ( !TFGameRules()->IsMannVsMachineMode() )
+	{
+		Action< CTFBot > *useItem = UseItemsSituationally( this );
+		if ( useItem )
+		{
+			// give it time to come out and be used before picking anything else
+			m_opportunisticTimer.Start( 2.0f );
+		}
+
+		return useItem;
 	}
 
 	for ( int w=0; w<MAX_WEAPONS; ++w )
@@ -6991,7 +7401,7 @@ void CTFBot::StartIdleSound( void )
 {
 	StopIdleSound();
 
-	if ( TFGameRules() && !TFGameRules()->IsMannVsMachineMode() )
+	if ( !IsRobotPresentation() )
 		return;
 
 	// SHIELD YOUR EYES MIKEB!!!

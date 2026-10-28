@@ -25,6 +25,7 @@ static CTFBotManager sTFBotManager;
 ConVar tf_bot_difficulty( "tf_bot_difficulty", "3", FCVAR_NONE, "Defines the skill of bots joining the game.  Values are: 0=easy, 1=normal, 2=hard, 3=expert." );
 ConVar tf_bot_quota( "tf_bot_quota", "0", FCVAR_NONE, "Determines the total number of tf bots in the game." );
 ConVar tf_bot_quota_mode( "tf_bot_quota_mode", "normal", FCVAR_NONE, "Determines the type of quota.\nAllowed values: 'normal', 'fill', and 'match'.\nIf 'fill', the server will adjust bots to keep N players in the game, where N is bot_quota.\nIf 'match', the server will maintain a 1:N ratio of humans to bots, where N is bot_quota." );
+ConVar tf_bot_quota_team( "tf_bot_quota_team", "auto", FCVAR_NONE, "Team that quota bots join: 'auto', 'red', or 'blue'. Putting every bot on one team needs mp_teams_unbalance_limit 0." );
 ConVar tf_bot_join_after_player( "tf_bot_join_after_player", "1", FCVAR_NONE, "If nonzero, bots wait until a player joins before entering the game." );
 ConVar tf_bot_auto_vacate( "tf_bot_auto_vacate", "1", FCVAR_NONE, "If nonzero, bots will automatically leave to make room for human players." );
 ConVar tf_bot_offline_practice( "tf_bot_offline_practice", "0", FCVAR_NONE, "Tells the server that it is in offline practice mode." );
@@ -410,6 +411,10 @@ void CTFBotManager::MaintainBotQuota()
 				nTFBotsOnGameTeams++;
 			}
 		}
+		else if ( pBot && pBot->IsSummonedRobot() )
+		{
+			// Engineer robot squads take up a slot, but don't count as players for the quota
+		}
 		else
 		{
 			if ( pPlayer->GetTeamNumber() == TF_TEAM_RED || pPlayer->GetTeamNumber() == TF_TEAM_BLUE )
@@ -460,9 +465,30 @@ void CTFBotManager::MaintainBotQuota()
 	// add bots if necessary
 	if ( desiredBotCount > nTFBotsOnGameTeams )
 	{
+		const char *pszQuotaTeam = tf_bot_quota_team.GetString();
+		int iQuotaTeam = TEAM_UNASSIGNED;
+		if ( !V_stricmp( pszQuotaTeam, "red" ) )
+		{
+			iQuotaTeam = TF_TEAM_RED;
+		}
+		else if ( !V_stricmp( pszQuotaTeam, "blue" ) )
+		{
+			iQuotaTeam = TF_TEAM_BLUE;
+		}
+
 		// don't try to add a bot if it would unbalance
-		if ( !TFGameRules()->WouldChangeUnbalanceTeams( TF_TEAM_BLUE, TEAM_UNASSIGNED ) ||
-			 !TFGameRules()->WouldChangeUnbalanceTeams( TF_TEAM_RED, TEAM_UNASSIGNED ) )
+		bool bCanJoin;
+		if ( iQuotaTeam != TEAM_UNASSIGNED )
+		{
+			bCanJoin = !TFGameRules()->WouldChangeUnbalanceTeams( iQuotaTeam, TEAM_UNASSIGNED );
+		}
+		else
+		{
+			bCanJoin = !TFGameRules()->WouldChangeUnbalanceTeams( TF_TEAM_BLUE, TEAM_UNASSIGNED ) ||
+					   !TFGameRules()->WouldChangeUnbalanceTeams( TF_TEAM_RED, TEAM_UNASSIGNED );
+		}
+
+		if ( bCanJoin )
 		{
 			CTFBot *pBot = GetAvailableBotFromPool();
 			if ( pBot == NULL )
@@ -474,7 +500,14 @@ void CTFBotManager::MaintainBotQuota()
 				pBot->SetAttribute( CTFBot::QUOTA_MANANGED );
 
 				// join a team before we pick our class, since we use our teammates to decide what class to be
-				pBot->HandleCommand_JoinTeam( "auto" );
+				pBot->HandleCommand_JoinTeam( iQuotaTeam == TF_TEAM_RED ? "red" : iQuotaTeam == TF_TEAM_BLUE ? "blue" : "auto" );
+
+				if ( pBot->GetTeamNumber() != TF_TEAM_RED && pBot->GetTeamNumber() != TF_TEAM_BLUE )
+				{
+					// the join was refused - wait a while rather than renaming this bot every think
+					m_flNextPeriodicThink = gpGlobals->curtime + 5.0f;
+					return;
+				}
 
 				pBot->HandleCommand_JoinClass( pBot->GetNextSpawnClassname() );
 

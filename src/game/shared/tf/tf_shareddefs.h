@@ -1421,6 +1421,23 @@ enum
 	MODE_SAPPER_ANTI_ROBOT_RADIUS,
 };
 
+// Engineer robot squads (summoned from teleporter exits outside of MvM)
+enum ETFSummonedType
+{
+	TF_SUMMONED_NONE = 0,
+	TF_SUMMONED_ROBOT,
+	TF_SUMMONED_UNDEAD,			// Scream Fortress / Full Moon variant
+};
+
+enum ETFRobotSquadOrder
+{
+	TF_ROBOT_SQUAD_ORDER_ATTACK = 0,	// play the objective
+	TF_ROBOT_SQUAD_ORDER_DEFEND,		// guard the factory
+	TF_ROBOT_SQUAD_ORDER_FOLLOW,		// escort the engineer
+
+	TF_ROBOT_SQUAD_ORDER_COUNT
+};
+
 enum ESpyTrapType_t
 {
 	MODE_SPY_TRAP_RADIUS_STEALTH = 0,

@@ -64,6 +64,13 @@ public:
 
 	virtual void	OnGoInactive( void ) OVERRIDE;
 
+	// Engineer robot squads
+	bool			HasRobotSquad( void ) const { return m_nRobotSquadSize > 0 || m_flRobotSquadNextArrival >= 0.0f; }
+	int				GetRobotSquadAlive( void ) const { return m_nRobotSquadAlive; }
+	int				GetRobotSquadSize( void ) const { return m_nRobotSquadSize; }
+	float			GetRobotSquadNextArrival( void ) const { return m_flRobotSquadNextArrival; }
+	int				GetRobotSquadOrder( void ) const { return m_nRobotSquadOrder; }
+
 private:
 	int m_iState;
 	int m_iOldState;
@@ -73,6 +80,11 @@ private:
 	float m_flYawToExit;
 	bool m_bMatchBuilding;
 	bool m_bOldMatchBuilding;
+
+	int m_nRobotSquadAlive;
+	int m_nRobotSquadSize;
+	float m_flRobotSquadNextArrival;
+	int m_nRobotSquadOrder;
 
 	int m_iDirectionArrowPoseParam;
 

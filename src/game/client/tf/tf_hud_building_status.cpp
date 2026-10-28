@@ -14,6 +14,7 @@
 #include "vgui/ISurface.h"
 #include <vgui/IVGui.h>
 #include <vgui_controls/ProgressBar.h>
+#include <vgui_controls/Label.h>
 #include <vgui_controls/AnimationController.h>
 #include "game_controls/IconPanel.h"
 #include "teamplay_round_timer.h"
@@ -1054,6 +1055,57 @@ CBuildingStatusItem( parent, "resource/UI/hud_obj_tele_exit.res", OBJ_TELEPORTER
 {
 	m_pUpgradeProgress = new vgui::ContinuousProgressBar( GetRunningPanel(), "Upgrade" );
 	m_pUpgradeIcon = new CIconPanel( GetRunningPanel(), "UpgradeIcon" );
+
+	m_pRobotSquadLabel = new vgui::Label( GetRunningPanel(), "RobotSquadLabel", "" );
+	m_pRobotSquadLabel->SetContentAlignment( vgui::Label::a_east );
+	m_pRobotSquadLabel->SetVisible( false );
+
+	vgui::ivgui()->AddTickSignal( GetVPanel(), 250 );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBuildingStatusItem_TeleporterExit::ApplySchemeSettings( vgui::IScheme *pScheme )
+{
+	BaseClass::ApplySchemeSettings( pScheme );
+
+	m_pRobotSquadLabel->SetFont( pScheme->GetFont( "DefaultVerySmall", true ) );
+	m_pRobotSquadLabel->SetFgColor( pScheme->GetColor( "TanLight", Color( 235, 226, 202, 255 ) ) );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Show the exit's robot squad: who's alive, or when they're back
+//-----------------------------------------------------------------------------
+void CBuildingStatusItem_TeleporterExit::OnTick( void )
+{
+	C_ObjectTeleporter *pTeleporter = static_cast<C_ObjectTeleporter*>(GetRepresentativeObject());
+
+	bool bShowSquad = pTeleporter && IsActive() && pTeleporter->HasRobotSquad();
+	m_pRobotSquadLabel->SetVisible( bShowSquad );
+
+	if ( bShowSquad )
+	{
+		static const char *s_pszOrders[ TF_ROBOT_SQUAD_ORDER_COUNT ] = { "ATTACK", "DEFEND", "FOLLOW" };
+		const char *pszOrder = s_pszOrders[ clamp( pTeleporter->GetRobotSquadOrder(), 0, TF_ROBOT_SQUAD_ORDER_COUNT - 1 ) ];
+
+		char szText[64];
+		float flNextArrival = pTeleporter->GetRobotSquadNextArrival();
+		if ( flNextArrival < 0.0f )
+		{
+			V_sprintf_safe( szText, "Squad %d/%d  %s", pTeleporter->GetRobotSquadAlive(), pTeleporter->GetRobotSquadSize(), pszOrder );
+		}
+		else
+		{
+			// the next robot is on its way through
+			int nSeconds = (int)ceil( MAX( 0.0f, flNextArrival - gpGlobals->curtime ) );
+			V_sprintf_safe( szText, "Squad %d/%d +%ds  %s", pTeleporter->GetRobotSquadAlive(), pTeleporter->GetRobotSquadSize(), nSeconds, pszOrder );
+		}
+
+		m_pRobotSquadLabel->SetText( szText );
+	}
+
+	BaseClass::OnTick();
 }
 
 //-----------------------------------------------------------------------------
@@ -1062,6 +1114,12 @@ CBuildingStatusItem( parent, "resource/UI/hud_obj_tele_exit.res", OBJ_TELEPORTER
 void CBuildingStatusItem_TeleporterExit::PerformLayout( void )
 {
 	BaseClass::PerformLayout();
+
+	// robot squad status sits along the bottom of the panel
+	int wide, tall;
+	GetRunningPanel()->GetSize( wide, tall );
+	int labelTall = YRES( 9 );
+	m_pRobotSquadLabel->SetBounds( 0, tall - labelTall, wide - XRES( 4 ), labelTall );
 
 	// We only tick while active and with a valid built object
 	C_ObjectTeleporter *pTeleporter = static_cast<C_ObjectTeleporter*>(GetRepresentativeObject());

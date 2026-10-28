@@ -410,6 +410,11 @@ public:
 	//-----------------------------------------------------------------------------------------------------
 	// Return true if we are a "mini boss" in Mann Vs Machine mode
 	bool IsMiniBoss( void ) const;
+
+	// Engineer robot squads - ETFSummonedType
+	int GetSummonedType( void ) const;
+	bool IsRobotPresentation( void ) const;	// sounds/looks like an MvM robot
+
 	bool ShouldTauntHintIconBeVisible() const;
 	virtual bool IsHealthBarVisible( void ) const OVERRIDE;
 
@@ -669,6 +674,7 @@ public:
 	bool			m_bFlipViewModels;
 
 	bool			m_bIsMiniBoss;
+	int				m_nSummonedType;
 	bool			m_bIsABot;
 	int				m_nBotSkill;
 	int				m_nOldBotSkill;

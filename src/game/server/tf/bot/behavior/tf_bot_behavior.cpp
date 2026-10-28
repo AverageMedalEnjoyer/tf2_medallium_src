@@ -31,6 +31,7 @@
 
 
 extern ConVar tf_bot_health_ok_ratio;
+extern ConVar tf_bot_pyro_shove_away_range;
 
 ConVar tf_bot_path_lookahead_range( "tf_bot_path_lookahead_range", "300" );
 ConVar tf_bot_sniper_aim_error( "tf_bot_sniper_aim_error", "0.01", FCVAR_CHEAT );
@@ -1561,6 +1562,13 @@ void CTFBotMainAction::FireWeaponAtEnemy( CTFBot *me )
 		{
 			// bounce missiles with compression blast
 			me->PressAltFireButton();
+
+			// if that shoved our threat into the air, follow up with a "puff and sting"
+			CTFPlayer *victim = ToTFPlayer( threat->GetEntity() );
+			if ( victim && !TFGameRules()->IsMannVsMachineMode() && me->IsRangeLessThan( victim, tf_bot_pyro_shove_away_range.GetFloat() ) )
+			{
+				me->OnAirblastedPlayer( victim );
+			}
 		}
 		else if ( threat->GetTimeSinceLastSeen() < 1.0f && 
 				  me->IsDistanceBetweenLessThan( threat->GetEntity(), me->GetMaxAttackRange() ) )
@@ -1572,6 +1580,42 @@ void CTFBotMainAction::FireWeaponAtEnemy( CTFBot *me )
 	}
 
 	float threatRange = ( threat->GetEntity()->GetAbsOrigin() - me->GetAbsOrigin() ).Length();
+
+	if ( myWeapon->IsWeapon( TF_WEAPON_COMPOUND_BOW ) && !TFGameRules()->IsMannVsMachineMode() )
+	{
+		CTFCompoundBow *myBow = (CTFCompoundBow *)myWeapon;
+
+		float flCharge = myBow->GetCurrentCharge();
+		if ( flCharge <= 0.0f )
+		{
+			me->GetBowDrawTimer().Invalidate();
+		}
+		else if ( !me->GetBowDrawTimer().HasStarted() )
+		{
+			me->GetBowDrawTimer().Start();
+		}
+
+		bool bOnTarget = me->GetBodyInterface()->IsHeadAimingOnTarget() && threatRange < me->GetMaxAttackRange() && me->IsLineOfFireClear( threat->GetEntity() );
+
+		if ( !bOnTarget && me->GetBowDrawTimer().HasStarted() && me->GetBowDrawTimer().IsGreaterThen( myBow->GetChargeForceReleaseTime() - 0.5f ) )
+		{
+			// the draw is about to go wobbly with nothing to shoot - let it down and start over
+			me->PressAltFireButton();
+			return;
+		}
+
+		// quick shots up close, full draws at range
+		float flWantedCharge = threatRange < 500.0f ? 0.35f : ( threatRange < 1000.0f ? 0.7f : 0.95f );
+
+		if ( !bOnTarget || flCharge < flWantedCharge )
+		{
+			// keep drawing (or start to)
+			me->PressFireButton();
+		}
+
+		// otherwise let go
+		return;
+	}
 
 	// actual head aiming is handled elsewhere, just check if we're on target
 	if ( me->GetBodyInterface()->IsHeadAimingOnTarget() && threatRange < me->GetMaxAttackRange() )

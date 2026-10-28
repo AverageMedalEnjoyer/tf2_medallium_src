@@ -32,6 +32,10 @@ IMPLEMENT_CLIENTCLASS_DT(C_ObjectTeleporter, DT_ObjectTeleporter, CObjectTelepor
 	RecvPropInt( RECVINFO(m_iTimesUsed) ),
 	RecvPropFloat( RECVINFO(m_flYawToExit) ),
 	RecvPropBool( RECVINFO(m_bMatchBuilding) ),
+	RecvPropInt( RECVINFO(m_nRobotSquadAlive) ),
+	RecvPropInt( RECVINFO(m_nRobotSquadSize) ),
+	RecvPropFloat( RECVINFO(m_flRobotSquadNextArrival) ),
+	RecvPropInt( RECVINFO(m_nRobotSquadOrder) ),
 END_RECV_TABLE()
 
 //-----------------------------------------------------------------------------
@@ -49,6 +53,11 @@ C_ObjectTeleporter::C_ObjectTeleporter()
 	m_pSpinSound = NULL;
 
 	m_bMatchBuilding = false;
+
+	m_nRobotSquadAlive = 0;
+	m_nRobotSquadSize = 0;
+	m_flRobotSquadNextArrival = -1.0f;
+	m_nRobotSquadOrder = TF_ROBOT_SQUAD_ORDER_ATTACK;
 }
 
 //-----------------------------------------------------------------------------

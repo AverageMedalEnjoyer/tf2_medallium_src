@@ -586,7 +586,7 @@ static void ParseItemAttributes( CTFBot::EventChangeAttributes_t& event, KeyValu
 	event.m_itemsAttributes.AddToTail( botItemAttributes );
 }
 
-static bool ParseDynamicAttributes( CTFBot::EventChangeAttributes_t& event, KeyValues* data )
+bool ParseDynamicAttributes( CTFBot::EventChangeAttributes_t& event, KeyValues* data )
 {
 	const char *name = data->GetName();
 	const char *value = data->GetString();

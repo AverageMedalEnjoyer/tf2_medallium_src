@@ -1246,7 +1246,7 @@ void C_TFRagdoll::OnDataChanged( DataUpdateType_t type )
 
 					bool bBlood = true;
 					if ( TFGameRules() && ( TFGameRules()->UseSillyGibs() || 
-											( TFGameRules()->IsMannVsMachineMode() && pPlayer && pPlayer->GetTeamNumber() == TF_TEAM_PVE_INVADERS ) ) )
+											( pPlayer && pPlayer->IsRobotPresentation() ) ) )
 					{
 						bBlood = false;
 					}
@@ -3795,6 +3795,7 @@ IMPLEMENT_CLIENTCLASS_DT( C_TFPlayer, DT_TFPlayer, CTFPlayer )
 
 	RecvPropBool(RECVINFO(m_bSaveMeParity)),
 	RecvPropBool(RECVINFO(m_bIsMiniBoss)),
+	RecvPropInt(RECVINFO(m_nSummonedType)),
 	RecvPropBool(RECVINFO(m_bIsABot)),
 	RecvPropInt(RECVINFO(m_nBotSkill)),
 
@@ -4006,6 +4007,7 @@ C_TFPlayer::C_TFPlayer() :
 	m_flHandScale = 1.f;
 
 	m_bIsMiniBoss = false;
+	m_nSummonedType = TF_SUMMONED_NONE;
 	m_bUseBossHealthBar = false;
 	m_bUsingVRHeadset = false;
 
@@ -5861,7 +5863,7 @@ bool C_TFPlayer::CanLightCigarette( void )
 	}
 
 	// don't light for MvM Spy robots
-	if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() == TF_TEAM_PVE_INVADERS )
+	if ( IsRobotPresentation() )
 		return false;
 
 	// Don't light if we are invis.
@@ -10629,7 +10631,7 @@ void C_TFPlayer::UpdateKillStreakEffects( int iCount, bool bKillScored /* = fals
 
 void C_TFPlayer::UpdateMVMEyeGlowEffect( bool bVisible )
 {
-	if ( !TFGameRules() || !TFGameRules()->IsMannVsMachineMode() || GetTeamNumber() != TF_TEAM_PVE_INVADERS )
+	if ( !IsRobotPresentation() )
 	{
 		return;
 	}

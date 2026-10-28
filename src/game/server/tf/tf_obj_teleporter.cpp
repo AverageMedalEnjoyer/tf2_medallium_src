@@ -21,6 +21,7 @@
 #include "tf_objective_resource.h"
 #include "rtime.h"
 #include "tf_logic_player_destruction.h"
+#include "bot/tf_bot_robot_squad.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -53,6 +54,10 @@ IMPLEMENT_SERVERCLASS_ST( CObjectTeleporter, DT_ObjectTeleporter )
 	SendPropInt( SENDINFO(m_iTimesUsed), 10, SPROP_UNSIGNED ),
 	SendPropFloat( SENDINFO(m_flYawToExit), 8, 0, 0.0, 360.0f ),
 	SendPropBool( SENDINFO(m_bMatchBuilding) ),
+	SendPropInt( SENDINFO(m_nRobotSquadAlive), 7, SPROP_UNSIGNED ),
+	SendPropInt( SENDINFO(m_nRobotSquadSize), 7, SPROP_UNSIGNED ),
+	SendPropFloat( SENDINFO(m_flRobotSquadNextArrival), 0, SPROP_NOSCALE ),
+	SendPropInt( SENDINFO(m_nRobotSquadOrder), 2, SPROP_UNSIGNED ),
 END_SEND_TABLE()
 
 BEGIN_DATADESC( CObjectTeleporter )
@@ -61,12 +66,15 @@ BEGIN_DATADESC( CObjectTeleporter )
 	DEFINE_KEYFIELD( m_iszMatchingMapPlacedTeleporter,	FIELD_STRING, "matchingTeleporter" ),
 	// other
 	DEFINE_THINKFUNC( TeleporterThink ),
+	DEFINE_THINKFUNC( RobotSquadThink ),
 	DEFINE_ENTITYFUNC( TeleporterTouch ),
 END_DATADESC()
 
 PRECACHE_REGISTER( obj_teleporter );
 
 #define TELEPORTER_THINK_CONTEXT				"TeleporterContext"
+#define ROBOT_SQUAD_THINK_CONTEXT				"RobotSquadContext"
+#define ROBOT_SQUAD_THINK_INTERVAL				0.5f
 
 #define BUILD_TELEPORTER_DAMAGE					25		// how much damage an exploding teleporter can do
 
@@ -226,6 +234,12 @@ CObjectTeleporter::CObjectTeleporter()
 	m_flCurrentRechargeDuration = 0.0f;
 	m_flRechargeTime = 0.0f;
 
+	m_pRobotSquad = NULL;
+	m_nRobotSquadAlive = 0;
+	m_nRobotSquadSize = 0;
+	m_flRobotSquadNextArrival = -1.0f;
+	m_nRobotSquadOrder = TF_ROBOT_SQUAD_ORDER_ATTACK;
+
 	ListenForGameEvent( "player_spawn" );
 	ListenForGameEvent( "player_team" );
 }
@@ -266,6 +280,13 @@ void CObjectTeleporter::Spawn()
 //-----------------------------------------------------------------------------
 void CObjectTeleporter::UpdateOnRemove()
 {
+	if ( m_pRobotSquad )
+	{
+		m_pRobotSquad->OnFactoryRemoved();
+		delete m_pRobotSquad;
+		m_pRobotSquad = NULL;
+	}
+
 	if ( GetTeamNumber() == TF_TEAM_PVE_INVADERS )
 	{
 		TFObjectiveResource()->DecrementTeleporterCount();
@@ -432,6 +453,17 @@ void CObjectTeleporter::OnGoActive( void )
 
 	BaseClass::OnGoActive();
 
+	// exits double as robot factories - the squad survives being picked up and redeployed
+	if ( !m_pRobotSquad && CTFRobotSquad::IsEligibleFactory( this ) )
+	{
+		m_pRobotSquad = new CTFRobotSquad( this );
+	}
+
+	if ( m_pRobotSquad )
+	{
+		SetContextThink( &CObjectTeleporter::RobotSquadThink, gpGlobals->curtime + ROBOT_SQUAD_THINK_INTERVAL, ROBOT_SQUAD_THINK_CONTEXT );
+	}
+
 	SetPlaybackRate( 0.0f );
 	m_flLastStateChangeTime = 0.0f;	// used as a flag to initialize the playback rate to 0 in the first DeterminePlaybackRate
 
@@ -482,6 +514,7 @@ void CObjectTeleporter::Precache()
 	PrecacheScriptSound( "Building_Teleporter.SpinLevel1" );
 	PrecacheScriptSound( "Building_Teleporter.SpinLevel2" );
 	PrecacheScriptSound( "Building_Teleporter.SpinLevel3" );
+	PrecacheScriptSound( "MVM.Robot_Teleporter_Deliver" );
 
 	PrecacheParticleSystem( "teleporter_red_charged" );
 	PrecacheParticleSystem( "teleporter_blue_charged" );
@@ -1526,4 +1559,34 @@ void CObjectTeleporter::FireGameEvent( IGameEvent *event )
 			SetTeleportingPlayer( NULL );
 		}
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Run our robot squad, and network its status for the builder's HUD
+//-----------------------------------------------------------------------------
+void CObjectTeleporter::RobotSquadThink( void )
+{
+	if ( !m_pRobotSquad )
+		return;
+
+	m_pRobotSquad->Update();
+
+	m_nRobotSquadAlive = m_pRobotSquad->GetAliveCount();
+	m_nRobotSquadSize = m_pRobotSquad->GetSize();
+	m_flRobotSquadNextArrival = m_pRobotSquad->GetNextArrivalTime();
+	m_nRobotSquadOrder = m_pRobotSquad->GetOrder();
+
+	SetContextThink( &CObjectTeleporter::RobotSquadThink, gpGlobals->curtime + ROBOT_SQUAD_THINK_INTERVAL, ROBOT_SQUAD_THINK_CONTEXT );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CObjectTeleporter::SetRobotSquadOrder( int nOrder )
+{
+	if ( !m_pRobotSquad )
+		return;
+
+	m_pRobotSquad->SetOrder( nOrder );
+	m_nRobotSquadOrder = m_pRobotSquad->GetOrder();
 }

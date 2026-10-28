@@ -72,6 +72,7 @@
 	#include "nav_mesh/tf_nav_area.h"
 	#include "bot/tf_bot.h"
 	#include "bot/tf_bot_manager.h"
+	#include "bot/tf_bot_robot_squad.h"
 	#include "bot/map_entities/tf_bot_roster.h"
 	#include "econ_gcmessages.h"
 	#include "vgui/ILocalize.h"
@@ -913,6 +914,9 @@ ConVar tf_raid_allow_overtime( "tf_raid_allow_overtime", "0"/*, FCVAR_CHEAT*/ );
 ConVar tf_mvm_defenders_team_size( "tf_mvm_defenders_team_size", "6", FCVAR_REPLICATED | FCVAR_NOTIFY, "Maximum number of defenders in MvM" );
 ConVar tf_mvm_max_connected_players( "tf_mvm_max_connected_players", "10", FCVAR_GAMEDLL, "Maximum number of connected real players in MvM" );
 ConVar tf_mvm_max_invaders( "tf_mvm_max_invaders", "22", FCVAR_GAMEDLL, "Maximum number of invaders in MvM" );
+
+// client needs this so right-clicking the build PDA predicts opening the robot factory menu
+ConVar tf_robot_squad_enabled( "tf_robot_squad_enabled", "0", FCVAR_REPLICATED | FCVAR_NOTIFY, "Engineer teleporter exits summon a robot squad for their team (outside of MvM). Set before the map loads so robot assets get precached." );
 
 ConVar tf_mvm_min_players_to_start( "tf_mvm_min_players_to_start", "3", FCVAR_REPLICATED | FCVAR_NOTIFY, "Minimum number of players connected to start a countdown timer" );
 ConVar tf_mvm_respec_enabled( "tf_mvm_respec_enabled", "1", FCVAR_CHEAT | FCVAR_REPLICATED, "Allow players to refund credits spent on player and item upgrades." );
@@ -2244,6 +2248,32 @@ bool CTFGameRules::CanPlayerUseRespec( CTFPlayer *pTFPlayer )
 bool CTFGameRules::IsCommunityGameMode( void ) const
 {
 	return tf_gamemode_community.GetBool();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Engineer-summoned robots shouldn't keep humans off their team
+//-----------------------------------------------------------------------------
+int CTFGameRules::GetTeamNumPlayersForBalance( int iTeam )
+{
+#ifdef CLIENT_DLL
+	C_TFTeam *pTeam = GetGlobalTFTeam( iTeam );
+#else
+	CTFTeam *pTeam = GetGlobalTFTeam( iTeam );
+#endif
+	if ( !pTeam )
+		return 0;
+
+	int nCount = 0;
+	for ( int i = 0; i < pTeam->GetNumPlayers(); ++i )
+	{
+		CTFPlayer *pPlayer = ToTFPlayer( pTeam->GetPlayer( i ) );
+		if ( pPlayer && pPlayer->GetSummonedType() != TF_SUMMONED_NONE )
+			continue;
+
+		++nCount;
+	}
+
+	return nCount;
 }
 
 bool CTFGameRules::IsCompetitiveMode( void ) const
@@ -3595,9 +3625,16 @@ void CTFGameRules::Precache( void )
 		CMerasmus::PrecacheMerasmus();
 	}
 
-	if ( MapHasPrefix( STRING( gpGlobals->mapname ), "mvm_" ) )
+	// Engineer robot squads use the MvM robots and their sounds on any map
+	if ( MapHasPrefix( STRING( gpGlobals->mapname ), "mvm_" ) || tf_robot_squad_enabled.GetBool() )
 	{
 		CTFPlayer::PrecacheMvM();
+	}
+
+	// and any custom models their squads use
+	if ( tf_robot_squad_enabled.GetBool() && !MapHasPrefix( STRING( gpGlobals->mapname ), "mvm_" ) )
+	{
+		TheRobotSquadTemplates().PrecacheModels();
 	}
 
 	CTFPlayer::m_bTFPlayerNeedsPrecache = true;
@@ -10263,6 +10300,25 @@ VoiceCommandMenuItem_t *CTFGameRules::VoiceCommand( CBaseMultiplayerPlayer *pPla
 				}
 			}
 		}
+
+#ifdef GAME_DLL
+		// Engineers order their robot squad: "Go Go Go!", "Teleporter Here!", "Move Up!"
+		if ( pTFPlayer && pTFPlayer->IsPlayerClass( TF_CLASS_ENGINEER ) )
+		{
+			if ( iMenu == 0 && iItem == 2 )
+			{
+				TFRobotSquad_OrderSquad( pTFPlayer, TF_ROBOT_SQUAD_ORDER_ATTACK );
+			}
+			else if ( iMenu == 1 && iItem == 3 )
+			{
+				TFRobotSquad_OrderSquad( pTFPlayer, TF_ROBOT_SQUAD_ORDER_DEFEND );
+			}
+			else if ( iMenu == 0 && iItem == 3 )
+			{
+				TFRobotSquad_OrderSquad( pTFPlayer, TF_ROBOT_SQUAD_ORDER_FOLLOW );
+			}
+		}
+#endif // GAME_DLL
 	}
 
 	return pItem;

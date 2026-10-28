@@ -80,6 +80,7 @@
 #include "tf_weapon_shovel.h"
 #include "bot/tf_bot.h"
 #include "bot/tf_bot_manager.h"
+#include "bot/tf_bot_robot_squad.h"
 #include "NextBotUtil.h"
 #include "tf_wearable_weapons.h"
 #include "tier0/icommandline.h"
@@ -785,6 +786,7 @@ IMPLEMENT_SERVERCLASS_ST( CTFPlayer, DT_TFPlayer )
 
 	SendPropBool(SENDINFO(m_bSaveMeParity)),
 	SendPropBool(SENDINFO(m_bIsMiniBoss)),
+	SendPropInt( SENDINFO(m_nSummonedType), 2, SPROP_UNSIGNED ),
 	SendPropBool(SENDINFO(m_bIsABot)),
 	SendPropInt( SENDINFO(m_nBotSkill), 3, SPROP_UNSIGNED ),
 
@@ -1078,6 +1080,7 @@ CTFPlayer::CTFPlayer()
 	m_flSapStartTime = 0.00;
 
 	m_bIsMiniBoss = false;
+	m_nSummonedType = TF_SUMMONED_NONE;
 
 	m_bUseBossHealthBar = false;
 
@@ -6087,6 +6090,10 @@ int CTFPlayer::GetAutoTeam( int nPreferedTeam /*= TF_TEAM_AUTOASSIGN*/ )
 			}
 		}
 
+		// same counts the team balance check uses, so we never pick a team it would refuse
+		int nBlueCount = TFGameRules() ? TFGameRules()->GetTeamNumPlayersForBalance( TF_TEAM_BLUE ) : pBlue->GetNumPlayers();
+		int nRedCount = TFGameRules() ? TFGameRules()->GetTeamNumPlayersForBalance( TF_TEAM_RED ) : pRed->GetNumPlayers();
+
 		CTFBot *pPlayerBot = dynamic_cast<CTFBot*>( this );
 		if ( FStrEq( tf_bot_quota_mode.GetString(), "fill" ) && ( tf_bot_quota.GetInt() > 0 ) && !( pPlayerBot && pPlayerBot->HasAttribute( CTFBot::QUOTA_MANANGED ) ) )
 		{
@@ -6147,14 +6154,14 @@ int CTFPlayer::GetAutoTeam( int nPreferedTeam /*= TF_TEAM_AUTOASSIGN*/ )
 			// Now we have a team we want to join to balance the human players, can we join it?
 			if ( iTeam == TF_TEAM_RED )
 			{
-				if ( pBlue->GetNumPlayers() < pRed->GetNumPlayers() )
+				if ( nBlueCount < nRedCount )
 				{
 					bKick = true;
 				}
 			}
 			else
 			{
-				if ( pRed->GetNumPlayers() < pBlue->GetNumPlayers() )
+				if ( nRedCount < nBlueCount )
 				{
 					bKick = true;
 				}
@@ -6168,11 +6175,11 @@ int CTFPlayer::GetAutoTeam( int nPreferedTeam /*= TF_TEAM_AUTOASSIGN*/ )
 			// If kick needed but failed, fall through to default logic
 		}
 
-		if ( pBlue->GetNumPlayers() < pRed->GetNumPlayers() )
+		if ( nBlueCount < nRedCount )
 		{
 			iTeam = TF_TEAM_BLUE;
 		}
-		else if ( pRed->GetNumPlayers() < pBlue->GetNumPlayers() )
+		else if ( nRedCount < nBlueCount )
 		{
 			iTeam = TF_TEAM_RED;
 		}
@@ -7197,6 +7204,10 @@ bool CTFPlayer::ClientCommand( const CCommand &args )
 	const char *pcmd = args[0];
 	
 	m_flLastAction = gpGlobals->curtime;
+
+	// picks from the robot factory menu - anything else is left for other menus
+	if ( FStrEq( pcmd, "menuselect" ) && args.ArgC() >= 2 && TFRobotSquad_HandleMenuSelect( this, atoi( args[1] ) ) )
+		return true;
 
 	if ( FStrEq( pcmd, "addcond" ) )
 	{
@@ -10848,7 +10859,7 @@ int CTFPlayer::OnTakeDamage_Alive( const CTakeDamageInfo &info )
 			vDamagePos = WorldSpaceCenter();
 		}
 
-		if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() == TF_TEAM_PVE_INVADERS )
+		if ( IsRobotPresentation() )
 		{
 			if ( ( IsMiniBoss() && static_cast< float >( GetHealth() ) / GetMaxHealth() > 0.3f ) || realDamage < 50 )
 			{
@@ -15281,7 +15292,7 @@ void CTFPlayer::DeathSound( const CTakeDamageInfo &info )
 
 	int nDeathSoundOffset = DEATH_SOUND_FIRST;
 
-	if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() == TF_TEAM_PVE_INVADERS )
+	if ( IsRobotPresentation() )
 	{
 		nDeathSoundOffset = IsMiniBoss() ? DEATH_SOUND_GIANT_MVM_FIRST : DEATH_SOUND_MVM_FIRST;
 	}
@@ -15318,7 +15329,7 @@ void CTFPlayer::DeathSound( const CTakeDamageInfo &info )
 	}
 
 	// Play an additional sound when we're in MvM and have a boss death
-	if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() && IsMiniBoss() )
+	if ( ( ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() ) || IsRobotPresentation() ) && IsMiniBoss() )
 	{
 		switch ( GetPlayerClass()->GetClassIndex() )
 		{
@@ -15340,7 +15351,7 @@ void CTFPlayer::DeathSound( const CTakeDamageInfo &info )
 //-----------------------------------------------------------------------------
 const char* CTFPlayer::GetSceneSoundToken( void )
 {
-	if ( TFGameRules() && TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() == TF_TEAM_PVE_INVADERS )
+	if ( IsRobotPresentation() )
 	{
 		if ( IsMiniBoss() )
 		{

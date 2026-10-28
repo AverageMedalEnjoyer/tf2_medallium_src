@@ -15,8 +15,9 @@
 #include "GameEventListener.h"
 
 class CTFPlayer;
+class CTFRobotSquad;
 
-enum 
+enum
 {
 	TTYPE_NONE=0,
 	TTYPE_ENTRANCE,
@@ -129,6 +130,11 @@ public:
 
 	virtual void FireGameEvent( IGameEvent *event ) OVERRIDE;
 
+	// Engineer robot squads - exits summon a squad for their team
+	CTFRobotSquad *GetRobotSquad( void ) const { return m_pRobotSquad; }
+	void SetRobotSquadOrder( int nOrder );
+	void RobotSquadThink( void );
+
 protected:
 	CNetworkVar( int, m_iState );
 	CNetworkVar( float, m_flRechargeTime );
@@ -136,6 +142,12 @@ protected:
 	CNetworkVar( int, m_iTimesUsed );
 	CNetworkVar( float, m_flYawToExit );
 	CNetworkVar( bool, m_bMatchBuilding );
+
+	CTFRobotSquad *m_pRobotSquad;
+	CNetworkVar( int, m_nRobotSquadAlive );
+	CNetworkVar( int, m_nRobotSquadSize );
+	CNetworkVar( float, m_flRobotSquadNextArrival );	// < 0 while nobody is on the way
+	CNetworkVar( int, m_nRobotSquadOrder );
 
 	CHandle<CObjectTeleporter> m_hMatchingTeleporter;
 

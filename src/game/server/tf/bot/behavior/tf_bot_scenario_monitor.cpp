@@ -97,6 +97,32 @@ Action< CTFBot > *CTFBotScenarioMonitor::DesiredScenarioAndClassAction( CTFBot *
     if ( TFGameRules() && TFGameRules()->IsPasstimeMode() && me->m_Shared.HasPasstimeBall() )
 		return new CTFBotGetPasstimeJack;
 
+	// Engineer robot squads - fighting classes obey their engineer's orders.
+	// Medics, Engineers, rifle Snipers and Spies always do their own job.
+	if ( me->IsSummonedRobot() &&
+		 !me->IsPlayerClass( TF_CLASS_MEDIC ) && !me->IsPlayerClass( TF_CLASS_ENGINEER ) &&
+		 ( !me->IsPlayerClass( TF_CLASS_SNIPER ) || me->IsHuntsmanSniper() ) && !me->IsPlayerClass( TF_CLASS_SPY ) )
+	{
+		switch( me->GetRobotSquadOrder() )
+		{
+		case TF_ROBOT_SQUAD_ORDER_DEFEND:
+			if ( me->GetRobotFactory() )
+			{
+				return new CTFBotEscort( me->GetRobotFactory() );
+			}
+			break;
+
+		case TF_ROBOT_SQUAD_ORDER_FOLLOW:
+			if ( me->GetSummoner() && me->GetSummoner()->IsAlive() )
+			{
+				return new CTFBotEscort( me->GetSummoner() );
+			}
+			break;
+		}
+
+		// ATTACK, or nothing left to escort - play the objective
+	}
+
 	switch( me->GetMission() )
 	{
 	case CTFBot::MISSION_SEEK_AND_DESTROY:
@@ -280,7 +306,8 @@ Action< CTFBot > *CTFBotScenarioMonitor::DesiredScenarioAndClassAction( CTFBot *
 
 	if ( !TheTFBots().IsMeleeOnly() )
 	{
-		if ( me->IsPlayerClass( TF_CLASS_SNIPER ) )
+		// Huntsman snipers fight up close like everyone else
+		if ( me->IsPlayerClass( TF_CLASS_SNIPER ) && !me->IsHuntsmanSniper() )
 		{
 			return new CTFBotSniperLurk;
 		}

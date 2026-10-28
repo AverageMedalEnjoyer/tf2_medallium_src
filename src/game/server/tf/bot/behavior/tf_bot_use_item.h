@@ -9,7 +9,7 @@
 class CTFBotUseItem : public Action< CTFBot >
 {
 public:
-	CTFBotUseItem( CTFWeaponBase *item );
+	CTFBotUseItem( CTFWeaponBase *item, CBaseEntity *target = NULL );	// target: who to throw it at
 	virtual ~CTFBotUseItem() { }
 
 	virtual ActionResult< CTFBot >	OnStart( CTFBot *me, Action< CTFBot > *priorAction );
@@ -20,7 +20,10 @@ public:
 
 private:
 	CHandle< CTFWeaponBase > m_item;
+	EHANDLE m_target;
+	bool m_bHasTarget;
 	CountdownTimer m_cooldownTimer;
+	CountdownTimer m_aimTimer;			// throw anyway if we can't line it up in time
 };
 
 

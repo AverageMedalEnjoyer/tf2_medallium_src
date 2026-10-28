@@ -12147,7 +12147,7 @@ void CTFPlayer::SetStepSoundTime( stepsoundtimes_t iStepSoundTime, bool bWalking
 const char *CTFPlayer::GetOverrideStepSound( const char *pszBaseStepSoundName )
 {
 
-	if( TFGameRules() && TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() == TF_TEAM_PVE_INVADERS && !IsMiniBoss() && !m_Shared.InCond( TF_COND_DISGUISED ) )
+	if( IsRobotPresentation() && !IsMiniBoss() && !m_Shared.InCond( TF_COND_DISGUISED ) )
 	{
 		return "MVM.BotStep";
 	}
@@ -13129,6 +13129,22 @@ int	CTFPlayer::GetMaxAmmo( int iAmmoIndex, int iClassIndex /*= -1*/ )
 bool CTFPlayer::IsMiniBoss( void ) const
 {
 	return m_bIsMiniBoss;
+}
+
+int CTFPlayer::GetSummonedType( void ) const
+{
+	return m_nSummonedType;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: MvM invaders and Engineer-summoned robots use robot sounds and effects
+//-----------------------------------------------------------------------------
+bool CTFPlayer::IsRobotPresentation( void ) const
+{
+	if ( m_nSummonedType == TF_SUMMONED_ROBOT )
+		return true;
+
+	return TFGameRules() && TFGameRules()->IsMannVsMachineMode() && GetTeamNumber() == TF_TEAM_PVE_INVADERS;
 }
 
 //-----------------------------------------------------------------------------

@@ -89,6 +89,7 @@ public:
 
 	virtual const char *GetPanelName() { return ""; }
 	virtual int		GetWeaponID( void ) const { return TF_WEAPON_PDA_ENGINEER_BUILD; }
+	virtual void	SecondaryAttack( void ) OVERRIDE;
 #ifdef CLIENT_DLL
 	virtual CHudBaseBuildMenu *GetBuildMenu() const OVERRIDE;
 #endif

@@ -751,6 +751,8 @@ $Project "Server (TF)"
 				$File	"tf\bot\tf_bot_body.h"
 				$File	"tf\bot\tf_bot_squad.cpp"
 				$File	"tf\bot\tf_bot_squad.h"
+				$File	"tf\bot\tf_bot_robot_squad.cpp"
+				$File	"tf\bot\tf_bot_robot_squad.h"
 				$File	"tf\bot\tf_bot_locomotion.cpp"
 				$File	"tf\bot\tf_bot_locomotion.h"
 			}

@@ -19,6 +19,7 @@
 #if !defined( CLIENT_DLL )
 	#include "tf_player.h"
 	#include "vguiscreen.h"
+	#include "bot/tf_bot_robot_squad.h"
 // Client specific.
 #else
 	#include "c_tf_player.h"
@@ -208,6 +209,36 @@ END_PREDICTION_DATA()
 
 LINK_ENTITY_TO_CLASS( tf_weapon_pda_engineer_build, CTFWeaponPDA_Engineer_Build );
 PRECACHE_WEAPON_REGISTER( tf_weapon_pda_engineer_build );
+
+//-----------------------------------------------------------------------------
+// Purpose: With robot squads on, right-click opens the robot factory menu
+//-----------------------------------------------------------------------------
+void CTFWeaponPDA_Engineer_Build::SecondaryAttack( void )
+{
+	if ( !tf_robot_squad_enabled.GetBool() || !TFGameRules() || TFGameRules()->IsMannVsMachineMode() )
+	{
+		BaseClass::SecondaryAttack();
+		return;
+	}
+
+	// semi-auto behaviour
+	if ( m_bInAttack2 )
+		return;
+
+	CTFPlayer *pPlayer = ToTFPlayer( GetPlayerOwner() );
+	if ( !pPlayer )
+		return;
+
+	m_bInAttack2 = true;
+	m_flNextSecondaryAttack = gpGlobals->curtime + 0.5;
+
+#ifdef GAME_DLL
+	TFRobotSquad_OpenMenu( pPlayer );
+#endif
+
+	// put the PDA away so the number keys go to the factory menu, not the build menu
+	pPlayer->SelectLastItem();
+}
 
 #ifdef CLIENT_DLL
 CHudBaseBuildMenu *CTFWeaponPDA_Engineer_Build::GetBuildMenu() const

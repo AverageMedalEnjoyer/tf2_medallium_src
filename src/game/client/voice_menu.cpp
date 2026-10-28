@@ -16,6 +16,7 @@
 #endif // TF_CLIENT_DLL
 
 static int g_ActiveVoiceMenu = 0;
+static int g_nVoiceMenuServerMenuCount = 0;	// CHudMenu::GetServerMenuCount() when the voice menu opened
 
 #if defined( TF_CLIENT_DLL )
 extern ConVar tf_voice_command_suspension_mode;
@@ -80,6 +81,7 @@ void OpenVoiceMenu( int index )
 		pKV->deleteThis();
 
 		g_ActiveVoiceMenu = index;
+		g_nVoiceMenuServerMenuCount = pMenu->GetServerMenuCount();
 	}
 	else
 	{
@@ -110,6 +112,13 @@ CON_COMMAND( menuselect, "menuselect" )
 {
 	if ( args.ArgC() < 2 )
 		return;
+
+	// a server menu replaced the voice menu, so this pick is for the server
+	CHudMenu *pMenu = (CHudMenu *) gHUD.FindElement( "CHudMenu" );
+	if ( pMenu && pMenu->GetServerMenuCount() != g_nVoiceMenuServerMenuCount )
+	{
+		g_ActiveVoiceMenu = 0;
+	}
 
 	if( g_ActiveVoiceMenu == 0 )
 	{

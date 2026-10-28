@@ -58,6 +58,7 @@ CHudMenu::CHudMenu( const char *pElementName ) :
 	CHudElement( pElementName ), BaseClass(NULL, "HudMenu")
 {
 	m_nSelectedItem = -1;
+	m_nServerMenuCount = 0;
 
 	vgui::Panel *pParent = g_pClientMode->GetViewport();
 	SetParent( pParent );
@@ -480,6 +481,7 @@ void CHudMenu::MsgFunc_ShowMenu( bf_read &msg)
 
 		if ( !m_fWaitingForMore ) // this is the start of a new menu
 		{
+			++m_nServerMenuCount;
 			Q_strncpy( g_szPrelocalisedMenuString, szString, sizeof( g_szPrelocalisedMenuString ) );
 		}
 		else

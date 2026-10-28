@@ -35,6 +35,7 @@ private:
 	CountdownTimer m_changePatientTimer;
 
 	CountdownTimer m_delayUberTimer;
+	CountdownTimer m_resistSwitchTimer;		// Vaccinator - don't flip resists every think
 
 	CHandle< CTFPlayer > m_patient;
 	Vector m_patientAnchorPos;							// a spot where the patient was, to track if they are moving

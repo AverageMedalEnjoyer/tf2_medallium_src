@@ -574,6 +574,7 @@ private:
 public:
 	bool WouldChangeUnbalanceTeams( int iNewTeam, int iCurrentTeam  );
 	bool AreTeamsUnbalanced( int &iHeaviestTeam, int &iLightestTeam );
+	virtual int GetTeamNumPlayersForBalance( int iTeam );	// players that count toward team balance
 	virtual bool HaveCheatsBeenEnabledDuringLevel( void ) { return m_bCheatsEnabledDuringLevel; }
 
 	float GetPreroundCountdownTime( void ){ return m_flCountdownTime; }

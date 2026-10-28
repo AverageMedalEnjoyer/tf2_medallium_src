@@ -291,12 +291,16 @@ class CBuildingStatusItem_TeleporterExit : public CBuildingStatusItem
 
 public:
 	CBuildingStatusItem_TeleporterExit( Panel *parent );
+	virtual void ApplySchemeSettings( vgui::IScheme *pScheme );
+	virtual void OnTick( void );
 	virtual void PerformLayout( void );
 
 private:
 
 	CIconPanel *m_pUpgradeIcon;
 	vgui::ContinuousProgressBar *m_pUpgradeProgress;
+
+	vgui::Label *m_pRobotSquadLabel;		// Engineer robot squad status
 };
 
 
